@@ -104,21 +104,26 @@ export default function UpdateOrderStatus({
       notes:      notes || null,
     })
 
-    // Notify customer
-    await supabase.from('notifications').insert({
-      user_id:  customerId,
-      type:     'order_update',
-      title:    `Order #${orderId} — ${STATUS_LABELS[newStatus] ?? newStatus}`,
-      message:  STATUS_MESSAGES[newStatus] ?? `Your order status changed to ${newStatus}.`,
-      order_id: orderId,
-    })
+    if (newStatus === 'completed') {
+      // Clear all outstanding notifications for this order for everyone — order is done
+      await supabase.from('notifications').delete().eq('order_id', orderId)
+    } else {
+      // Notify customer of status change
+      await supabase.from('notifications').insert({
+        user_id:  customerId,
+        type:     'order_update',
+        title:    `Order #${orderId} — ${STATUS_LABELS[newStatus] ?? newStatus}`,
+        message:  STATUS_MESSAGES[newStatus] ?? `Your order status changed to ${newStatus}.`,
+        order_id: orderId,
+      })
 
-    // Notify all staff
-    await supabase.rpc('notify_all_staff', {
-      p_order_id: orderId,
-      p_title:    `Order #${orderId} → ${STATUS_LABELS[newStatus] ?? newStatus}`,
-      p_message:  `Status changed from ${STATUS_LABELS[currentStatus] ?? currentStatus} to ${STATUS_LABELS[newStatus] ?? newStatus}.${notes ? ` Note: ${notes}` : ''}`,
-    })
+      // Notify all staff
+      await supabase.rpc('notify_all_staff', {
+        p_order_id: orderId,
+        p_title:    `Order #${orderId} → ${STATUS_LABELS[newStatus] ?? newStatus}`,
+        p_message:  `Status changed from ${STATUS_LABELS[currentStatus] ?? currentStatus} to ${STATUS_LABELS[newStatus] ?? newStatus}.${notes ? ` Note: ${notes}` : ''}`,
+      })
+    }
 
     toast.success(`Order updated to: ${STATUS_LABELS[newStatus] ?? newStatus}`)
     setNotes('')

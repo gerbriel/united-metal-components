@@ -8,6 +8,7 @@ import type { Metadata } from 'next'
 import OrderRealtimeStatus from '@/components/shared/OrderRealtimeStatus'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import StagingProgress from '@/components/shared/StagingProgress'
+import TbdScreenProtection from '@/components/shared/TbdScreenProtection'
 import { ORDER_STATUS_LABEL, ORDER_STATUS_FLOW } from '@/types/database'
 
 interface Props { params: Promise<{ id: string }> }
@@ -39,7 +40,8 @@ export default async function OrderDetailPage({ params }: Props) {
   ])
 
   if (!order) notFound()
-  if ((profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd' && order.status === 'completed') notFound()
+  const isTbd = (profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
+  if (isTbd && order.status === 'completed') notFound()
 
   const { data: history } = await supabase
     .from('order_status_history')
@@ -67,7 +69,8 @@ export default async function OrderDetailPage({ params }: Props) {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={isTbd ? { userSelect: 'none' } : undefined}>
+      {isTbd && <TbdScreenProtection email={user.email ?? ''} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Order #{order.id}</h1>

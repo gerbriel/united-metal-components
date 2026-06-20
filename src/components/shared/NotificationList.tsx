@@ -45,26 +45,31 @@ export default function NotificationList({ userId, initialNotifications }: Props
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
-  const markRead = async (id: number) => {
-    setItems((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n))
-    await supabase.from('notifications').update({ read: true }).eq('id', id)
+  const dismiss = async (id: number) => {
+    setItems((prev) => prev.filter((n) => n.id !== id))
+    await supabase.from('notifications').delete().eq('id', id)
   }
 
-  const markAllRead = async () => {
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })))
-    await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+  const clearAll = async () => {
+    setItems([])
+    await supabase.from('notifications').delete().eq('user_id', userId)
   }
 
-  const unreadCount = items.filter((n) => !n.read).length
+  if (items.length === 0) {
+    return (
+      <div className="p-8 text-center text-muted-foreground border rounded-lg bg-white">
+        <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        <p>No notifications</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
-      {unreadCount > 0 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">{unreadCount} unread</p>
-          <Button variant="outline" size="sm" onClick={markAllRead}>Mark all read</Button>
-        </div>
-      )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{items.length} notification{items.length !== 1 ? 's' : ''}</p>
+        <Button variant="outline" size="sm" onClick={clearAll}>Clear all</Button>
+      </div>
 
       {items.map((n) => (
         <div
@@ -81,39 +86,24 @@ export default function NotificationList({ userId, initialNotifications }: Props
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <p className="font-medium text-sm">{n.title}</p>
-              <div className="flex items-center gap-2 shrink-0">
-                {!n.read && (
-                  <>
-                    <span className="w-2 h-2 bg-primary rounded-full" />
-                    <button
-                      onClick={() => markRead(n.id)}
-                      title="Mark as read"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                )}
-              </div>
+              <button
+                onClick={() => dismiss(n.id)}
+                title="Dismiss"
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">{n.message}</p>
             <p className="text-xs text-muted-foreground mt-1">{new Date(n.created_at).toLocaleString()}</p>
             {n.order_id && (
               <Link
                 href={`/account/orders/${n.order_id}`}
-                onClick={() => markRead(n.id)}
+                onClick={() => dismiss(n.id)}
                 className="text-xs text-primary hover:underline mt-1 inline-block"
               >
                 View Order #{n.order_id} →
               </Link>
-            )}
-            {!n.read && !n.order_id && (
-              <button
-                onClick={() => markRead(n.id)}
-                className="text-xs text-muted-foreground hover:text-foreground mt-1 block"
-              >
-                Dismiss
-              </button>
             )}
           </div>
         </div>
