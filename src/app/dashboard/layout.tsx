@@ -1,17 +1,19 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2, Bell, LogOut } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
+import NotificationBell from '@/components/shared/NotificationBell'
+import type { EmployeeRole } from '@/types/database'
 
-const navItems = [
-  { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/orders', label: 'Orders', icon: ClipboardList },
-  { href: '/dashboard/inventory', label: 'Inventory', icon: Package },
-  { href: '/dashboard/crm', label: 'CRM', icon: Users },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/dashboard/newsletter', label: 'Newsletter', icon: Mail },
-  { href: '/dashboard/social', label: 'Social Posts', icon: Share2 },
+const ALL_NAV = [
+  { href: '/dashboard',            label: 'Overview',     icon: LayoutDashboard, warehouseOk: false },
+  { href: '/dashboard/orders',     label: 'Orders',       icon: ClipboardList,   warehouseOk: true  },
+  { href: '/dashboard/inventory',  label: 'Inventory',    icon: Package,         warehouseOk: true  },
+  { href: '/dashboard/crm',        label: 'CRM',          icon: Users,           warehouseOk: false },
+  { href: '/dashboard/analytics',  label: 'Analytics',    icon: BarChart3,       warehouseOk: false },
+  { href: '/dashboard/newsletter', label: 'Newsletter',   icon: Mail,            warehouseOk: false },
+  { href: '/dashboard/social',     label: 'Social Posts', icon: Share2,          warehouseOk: false },
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -19,8 +21,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, employee_role, first_name, last_name, full_name')
+    .eq('id', user.id)
+    .single()
+
   if (!profile || !['employee', 'admin'].includes(profile.role)) redirect('/')
+
+  const empRole = (profile as any).employee_role as EmployeeRole | null
+  const isWarehouse = empRole === 'warehouse'
+  const isAdmin = profile.role === 'admin'
+
+  const displayName = (profile as any).first_name && (profile as any).last_name
+    ? `${(profile as any).first_name} ${(profile as any).last_name}`
+    : (profile as any).full_name ?? 'Employee'
+
+  const navItems = ALL_NAV.filter((item) => isAdmin || !isWarehouse || item.warehouseOk)
+
+  const roleLabel = isAdmin ? 'Admin' : isWarehouse ? 'Warehouse' : 'Office'
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
@@ -48,9 +67,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </nav>
 
         <div className="p-3 border-t border-sidebar-border">
-          <div className="px-3 py-2 mb-1">
-            <p className="text-xs font-medium text-sidebar-foreground">{profile.full_name}</p>
-            <p className="text-xs text-sidebar-foreground/50 capitalize">{profile.role}</p>
+          <div className="flex items-center justify-between px-3 py-2 mb-1">
+            <div>
+              <p className="text-xs font-medium text-sidebar-foreground">{displayName}</p>
+              <p className="text-xs text-sidebar-foreground/50">{roleLabel}</p>
+            </div>
+            <NotificationBell
+              href="/account/notifications"
+              className="text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+              iconClassName="w-4 h-4"
+            />
           </div>
           <DashboardSignOut />
         </div>

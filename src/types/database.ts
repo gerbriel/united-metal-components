@@ -1,5 +1,14 @@
 export type UserRole = 'customer' | 'employee' | 'admin'
-export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'ready' | 'completed' | 'cancelled'
+export type EmployeeRole = 'office' | 'warehouse'
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'ready_for_pickup'
+  | 'loading'
+  | 'completed'
+  | 'cancelled'
+  | 'ready' // legacy — treated as ready_for_pickup in UI
 export type NotificationType = 'order_update' | 'newsletter' | 'system'
 export type SubscriberStatus = 'active' | 'unsubscribed'
 export type CampaignStatus = 'draft' | 'scheduled' | 'sent'
@@ -12,9 +21,15 @@ export interface Database {
         Row: {
           id: string
           role: UserRole
+          employee_role: EmployeeRole | null
+          first_name: string | null
+          last_name: string | null
           full_name: string | null
           phone: string | null
           company: string | null
+          company_name: string | null
+          mailing_address: string | null
+          business_address: string | null
           address: string | null
           city: string | null
           state: string | null
@@ -63,6 +78,7 @@ export interface Database {
           shipping_phone: string | null
           shipping_addr: string | null
           notes: string | null
+          customer_no_defects_at: string | null
           created_at: string
           updated_at: string
         }
@@ -107,6 +123,31 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['notifications']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>
+      }
+      order_item_staging: {
+        Row: {
+          id: number
+          order_id: number
+          order_item_id: number
+          staged_by: string | null
+          staged_at: string
+          notes: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['order_item_staging']['Row'], 'id' | 'staged_at'>
+        Update: Partial<Database['public']['Tables']['order_item_staging']['Insert']>
+      }
+      order_item_loading: {
+        Row: {
+          id: number
+          order_id: number
+          order_item_id: number
+          employee_confirmed_at: string | null
+          employee_confirmed_by: string | null
+          customer_confirmed_at: string | null
+          customer_confirmed_by: string | null
+        }
+        Insert: Omit<Database['public']['Tables']['order_item_loading']['Row'], 'id'>
+        Update: Partial<Database['public']['Tables']['order_item_loading']['Insert']>
       }
       inventory_log: {
         Row: {
@@ -193,6 +234,7 @@ export interface Database {
     Functions: Record<string, never>
     Enums: {
       user_role: UserRole
+      employee_role: EmployeeRole
       order_status: OrderStatus
       notification_type: NotificationType
       subscriber_status: SubscriberStatus
@@ -210,8 +252,31 @@ export type Order = Database['public']['Tables']['orders']['Row']
 export type OrderItem = Database['public']['Tables']['order_items']['Row']
 export type OrderStatusHistory = Database['public']['Tables']['order_status_history']['Row']
 export type Notification = Database['public']['Tables']['notifications']['Row']
+export type OrderItemStaging = Database['public']['Tables']['order_item_staging']['Row']
+export type OrderItemLoading = Database['public']['Tables']['order_item_loading']['Row']
 export type NewsletterSubscriber = Database['public']['Tables']['newsletter_subscribers']['Row']
 export type NewsletterCampaign = Database['public']['Tables']['newsletter_campaigns']['Row']
 export type CrmNote = Database['public']['Tables']['crm_notes']['Row']
 export type SocialPost = Database['public']['Tables']['social_posts']['Row']
 export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row']
+
+// Status display helpers
+export const ORDER_STATUS_LABEL: Record<string, string> = {
+  pending:          'Pending',
+  confirmed:        'Confirmed',
+  processing:       'Processing',
+  ready_for_pickup: 'Ready for Pickup',
+  ready:            'Ready for Pickup',
+  loading:          'Loading',
+  completed:        'Completed',
+  cancelled:        'Cancelled',
+}
+
+export const ORDER_STATUS_FLOW: OrderStatus[] = [
+  'pending',
+  'confirmed',
+  'processing',
+  'ready_for_pickup',
+  'loading',
+  'completed',
+]

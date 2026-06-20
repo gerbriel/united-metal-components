@@ -8,17 +8,34 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
 import { signupSchema } from '@/lib/validate'
 import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
 
+type FormState = {
+  firstName: string
+  lastName: string
+  companyName: string
+  mailingAddress: string
+  businessAddress: string
+  email: string
+  phone: string
+  password: string
+}
+
+const EMPTY: FormState = {
+  firstName: '', lastName: '', companyName: '',
+  mailingAddress: '', businessAddress: '',
+  email: '', phone: '', password: '',
+}
+
 export default function SignupPage() {
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '', company: '' })
+  const [form, setForm] = useState<FormState>(EMPTY)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const supabase = createClient()
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -31,11 +48,14 @@ export default function SignupPage() {
     }
 
     const clean = {
-      fullName: sanitizeText(form.fullName, 100),
-      email:    sanitizeEmail(form.email),
-      password: form.password,
-      phone:    sanitizePhone(form.phone),
-      company:  sanitizeText(form.company, 100),
+      firstName:       sanitizeText(form.firstName, 100),
+      lastName:        sanitizeText(form.lastName, 100),
+      companyName:     sanitizeText(form.companyName, 150),
+      mailingAddress:  sanitizeText(form.mailingAddress, 300),
+      businessAddress: sanitizeText(form.businessAddress, 300),
+      email:           sanitizeEmail(form.email),
+      phone:           sanitizePhone(form.phone),
+      password:        form.password,
     }
 
     setLoading(true)
@@ -43,13 +63,26 @@ export default function SignupPage() {
     const { error } = await supabase.auth.signUp({
       email: clean.email,
       password: clean.password,
-      options: { data: { full_name: clean.fullName } },
+      options: {
+        data: {
+          first_name:       clean.firstName,
+          last_name:        clean.lastName,
+          full_name:        `${clean.firstName} ${clean.lastName}`.trim(),
+          company_name:     clean.companyName,
+          phone:            clean.phone,
+        },
+      },
     })
+
     if (error) { toast.error(error.message); setLoading(false); return }
 
+    // Update extended profile fields not stored in auth metadata
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase.from('profiles').update({ phone: clean.phone, company: clean.company }).eq('id', user.id)
+      await supabase.from('profiles').update({
+        mailing_address:  clean.mailingAddress,
+        business_address: clean.businessAddress,
+      }).eq('id', user.id)
     }
 
     setDone(true)
@@ -61,7 +94,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md text-center">
         <CardContent className="pt-10 pb-8 px-8">
           <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
-            <Loader2 className="w-7 h-7 text-green-600" style={{ animation: 'none' }} />
+            <Mail className="w-7 h-7 text-green-600" />
           </div>
           <h2 className="text-xl font-bold mb-2">Check your email</h2>
           <p className="text-muted-foreground text-sm mb-2">
@@ -71,7 +104,8 @@ export default function SignupPage() {
             Click the link in the email to activate your account, then{' '}
             <a href="/login" className="text-primary underline font-medium">sign in here</a>.
           </p>
-          <p className="text-xs text-muted-foreground">Didn&apos;t get it? Check your spam folder or{' '}
+          <p className="text-xs text-muted-foreground">
+            Didn&apos;t get it? Check your spam folder or{' '}
             <button className="text-primary underline" onClick={() => setDone(false)}>try again</button>.
           </p>
         </CardContent>
@@ -80,36 +114,66 @@ export default function SignupPage() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-2xl">
       <CardHeader>
         <CardTitle>Create Account</CardTitle>
-        <CardDescription>Join to place orders and track your materials</CardDescription>
+        <CardDescription>All fields are required to complete your profile</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" placeholder="John Smith" value={form.fullName} onChange={set('fullName')} required />
+        <form onSubmit={handleSignup} className="space-y-5">
+
+          {/* Name */}
+          <fieldset>
+            <legend className="text-sm font-semibold mb-3 text-foreground">Personal Information</legend>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input id="firstName" placeholder="John" value={form.firstName} onChange={set('firstName')} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input id="lastName" placeholder="Smith" value={form.lastName} onChange={set('lastName')} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="phone">Phone *</Label>
+                <Input id="phone" type="tel" placeholder="(559) 000-0000" value={form.phone} onChange={set('phone')} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email *</Label>
+                <Input id="email" type="email" placeholder="you@company.com" value={form.email} onChange={set('email')} required />
+              </div>
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
+          </fieldset>
+
+          {/* Business */}
+          <fieldset>
+            <legend className="text-sm font-semibold mb-3 text-foreground">Business Information</legend>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="companyName">Company Name *</Label>
+                <Input id="companyName" placeholder="Smith Construction LLC" value={form.companyName} onChange={set('companyName')} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="mailingAddress">Mailing Address *</Label>
+                <Input id="mailingAddress" placeholder="123 Main St, City, CA 93700" value={form.mailingAddress} onChange={set('mailingAddress')} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="businessAddress">Business Address *</Label>
+                <Input id="businessAddress" placeholder="456 Business Blvd, City, CA 93700" value={form.businessAddress} onChange={set('businessAddress')} required />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" type="tel" placeholder="(555) 000-0000" value={form.phone} onChange={set('phone')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="company">Company</Label>
-              <Input id="company" placeholder="Optional" value={form.company} onChange={set('company')} />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="password">Password</Label>
+          </fieldset>
+
+          {/* Password */}
+          <fieldset>
+            <legend className="text-sm font-semibold mb-3 text-foreground">Account Security</legend>
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password *</Label>
               <Input id="password" type="password" placeholder="Min. 8 chars with letter + number" value={form.password} onChange={set('password')} required />
             </div>
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
+          </fieldset>
+
+          <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white border-0" disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Create Account
           </Button>

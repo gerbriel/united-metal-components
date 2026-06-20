@@ -9,65 +9,107 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import type { OrderStatus } from '@/types/database'
 
-const STATUSES: OrderStatus[] = ['pending', 'confirmed', 'processing', 'ready', 'completed', 'cancelled']
+const ALL_STATUSES: OrderStatus[] = [
+  'pending', 'confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed', 'cancelled',
+]
 
-const statusMessages: Record<OrderStatus, string> = {
-  pending:    'Your order has been received and is pending confirmation.',
-  confirmed:  'Your order has been confirmed and will be prepared shortly.',
-  processing: 'Your order is being prepared.',
-  ready:      '🎉 Your order is ready for pickup!',
-  completed:  'Your order has been completed. Thank you!',
-  cancelled:  'Your order has been cancelled.',
+const STATUS_LABELS: Record<string, string> = {
+  pending:          'Pending',
+  confirmed:        'Confirmed',
+  processing:       'Processing',
+  ready_for_pickup: 'Ready for Pickup',
+  loading:          'Loading',
+  completed:        'Completed',
+  cancelled:        'Cancelled',
+}
+
+const STATUS_MESSAGES: Record<string, string> = {
+  pending:          'Your order has been received and is pending confirmation.',
+  confirmed:        'Your order has been confirmed and will be prepared shortly.',
+  processing:       'Your order is being prepared by our warehouse team.',
+  ready_for_pickup: 'Your order is ready for pickup at 9191 W Whitesbridge Ave, Fresno, CA 93706.',
+  loading:          'Your order is being loaded. Please proceed to our facility.',
+  completed:        'Your order is complete. Thank you for your business!',
+  cancelled:        'Your order has been cancelled.',
 }
 
 interface Props {
   orderId: number
   customerId: string
   currentStatus: OrderStatus
+  allItemsStaged?: boolean
+  customerNoDefectsAt?: string | null
 }
 
-export default function UpdateOrderStatus({ orderId, customerId, currentStatus }: Props) {
+export default function UpdateOrderStatus({
+  orderId,
+  customerId,
+  currentStatus,
+  allItemsStaged = false,
+  customerNoDefectsAt,
+}: Props) {
   const [newStatus, setNewStatus] = useState<OrderStatus>(currentStatus)
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
+  // Gate: can't move to ready_for_pickup unless all items staged
+  const isBlocked =
+    newStatus === 'ready_for_pickup' &&
+    currentStatus === 'processing' &&
+    !allItemsStaged
+
+  // Gate: can't complete unless customer confirmed no defects
+  const isBlockedComplete =
+    newStatus === 'completed' &&
+    currentStatus === 'loading' &&
+    !customerNoDefectsAt
+
   const handleUpdate = async () => {
     if (newStatus === currentStatus) { toast.info('Status unchanged'); return }
+    if (isBlocked || isBlockedComplete) return
     setLoading(true)
 
     const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
     if (error) { toast.error('Failed to update order'); setLoading(false); return }
 
-    // Get current user for history
     const { data: { user } } = await supabase.auth.getUser()
 
     await supabase.from('order_status_history').insert({
-      order_id: orderId,
+      order_id:   orderId,
       old_status: currentStatus,
       new_status: newStatus,
       changed_by: user?.id ?? null,
-      notes: notes || null,
+      notes:      notes || null,
     })
 
     // Notify customer
     await supabase.from('notifications').insert({
-      user_id: customerId,
-      type: 'order_update',
-      title: `Order #${orderId} — ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`,
-      message: statusMessages[newStatus],
+      user_id:  customerId,
+      type:     'order_update',
+      title:    `Order #${orderId} — ${STATUS_LABELS[newStatus] ?? newStatus}`,
+      message:  STATUS_MESSAGES[newStatus] ?? `Your order status changed to ${newStatus}.`,
       order_id: orderId,
     })
 
-    toast.success(`Order updated to: ${newStatus}`)
+    // Notify all staff
+    await supabase.rpc('notify_all_staff', {
+      p_order_id: orderId,
+      p_title:    `Order #${orderId} → ${STATUS_LABELS[newStatus] ?? newStatus}`,
+      p_message:  `Status changed from ${STATUS_LABELS[currentStatus] ?? currentStatus} to ${STATUS_LABELS[newStatus] ?? newStatus}.${notes ? ` Note: ${notes}` : ''}`,
+    })
+
+    toast.success(`Order updated to: ${STATUS_LABELS[newStatus] ?? newStatus}`)
     setNotes('')
     router.refresh()
     setLoading(false)
   }
+
+  const blocked = isBlocked || isBlockedComplete
 
   return (
     <Card>
@@ -80,19 +122,44 @@ export default function UpdateOrderStatus({ orderId, customerId, currentStatus }
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STATUSES.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+              {ALL_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        {isBlocked && (
+          <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>All items must be checked off in the staging checklist before marking ready for pickup.</p>
+          </div>
+        )}
+
+        {isBlockedComplete && (
+          <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>Customer must confirm all items loaded with no defects before completing the order.</p>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <Label>Notes (optional)</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal note or customer message..." rows={3} />
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Internal note or customer message..."
+            rows={3}
+          />
         </div>
-        <Button className="w-full" onClick={handleUpdate} disabled={loading || newStatus === currentStatus}>
+
+        <Button
+          className="w-full"
+          onClick={handleUpdate}
+          disabled={loading || newStatus === currentStatus || blocked}
+        >
           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-          Update & Notify Customer
+          Update & Notify
         </Button>
       </CardContent>
     </Card>
