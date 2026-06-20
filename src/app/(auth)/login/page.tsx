@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 type Mode = 'password' | 'magic'
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<Mode>('magic')
+  const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -82,7 +82,7 @@ export default function LoginPage() {
       <CardContent className="space-y-5">
         {/* Mode toggle */}
         <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-lg">
-          {([['magic', Mail, 'Email Link'], ['password', Lock, 'Password']] as const).map(([m, Icon, label]) => (
+          {([['password', Lock, 'Password'], ['magic', Mail, 'Email Link']] as const).map(([m, Icon, label]) => (
             <button
               key={m}
               onClick={() => setMode(m)}
