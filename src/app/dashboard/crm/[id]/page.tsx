@@ -33,6 +33,16 @@ export default async function CustomerDetailPage({ params }: Props) {
   if (!customer) notFound()
   if (!isAdmin && (customer as any).pricing_tier === 'contractor_tax_exempt_tbd') notFound()
 
+  const c = customer as any
+
+  const PRICING_TIER_LABEL: Record<string, string> = {
+    retail:                    'Retail',
+    retail_tax_exempt:         'Retail (Tax Exempt)',
+    contractor:                'Contractor',
+    contractor_tax_exempt_tbd: 'Contractor (Tax Exempt - Pending)',
+    contractor_tax_exempt:     'Contractor (Tax Exempt)',
+  }
+
   const initials = customer.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
   const totalRevenue = orders?.reduce((sum, o) => sum + o.total, 0) ?? 0
 
@@ -73,10 +83,8 @@ export default async function CustomerDetailPage({ params }: Props) {
         </Avatar>
         <div>
           <h1 className="text-2xl font-bold">{customer.full_name ?? 'Unnamed Customer'}</h1>
-          <p className="text-muted-foreground text-sm">
-            {(customer as any).company_name ?? ''}{customer.phone ? ` · ${customer.phone}` : ''}
-          </p>
-          <p className="text-xs text-muted-foreground">Customer since {new Date(customer.created_at).toLocaleDateString()}</p>
+          {c.company_name && <p className="text-muted-foreground text-sm">{c.company_name}</p>}
+          <p className="text-xs text-muted-foreground">{c.email}</p>
         </div>
       </div>
 
@@ -102,6 +110,93 @@ export default async function CustomerDetailPage({ params }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Contact & Account Details */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Contact & Account Details</CardTitle></CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+
+            {c.email && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Email</dt>
+                <dd><a href={`mailto:${c.email}`} className="text-primary hover:underline">{c.email}</a></dd>
+              </div>
+            )}
+
+            {c.phone && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Phone</dt>
+                <dd><a href={`tel:${c.phone}`} className="hover:underline">{c.phone}</a></dd>
+              </div>
+            )}
+
+            <div>
+              <dt className="text-xs text-muted-foreground mb-0.5">Account Type</dt>
+              <dd>
+                {c.customer_type === 'contractor' ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-medium">Contractor</span>
+                ) : c.customer_type === 'retail' ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">Retail</span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </dd>
+            </div>
+
+            <div>
+              <dt className="text-xs text-muted-foreground mb-0.5">Pricing Tier</dt>
+              <dd className="font-medium">
+                {c.pricing_tier
+                  ? PRICING_TIER_LABEL[c.pricing_tier] ?? c.pricing_tier
+                  : <span className="text-muted-foreground font-normal">Unassigned</span>
+                }
+              </dd>
+            </div>
+
+            {c.company_name && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Company</dt>
+                <dd>{c.company_name}</dd>
+              </div>
+            )}
+
+            {c.contractor_license && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Contractor License</dt>
+                <dd className="font-mono text-xs">{c.contractor_license}</dd>
+              </div>
+            )}
+
+            {c.reseller_license && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Reseller License</dt>
+                <dd className="font-mono text-xs">{c.reseller_license}</dd>
+              </div>
+            )}
+
+            {c.mailing_address && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Mailing Address</dt>
+                <dd className="whitespace-pre-line">{c.mailing_address}</dd>
+              </div>
+            )}
+
+            {c.business_address && (
+              <div>
+                <dt className="text-xs text-muted-foreground mb-0.5">Business Address</dt>
+                <dd className="whitespace-pre-line">{c.business_address}</dd>
+              </div>
+            )}
+
+            <div>
+              <dt className="text-xs text-muted-foreground mb-0.5">Member Since</dt>
+              <dd>{new Date(customer.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</dd>
+            </div>
+
+          </dl>
+        </CardContent>
+      </Card>
 
       <div className={`grid gap-5 ${isAdmin ? 'lg:grid-cols-2' : ''}`}>
         {/* Orders */}
