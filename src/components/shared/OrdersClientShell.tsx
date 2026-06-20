@@ -165,7 +165,7 @@ export default function OrdersClientShell({ initialOrders, isWarehouse, isAdmin,
         )}
 
         <div className="ml-auto">
-          {!isWarehouse && (
+          {!isWarehouse && !selectedTiers.includes('contractor_tax_exempt_tbd') && (
             <ExportCompletedOrdersButton
               isAdmin={isAdmin}
               dateFrom={dateFrom || null}
