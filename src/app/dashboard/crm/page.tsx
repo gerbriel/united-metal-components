@@ -18,11 +18,18 @@ export default async function CRMPage() {
 
   const isAdmin = isAdminRole((viewer as any)?.role ?? '')
 
-  const { data: customers } = await supabase
+  let customersQuery = supabase
     .from('profiles')
-    .select('id, full_name, company_name, phone, created_at, orders(id, total, status)')
+    .select('id, full_name, company_name, phone, created_at, pricing_tier, orders(id, total, status)')
     .eq('role', 'customer')
     .order('created_at', { ascending: false })
+
+  if (!isAdmin) {
+    // Non-admins cannot see contractor_tax_exempt_tbd customers
+    customersQuery = customersQuery.or('pricing_tier.is.null,pricing_tier.neq.contractor_tax_exempt_tbd')
+  }
+
+  const { data: customers } = await customersQuery
 
   return (
     <div className="space-y-5">

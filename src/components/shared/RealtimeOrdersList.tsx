@@ -11,13 +11,14 @@ interface OrderRow {
   status: string
   total: number
   created_at: string
-  profiles: { first_name: string | null; last_name: string | null; full_name: string | null; phone: string | null } | null
+  profiles: { first_name: string | null; last_name: string | null; full_name: string | null; phone: string | null; pricing_tier: string | null } | null
   order_items: { id: number }[]
 }
 
 interface Props {
   initialOrders: OrderRow[]
   isWarehouse: boolean
+  isAdmin: boolean
   currentStatus?: string
 }
 
@@ -34,7 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled:        'text-red-700 bg-red-50 border-red-200',
 }
 
-export default function RealtimeOrdersList({ initialOrders, isWarehouse, currentStatus }: Props) {
+export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin, currentStatus }: Props) {
   const [orders, setOrders]       = useState<OrderRow[]>(initialOrders)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [flash, setFlash]         = useState(false)
@@ -45,7 +46,7 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
   const fetchOrders = useCallback(async () => {
     let q = supabase
       .from('orders')
-      .select('id, status, total, created_at, profiles(first_name, last_name, full_name, phone), order_items(id)')
+      .select('id, status, total, created_at, profiles(first_name, last_name, full_name, phone, pricing_tier), order_items(id)')
       .order('created_at', { ascending: false })
 
     if (isWarehouse) {
@@ -62,7 +63,13 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
 
     const { data } = await q
     if (data) {
-      setOrders(data as unknown as OrderRow[])
+      const filtered = isAdmin
+        ? data
+        : data.filter((o) =>
+            o.status !== 'completed' ||
+            (o.profiles as any)?.pricing_tier !== 'contractor_tax_exempt_tbd'
+          )
+      setOrders(filtered as unknown as OrderRow[])
       setLastUpdate(new Date())
       setFlash(true)
       clearTimeout(flashTimer.current)

@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import RealtimeOrdersList from '@/components/shared/RealtimeOrdersList'
 import type { Metadata } from 'next'
-import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
+import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import { Tv } from 'lucide-react'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
@@ -30,11 +30,12 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
     .single()
 
   const isWarehouse = isWarehouseRole((profile as any)?.role)
+  const isAdmin     = isAdminRole((profile as any)?.role ?? '')
   const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : undefined)
 
   let query = supabase
     .from('orders')
-    .select('id, status, total, created_at, profiles(first_name, last_name, full_name, phone), order_items(id)')
+    .select('id, status, total, created_at, profiles(first_name, last_name, full_name, phone, pricing_tier), order_items(id)')
     .order('created_at', { ascending: false })
 
   if (isWarehouse) {
@@ -47,7 +48,14 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
     query = query.eq('status', effectiveStatus as any)
   }
 
-  const { data: initialOrders } = await query
+  const { data: rawOrders } = await query
+
+  const initialOrders = isAdmin
+    ? rawOrders
+    : (rawOrders ?? []).filter((o) =>
+        o.status !== 'completed' ||
+        (o.profiles as any)?.pricing_tier !== 'contractor_tax_exempt_tbd'
+      )
 
   const tabs = isWarehouse ? WAREHOUSE_STATUS_TABS : ALL_STATUS_TABS
 
@@ -88,6 +96,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
       <RealtimeOrdersList
         initialOrders={(initialOrders ?? []) as any}
         isWarehouse={isWarehouse}
+        isAdmin={isAdmin}
         currentStatus={effectiveStatus}
       />
     </div>

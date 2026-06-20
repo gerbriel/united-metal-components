@@ -25,12 +25,13 @@ export default async function CustomerDetailPage({ params }: Props) {
   const isAdmin = isAdminRole((viewer as any)?.role ?? '')
 
   const [{ data: customer }, { data: orders }, { data: notes }] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', id).single(),
+    supabase.from('profiles').select('*, pricing_tier').eq('id', id).single(),
     supabase.from('orders').select('*, order_items(id, quantity, total_price, products(id, name, sku))').eq('customer_id', id).order('created_at', { ascending: false }),
     supabase.from('crm_notes').select('*, profiles(full_name)').eq('customer_id', id).order('created_at', { ascending: false }),
   ])
 
   if (!customer) notFound()
+  if (!isAdmin && (customer as any).pricing_tier === 'contractor_tax_exempt_tbd') notFound()
 
   const initials = customer.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
   const totalRevenue = orders?.reduce((sum, o) => sum + o.total, 0) ?? 0
