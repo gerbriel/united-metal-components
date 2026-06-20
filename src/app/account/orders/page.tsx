@@ -22,11 +22,18 @@ export default async function OrdersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: orders } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('pricing_tier').eq('id', user.id).single()
+  const isTbd = (profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
+
+  let ordersQuery = supabase
     .from('orders')
     .select('*, order_items(id)')
     .eq('customer_id', user.id)
     .order('created_at', { ascending: false })
+
+  if (isTbd) ordersQuery = ordersQuery.neq('status', 'completed')
+
+  const { data: orders } = await ordersQuery
 
   return (
     <div className="space-y-4">

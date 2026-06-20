@@ -33,14 +33,13 @@ export default async function OrderDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: order } = await supabase
-    .from('orders')
-    .select('*, order_items(*, products(name, sku, unit))')
-    .eq('id', id)
-    .eq('customer_id', user.id)
-    .single()
+  const [{ data: profile }, { data: order }] = await Promise.all([
+    supabase.from('profiles').select('pricing_tier').eq('id', user.id).single(),
+    supabase.from('orders').select('*, order_items(*, products(name, sku, unit))').eq('id', id).eq('customer_id', user.id).single(),
+  ])
 
   if (!order) notFound()
+  if ((profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd' && order.status === 'completed') notFound()
 
   const { data: history } = await supabase
     .from('order_status_history')

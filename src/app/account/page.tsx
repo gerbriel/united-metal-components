@@ -20,11 +20,15 @@ export default async function AccountDashboard() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: recentOrders }, { data: unreadNotifs }] = await Promise.all([
+  const [{ data: profile }, { data: unreadNotifs }] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
-    supabase.from('orders').select('id, status, total, created_at').eq('customer_id', user.id).order('created_at', { ascending: false }).limit(5),
     supabase.from('notifications').select('id', { count: 'exact' }).eq('user_id', user.id).eq('read', false),
   ])
+
+  const isTbd = (profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
+  let ordersQuery = supabase.from('orders').select('id, status, total, created_at').eq('customer_id', user.id).order('created_at', { ascending: false }).limit(5)
+  if (isTbd) ordersQuery = ordersQuery.neq('status', 'completed')
+  const { data: recentOrders } = await ordersQuery
 
   return (
     <div className="space-y-6">
