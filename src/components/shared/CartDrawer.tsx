@@ -41,7 +41,6 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium leading-tight truncate">{product.name}</p>
                     <p className="text-xs text-muted-foreground">{product.unit && `per ${product.unit}`}</p>
-                    <p className="text-sm font-semibold text-primary mt-1">${product.price.toFixed(2)}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Button size="icon" variant="outline" className="h-7 w-7"
                         onClick={() => updateQty(product.id, quantity - 1)}>
@@ -63,11 +62,7 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
             </div>
 
             <div className="border-t pt-4 space-y-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-semibold">${total().toFixed(2)}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Taxes calculated at checkout</p>
+              <p className="text-xs text-muted-foreground">Pricing confirmed once your order is reviewed.</p>
               <ButtonLink href="/checkout" className="w-full" size="lg" onClick={onClose}>
                 Proceed to Checkout
               </ButtonLink>

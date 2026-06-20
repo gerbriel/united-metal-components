@@ -44,7 +44,7 @@ export default function AddToCartButton({ product }: { product: Product }) {
       </div>
       <Button size="lg" className="gap-2" onClick={handleAdd}>
         <ShoppingCart className="w-4 h-4" />
-        Add to Cart — ${(product.price * qty).toFixed(2)}
+        Add to Cart
       </Button>
     </div>
   )

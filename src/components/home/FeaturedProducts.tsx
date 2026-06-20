@@ -59,12 +59,9 @@ export default function FeaturedProducts({ products }: { products: Product[] }) 
                     </p>
                   )}
                   <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xl font-bold text-primary">${p.price.toFixed(2)}</span>
-                      {p.unit && (
-                        <span className="text-xs text-muted-foreground ml-1">/ {p.unit}</span>
-                      )}
-                    </div>
+                    <span className="text-sm text-muted-foreground italic">
+                      Contact for pricing{p.unit && ` · per ${p.unit}`}
+                    </span>
                     <span className="text-xs font-medium text-orange-500 group-hover:text-orange-600 flex items-center gap-1">
                       View Details <ArrowRight className="w-3 h-3" />
                     </span>

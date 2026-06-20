@@ -120,9 +120,6 @@ export default function CheckoutPage() {
     )
   }
 
-  const subtotal = total()
-  const tax = subtotal * 0.0825
-
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <h1 className="text-3xl font-bold mb-8">Place Your Order</h1>
@@ -186,24 +183,12 @@ export default function CheckoutPage() {
               <CardContent className="space-y-3">
                 {items.map(({ product, quantity }) => (
                   <div key={product.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground truncate mr-2">
-                      {product.name} × {quantity}
-                    </span>
-                    <span className="font-medium shrink-0">${(product.price * quantity).toFixed(2)}</span>
+                    <span className="text-muted-foreground truncate mr-2">{product.name}</span>
+                    <span className="font-medium shrink-0 text-muted-foreground">× {quantity}</span>
                   </div>
                 ))}
                 <Separator />
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Tax (8.25%)</span><span>${tax.toFixed(2)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-bold">
-                  <span>Total</span>
-                  <span className="text-primary">${(subtotal + tax).toFixed(2)}</span>
-                </div>
+                <p className="text-xs text-muted-foreground">Pricing will be confirmed once your order is reviewed by our team.</p>
 
                 <Button
                   type="submit"
