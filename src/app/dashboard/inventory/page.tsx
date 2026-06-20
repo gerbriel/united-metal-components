@@ -3,12 +3,25 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import InventoryActions from '@/components/shared/InventoryActions'
+import { isWarehouseRole } from '@/types/database'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Inventory — Dashboard' }
 
 export default async function InventoryPage() {
   const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, employee_role')
+    .eq('id', user!.id)
+    .single()
+
+  const isWarehouse = isWarehouseRole(
+    (profile as any)?.role ?? '',
+    (profile as any)?.employee_role ?? null
+  )
 
   const { data: products } = await supabase
     .from('products')
@@ -31,7 +44,7 @@ export default async function InventoryPage() {
               <tr>
                 <th className="text-left p-3">Product</th>
                 <th className="text-left p-3">Category</th>
-                <th className="text-right p-3">Price</th>
+                {!isWarehouse && <th className="text-right p-3">Price</th>}
                 <th className="text-right p-3">Unit</th>
                 <th className="text-right p-3">Stock</th>
                 <th className="text-right p-3">Status</th>
@@ -46,7 +59,9 @@ export default async function InventoryPage() {
                     {p.sku && <p className="text-xs text-muted-foreground">{p.sku}</p>}
                   </td>
                   <td className="p-3 text-muted-foreground">{(p as any).product_categories?.name}</td>
-                  <td className="p-3 text-right font-semibold">${p.price.toFixed(2)}</td>
+                  {!isWarehouse && (
+                    <td className="p-3 text-right font-semibold">${p.price.toFixed(2)}</td>
+                  )}
                   <td className="p-3 text-right text-muted-foreground">{p.unit ?? '—'}</td>
                   <td className="p-3 text-right font-mono">
                     <span className={p.stock_qty < 10 ? 'text-red-600 font-bold' : ''}>{p.stock_qty}</span>

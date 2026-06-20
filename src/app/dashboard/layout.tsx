@@ -51,7 +51,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* Sidebar */}
       <aside className="w-60 bg-sidebar text-sidebar-foreground flex flex-col shrink-0">
         <div className="p-4 border-b border-sidebar-border">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href={isWarehouse ? '/dashboard/orders' : '/'} className="flex items-center gap-2">
             <div className="w-7 h-7 bg-sidebar-primary rounded flex items-center justify-center">
               <Package className="w-4 h-4 text-white" />
             </div>

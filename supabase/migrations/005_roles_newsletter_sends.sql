@@ -8,12 +8,14 @@ ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'office_employee'    AFTER '
 ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'warehouse_employee' AFTER 'office_employee';
 
 -- ── 2. Update is_staff() to include all employee types ────────
+-- role::text cast avoids PG error 55P04: new enum values cannot be
+-- referenced as enum literals in the same transaction they were added.
 CREATE OR REPLACE FUNCTION public.is_staff()
 RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid()
-      AND role IN ('employee', 'office_employee', 'warehouse_employee', 'admin')
+      AND role::text IN ('employee', 'office_employee', 'warehouse_employee', 'admin')
   );
 $$;
 
@@ -24,8 +26,8 @@ RETURNS BOOLEAN LANGUAGE SQL SECURITY DEFINER AS $$
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid()
       AND (
-        role = 'warehouse_employee'
-        OR (role = 'employee' AND employee_role = 'warehouse')
+        role::text = 'warehouse_employee'
+        OR (role::text = 'employee' AND employee_role = 'warehouse')
       )
   );
 $$;

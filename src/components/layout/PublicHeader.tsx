@@ -59,7 +59,8 @@ export default function PublicHeader() {
   }
 
   const initials = profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
-  const isStaff = profile && ['employee', 'admin'].includes(profile.role)
+  const STAFF_ROLES = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+  const isStaff = profile && STAFF_ROLES.includes(profile.role)
 
   return (
     <>
@@ -130,11 +131,13 @@ export default function PublicHeader() {
                         <User className="w-4 h-4 mr-2" />My Account
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/account/orders" className="flex items-center w-full">
-                        <Package className="w-4 h-4 mr-2" />My Orders
-                      </Link>
-                    </DropdownMenuItem>
+                    {!isStaff && (
+                      <DropdownMenuItem>
+                        <Link href="/account/orders" className="flex items-center w-full">
+                          <Package className="w-4 h-4 mr-2" />My Orders
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem>
                       <Link href="/account/notifications" className="flex items-center w-full">
                         <Bell className="w-4 h-4 mr-2" />Notifications
@@ -144,8 +147,13 @@ export default function PublicHeader() {
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>
-                          <Link href="/dashboard" className="flex items-center w-full">
+                          <Link href="/dashboard/orders" className="flex items-center w-full">
                             <LayoutDashboard className="w-4 h-4 mr-2" />Dashboard
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Link href="/dashboard/inventory" className="flex items-center w-full">
+                            <Package className="w-4 h-4 mr-2" />Inventory
                           </Link>
                         </DropdownMenuItem>
                       </>
