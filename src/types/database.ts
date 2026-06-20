@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'employee' | 'admin'
+export type UserRole = 'customer' | 'employee' | 'office_employee' | 'warehouse_employee' | 'admin'
 export type EmployeeRole = 'office' | 'warehouse'
 export type OrderStatus =
   | 'pending'
@@ -215,6 +215,18 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['social_posts']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['social_posts']['Insert']>
       }
+      newsletter_campaign_recipients: {
+        Row: {
+          id: number
+          campaign_id: number
+          subscriber_id: number | null
+          email: string
+          name: string | null
+          sent_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['newsletter_campaign_recipients']['Row'], 'id' | 'sent_at'>
+        Update: never
+      }
       analytics_events: {
         Row: {
           id: number
@@ -259,6 +271,22 @@ export type NewsletterCampaign = Database['public']['Tables']['newsletter_campai
 export type CrmNote = Database['public']['Tables']['crm_notes']['Row']
 export type SocialPost = Database['public']['Tables']['social_posts']['Row']
 export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row']
+
+export type NewsletterCampaignRecipient = Database['public']['Tables']['newsletter_campaign_recipients']['Row']
+
+// Role helpers
+export const STAFF_ROLES: UserRole[] = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+export const WAREHOUSE_ROLES: UserRole[] = ['warehouse_employee']
+
+export function isStaffRole(role: string): boolean {
+  return STAFF_ROLES.includes(role as UserRole)
+}
+export function isWarehouseRole(role: string, employeeRole?: string | null): boolean {
+  return role === 'warehouse_employee' || (role === 'employee' && employeeRole === 'warehouse')
+}
+export function isAdminRole(role: string): boolean {
+  return role === 'admin'
+}
 
 // Status display helpers
 export const ORDER_STATUS_LABEL: Record<string, string> = {

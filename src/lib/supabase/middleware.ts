@@ -35,7 +35,8 @@ export async function updateSession(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single()
-    if (!profile || !['employee', 'admin'].includes((profile as any).role)) {
+    const STAFF_ROLES = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+    if (!profile || !STAFF_ROLES.includes((profile as any).role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }

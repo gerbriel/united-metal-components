@@ -3,8 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { ORDER_STATUS_LABEL } from '@/types/database'
-import type { EmployeeRole } from '@/types/database'
+import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
 
@@ -37,8 +36,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
     .eq('id', user!.id)
     .single()
 
-  const empRole = (profile as any)?.employee_role as EmployeeRole | null
-  const isWarehouse = empRole === 'warehouse' && (profile as any)?.role !== 'admin'
+  const isWarehouse = isWarehouseRole((profile as any)?.role, (profile as any)?.employee_role)
 
   let query = supabase
     .from('orders')

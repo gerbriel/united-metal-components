@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import UpdateOrderStatus from '@/components/shared/UpdateOrderStatus'
 import StagingChecklist from '@/components/shared/StagingChecklist'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
-import { ORDER_STATUS_LABEL } from '@/types/database'
-import type { EmployeeRole } from '@/types/database'
+import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -38,8 +37,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
     .eq('id', user!.id)
     .single()
 
-  const empRole = (viewer as any)?.employee_role as EmployeeRole | null
-  const isWarehouse = empRole === 'warehouse' && (viewer as any)?.role !== 'admin'
+  const isWarehouse = isWarehouseRole((viewer as any)?.role, (viewer as any)?.employee_role)
 
   const { data: order } = await supabase
     .from('orders')

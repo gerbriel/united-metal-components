@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
 import NotificationBell from '@/components/shared/NotificationBell'
-import type { EmployeeRole } from '@/types/database'
+import { isWarehouseRole, isAdminRole, STAFF_ROLES } from '@/types/database'
 
 const ALL_NAV = [
   { href: '/dashboard',            label: 'Overview',     icon: LayoutDashboard, warehouseOk: false },
@@ -27,11 +27,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  if (!profile || !['employee', 'admin'].includes(profile.role)) redirect('/')
+  if (!profile || !STAFF_ROLES.includes((profile as any).role)) redirect('/')
 
-  const empRole = (profile as any).employee_role as EmployeeRole | null
-  const isWarehouse = empRole === 'warehouse'
-  const isAdmin = profile.role === 'admin'
+  const role = (profile as any).role as string
+  const empRole = (profile as any).employee_role as string | null
+  const isWarehouse = isWarehouseRole(role, empRole)
+  const isAdmin = isAdminRole(role)
 
   const displayName = (profile as any).first_name && (profile as any).last_name
     ? `${(profile as any).first_name} ${(profile as any).last_name}`
@@ -39,7 +40,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const navItems = ALL_NAV.filter((item) => isAdmin || !isWarehouse || item.warehouseOk)
 
-  const roleLabel = isAdmin ? 'Admin' : isWarehouse ? 'Warehouse' : 'Office'
+  const roleLabel =
+    isAdmin ? 'Admin'
+    : role === 'office_employee' ? 'Office'
+    : isWarehouse ? 'Warehouse'
+    : 'Office'
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
