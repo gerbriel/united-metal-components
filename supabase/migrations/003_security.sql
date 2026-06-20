@@ -52,7 +52,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE public.crm_notes
     ADD CONSTRAINT crm_notes_no_script
-    CHECK (content !~* '<script');
+    CHECK (body !~* '<script');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
