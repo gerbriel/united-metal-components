@@ -38,6 +38,15 @@ const ROLE_LABELS: Record<string, string> = {
 
 const EMPLOYEE_ROLES = ['none', 'office', 'warehouse']
 
+type Patch = Partial<{
+  role: string | null
+  employee_role: string | null
+  account_status: string | null
+  suspended_reason: string | null
+  can_receive_inventory: boolean | null
+  pricing_tier: string | null
+}>
+
 export default function AdminUserManager({ initialUsers }: Props) {
   const [users, setUsers]           = useState<UserRow[]>(initialUsers)
   const [suspendingId, setSuspendingId] = useState<string | null>(null)
@@ -62,19 +71,23 @@ export default function AdminUserManager({ initialUsers }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [fetchUsers])
 
-  const callRpc = async (userId: string, patch: Record<string, string | boolean | null>) => {
+  const callRpc = async (userId: string, patch: Patch) => {
     setLoadingId(userId)
-    const { error } = await supabase.rpc('admin_update_user_profile', {
-      p_user_id:               userId,
-      p_role:                  patch.role                    ?? null,
-      p_employee_role:         patch.employee_role           ?? null,
-      p_account_status:        patch.account_status          ?? null,
-      p_suspended_reason:      patch.suspended_reason        ?? null,
-      p_can_receive_inventory: patch.can_receive_inventory != null
+    // Build args only for keys present in patch — avoids calling with params
+    // that don't exist in older DB function versions (pre-migration 009/010).
+    const args: Record<string, unknown> = { p_user_id: userId }
+    if ('role' in patch)             args.p_role             = patch.role ?? null
+    if ('employee_role' in patch)    args.p_employee_role    = patch.employee_role ?? null
+    if ('account_status' in patch)   args.p_account_status   = patch.account_status ?? null
+    if ('suspended_reason' in patch) args.p_suspended_reason = patch.suspended_reason ?? null
+    if ('can_receive_inventory' in patch) {
+      args.p_can_receive_inventory = patch.can_receive_inventory != null
         ? Boolean(patch.can_receive_inventory)
-        : null,
-      p_pricing_tier:          patch.pricing_tier !== undefined ? (patch.pricing_tier as string | null) : null,
-    })
+        : null
+    }
+    if ('pricing_tier' in patch) args.p_pricing_tier = patch.pricing_tier ?? null
+
+    const { error } = await supabase.rpc('admin_update_user_profile', args)
     if (error) toast.error(`Failed: ${error.message}`)
     else { toast.success('Updated'); await fetchUsers() }
     setLoadingId(null)
@@ -199,10 +212,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                       {isStaffRole(u.role) ? (
                         <button
                           disabled={isBusy}
-                          onClick={() => callRpc(u.id, {
-                            role: null, employee_role: null, account_status: null, suspended_reason: null,
-                            can_receive_inventory: !u.can_receive_inventory,
-                          })}
+                          onClick={() => callRpc(u.id, { can_receive_inventory: !u.can_receive_inventory })}
                           className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                             u.can_receive_inventory
                               ? 'bg-green-100 text-green-700 border-green-300'
@@ -219,13 +229,11 @@ export default function AdminUserManager({ initialUsers }: Props) {
                         <Select
                           value={u.pricing_tier ?? '__unset__'}
                           onValueChange={(v) => v && callRpc(u.id, {
-                            role: null, employee_role: null, account_status: null, suspended_reason: null,
-                            can_receive_inventory: null,
                             pricing_tier: v === '__unset__' ? '__clear__' : v,
                           })}
                           disabled={isBusy}
                         >
-                          <SelectTrigger className="w-44 h-8 text-xs">
+                          <SelectTrigger className="w-52 h-8 text-xs">
                             <SelectValue placeholder="— unassigned —" />
                           </SelectTrigger>
                           <SelectContent>
@@ -233,6 +241,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                             <SelectItem value="retail">Retail</SelectItem>
                             <SelectItem value="retail_tax_exempt">Retail (Tax Exempt)</SelectItem>
                             <SelectItem value="contractor">Contractor</SelectItem>
+                            <SelectItem value="contractor_tax_exempt_tbd">Contractor (Tax Exempt - TBD)</SelectItem>
                             <SelectItem value="contractor_tax_exempt">Contractor (Tax Exempt)</SelectItem>
                           </SelectContent>
                         </Select>

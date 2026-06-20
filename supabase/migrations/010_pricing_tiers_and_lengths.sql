@@ -19,7 +19,7 @@ ALTER TABLE public.profiles
 -- 'contractor_tax_exempt'  → contractor pricing, tax exempt (reseller's license on file)
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS pricing_tier TEXT
-    CHECK (pricing_tier IN ('retail', 'retail_tax_exempt', 'contractor', 'contractor_tax_exempt'));
+    CHECK (pricing_tier IN ('retail', 'retail_tax_exempt', 'contractor', 'contractor_tax_exempt_tbd', 'contractor_tax_exempt'));
 
 -- ── 2. Contractor price per product ──────────────────────────
 -- NULL = same as base price; admin sets per product

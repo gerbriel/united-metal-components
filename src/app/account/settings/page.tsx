@@ -25,10 +25,11 @@ type AccountInfo = {
 }
 
 const PRICING_TIER_LABEL: Record<string, string> = {
-  retail:                 'Retail',
-  retail_tax_exempt:      'Retail (Tax Exempt)',
-  contractor:             'Contractor',
-  contractor_tax_exempt:  'Contractor (Tax Exempt)',
+  retail:                     'Retail',
+  retail_tax_exempt:          'Retail (Tax Exempt)',
+  contractor:                 'Contractor',
+  contractor_tax_exempt_tbd:  'Contractor (Tax Exempt - Pending)',
+  contractor_tax_exempt:      'Contractor (Tax Exempt)',
 }
 
 const EMPTY: FormState = {
