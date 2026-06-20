@@ -13,7 +13,7 @@ import { contactSchema } from '@/lib/validate'
 import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', subscribe: false })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', subscribe: true })
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 

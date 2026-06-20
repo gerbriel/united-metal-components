@@ -13,7 +13,7 @@ const productLinks = [
 const companyLinks = [
   ['About Us', '/about'],
   ['Contact', '/contact'],
-  ['Shipping Info', '/shipping'],
+  ['Pickup Info', '/pickup'],
   ['Privacy Policy', '/privacy'],
   ['Terms of Service', '/terms'],
 ]
@@ -89,12 +89,12 @@ export default function PublicFooter() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-                <span className="text-sm">United Metal Components<br />Your City, State ZIP</span>
+                <span className="text-sm">9191 W Whitesbridge Ave<br />Fresno, CA 93706</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                <a href="tel:+15555555555" className="text-sm hover:text-orange-400 transition-colors">
-                  (555) 555-5555
+                <a href="tel:+15595555555" className="text-sm hover:text-orange-400 transition-colors">
+                  (559) 555-5555
                 </a>
               </li>
               <li className="flex items-center gap-2.5">

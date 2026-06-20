@@ -12,7 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/supabase/client'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
-import { Loader2, ShoppingBag, LogIn } from 'lucide-react'
+import { Loader2, ShoppingBag, LogIn, MapPin, Clock } from 'lucide-react'
 import { checkoutSchema } from '@/lib/validate'
 import { sanitizeText, sanitizePhone } from '@/lib/sanitize'
 
@@ -20,7 +20,7 @@ export default function CheckoutPage() {
   const { items, total, clearCart } = useCartStore()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', address: '', notes: '' })
+  const [form, setForm] = useState({ name: '', phone: '', notes: '' })
   const router = useRouter()
   const supabase = createClient()
 
@@ -29,13 +29,12 @@ export default function CheckoutPage() {
       const user = data.user
       setUser(user)
       if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-        if (data) {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+        if (profile) {
           setForm((f) => ({
             ...f,
-            name: (data as any).full_name ?? '',
-            phone: (data as any).phone ?? '',
-            address: [(data as any).address, (data as any).city, (data as any).state, (data as any).zip].filter(Boolean).join(', '),
+            name:  (profile as any).full_name ?? '',
+            phone: (profile as any).phone ?? '',
           }))
         }
       }
@@ -50,17 +49,16 @@ export default function CheckoutPage() {
     if (!user) { toast.error('Please sign in to place an order'); return }
     if (items.length === 0) { toast.error('Your cart is empty'); return }
 
-    const result = checkoutSchema.safeParse(form)
+    const result = checkoutSchema.safeParse({ ...form, address: '' })
     if (!result.success) {
       toast.error(result.error.issues[0].message)
       return
     }
 
     const clean = {
-      name:    sanitizeText(form.name, 100),
-      phone:   sanitizePhone(form.phone),
-      address: sanitizeText(form.address, 500),
-      notes:   sanitizeText(form.notes, 2000),
+      name:  sanitizeText(form.name, 100),
+      phone: sanitizePhone(form.phone),
+      notes: sanitizeText(form.notes, 2000),
     }
 
     setLoading(true)
@@ -75,9 +73,9 @@ export default function CheckoutPage() {
       subtotal,
       tax,
       total: orderTotal,
-      shipping_name: clean.name,
+      shipping_name:  clean.name,
       shipping_phone: clean.phone,
-      shipping_addr: clean.address,
+      shipping_addr:  '9191 W Whitesbridge Ave, Fresno, CA 93706 (Pickup)',
       notes: clean.notes,
     }).select().single()
 
@@ -85,30 +83,30 @@ export default function CheckoutPage() {
 
     await supabase.from('order_items').insert(
       items.map((i) => ({
-        order_id: (order as any).id,
+        order_id:   (order as any).id,
         product_id: i.product.id,
-        quantity: i.quantity,
+        quantity:   i.quantity,
         unit_price: i.product.price,
         total_price: i.product.price * i.quantity,
       }))
     )
 
     await supabase.from('order_status_history').insert({
-      order_id: (order as any).id,
+      order_id:   (order as any).id,
       new_status: 'pending',
-      notes: 'Order placed by customer',
+      notes:      'Order placed — awaiting pickup confirmation',
     })
 
     await supabase.from('notifications').insert({
-      user_id: user.id,
-      type: 'order_update',
-      title: `Order #${(order as any).id} Received`,
-      message: `Your order has been received and is pending confirmation. Total: $${orderTotal.toFixed(2)}`,
+      user_id:  user.id,
+      type:     'order_update',
+      title:    `Order #${(order as any).id} Received`,
+      message:  `Your order has been received and is being prepared for pickup. Total: $${orderTotal.toFixed(2)}`,
       order_id: (order as any).id,
     })
 
     clearCart()
-    toast.success('Order placed successfully!')
+    toast.success('Order placed! We\'ll notify you when it\'s ready for pickup.')
     router.push(`/account/orders/${(order as any).id}`)
   }
 
@@ -127,46 +125,56 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <h1 className="text-3xl font-bold mb-8">Checkout</h1>
+      <h1 className="text-3xl font-bold mb-8">Place Your Order</h1>
 
       {!user && (
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
-          <p className="text-sm text-amber-800">Sign in to place your order and track its progress</p>
+          <p className="text-sm text-amber-800">Sign in to place your order and track its status</p>
           <ButtonLink href="/login" size="sm">
             <LogIn className="w-4 h-4 mr-2" />Sign In
           </ButtonLink>
         </div>
       )}
 
+      {/* Pickup notice */}
+      <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-xl flex gap-4">
+        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+          <MapPin className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <p className="font-semibold text-sm text-foreground">Pickup Only</p>
+          <p className="text-sm text-muted-foreground">9191 W Whitesbridge Ave, Fresno, CA 93706</p>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Mon–Fri 7am–5pm &bull; Sat 8am–12pm
+          </p>
+        </div>
+      </div>
+
       <form onSubmit={handleSubmit}>
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader><CardTitle>Contact Information</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Your Information</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2 col-span-2">
                     <Label>Full Name</Label>
                     <Input value={form.name} onChange={set('name')} placeholder="John Smith" required />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 col-span-2 sm:col-span-1">
                     <Label>Phone</Label>
                     <Input type="tel" value={form.phone} onChange={set('phone')} placeholder="(555) 000-0000" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle>Pickup / Delivery Address</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Address</Label>
-                  <Input value={form.address} onChange={set('address')} placeholder="123 Main St, City, TX 75000" />
-                </div>
                 <div className="space-y-2">
                   <Label>Order Notes (optional)</Label>
-                  <Textarea value={form.notes} onChange={set('notes')} placeholder="Any special instructions..." rows={3} />
+                  <Textarea
+                    value={form.notes}
+                    onChange={set('notes')}
+                    placeholder="Preferred pickup time, special instructions..."
+                    rows={3}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -178,7 +186,9 @@ export default function CheckoutPage() {
               <CardContent className="space-y-3">
                 {items.map(({ product, quantity }) => (
                   <div key={product.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground truncate mr-2">{product.name} × {quantity}</span>
+                    <span className="text-muted-foreground truncate mr-2">
+                      {product.name} × {quantity}
+                    </span>
                     <span className="font-medium shrink-0">${(product.price * quantity).toFixed(2)}</span>
                   </div>
                 ))}
@@ -191,14 +201,22 @@ export default function CheckoutPage() {
                 </div>
                 <Separator />
                 <div className="flex justify-between font-bold">
-                  <span>Total</span><span className="text-primary">${(subtotal + tax).toFixed(2)}</span>
+                  <span>Total</span>
+                  <span className="text-primary">${(subtotal + tax).toFixed(2)}</span>
                 </div>
 
-                <Button type="submit" className="w-full mt-4" size="lg" disabled={loading || !user}>
+                <Button
+                  type="submit"
+                  className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white border-0"
+                  size="lg"
+                  disabled={loading || !user}
+                >
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Place Order
+                  Place Order for Pickup
                 </Button>
-                {!user && <p className="text-xs text-center text-muted-foreground">Sign in required to place order</p>}
+                {!user && (
+                  <p className="text-xs text-center text-muted-foreground">Sign in required to place an order</p>
+                )}
               </CardContent>
             </Card>
           </div>

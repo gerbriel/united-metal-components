@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +15,7 @@ import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
 export default function SignupPage() {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '', company: '' })
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [done, setDone] = useState(false)
   const supabase = createClient()
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -53,9 +52,31 @@ export default function SignupPage() {
       await supabase.from('profiles').update({ phone: clean.phone, company: clean.company }).eq('id', user.id)
     }
 
-    toast.success('Account created! Welcome to United Metal Components.')
-    router.push('/account')
-    router.refresh()
+    setDone(true)
+    setLoading(false)
+  }
+
+  if (done) {
+    return (
+      <Card className="w-full max-w-md text-center">
+        <CardContent className="pt-10 pb-8 px-8">
+          <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <Loader2 className="w-7 h-7 text-green-600" style={{ animation: 'none' }} />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Check your email</h2>
+          <p className="text-muted-foreground text-sm mb-2">
+            We sent a confirmation link to <span className="font-medium text-foreground">{form.email}</span>.
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            Click the link in the email to activate your account, then{' '}
+            <a href="/login" className="text-primary underline font-medium">sign in here</a>.
+          </p>
+          <p className="text-xs text-muted-foreground">Didn&apos;t get it? Check your spam folder or{' '}
+            <button className="text-primary underline" onClick={() => setDone(false)}>try again</button>.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
