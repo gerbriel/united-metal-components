@@ -70,7 +70,7 @@ export default async function OrderDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-6" style={isTbd ? { userSelect: 'none' } : undefined}>
-      {isTbd && <TbdScreenProtection email={user.email ?? ''} />}
+      {isTbd && <TbdScreenProtection />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Order #{order.id}</h1>
