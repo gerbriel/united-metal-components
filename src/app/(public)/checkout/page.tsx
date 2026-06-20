@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/supabase/client'
-import { useCartStore } from '@/store/cart'
+import { useCartStore, itemUnitPrice } from '@/store/cart'
 import { toast } from 'sonner'
 import { Loader2, ShoppingBag, LogIn, MapPin, Clock } from 'lucide-react'
 import { checkoutSchema } from '@/lib/validate'
@@ -81,14 +81,34 @@ export default function CheckoutPage() {
 
     if (error || !order) { toast.error('Failed to place order. Please try again.'); setLoading(false); return }
 
+    const buildNotes = (i: typeof items[number]): string | undefined => {
+      const parts: string[] = []
+      if (i.length !== undefined) {
+        parts.push(i.lengthIn ? `${i.length} ft ${i.lengthIn} in` : `${i.length} ft`)
+      }
+      if (i.color) parts.push(`Color: ${i.color}`)
+      return parts.length ? parts.join(' · ') : undefined
+    }
+
     await supabase.from('order_items').insert(
-      items.map((i) => ({
-        order_id:   (order as any).id,
-        product_id: i.product.id,
-        quantity:   i.quantity,
-        unit_price: i.product.price,
-        total_price: i.product.price * i.quantity,
-      }))
+      items.map((i) => {
+        const unit = itemUnitPrice(i)
+        const totalFt = i.length != null
+          ? (i.length + (i.lengthIn ?? 0) / 12) * i.quantity
+          : null
+        return {
+          order_id:              (order as any).id,
+          product_id:            i.product.id,
+          quantity:              i.quantity,
+          unit_price:            unit,
+          total_price:           unit * i.quantity,
+          notes:                 buildNotes(i),
+          item_color:            i.color ?? null,
+          linear_feet:           totalFt,
+          length_feet:           i.length ?? null,
+          is_special_order:      i.product.stock_qty === 0,
+        }
+      })
     )
 
     await supabase.from('order_status_history').insert({
@@ -181,12 +201,23 @@ export default function CheckoutPage() {
             <Card className="sticky top-20">
               <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                {items.map(({ product, quantity }) => (
-                  <div key={product.id} className="flex justify-between text-sm">
-                    <span className="text-muted-foreground truncate mr-2">{product.name}</span>
-                    <span className="font-medium shrink-0 text-muted-foreground">× {quantity}</span>
-                  </div>
-                ))}
+                {items.map((item) => {
+                  const { product, quantity, length, lengthIn, color } = item
+                  const details: string[] = []
+                  if (length !== undefined) details.push(lengthIn ? `${length} ft ${lengthIn} in` : `${length} ft`)
+                  if (color) details.push(color)
+                  return (
+                    <div key={`${product.id}-${length}-${color}`} className="text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground truncate mr-2">{product.name}</span>
+                        <span className="font-medium shrink-0 text-muted-foreground">× {quantity}</span>
+                      </div>
+                      {details.length > 0 && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5">{details.join(' · ')}</p>
+                      )}
+                    </div>
+                  )
+                })}
                 <Separator />
                 <p className="text-xs text-muted-foreground">Pricing will be confirmed once your order is reviewed by our team.</p>
 

@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import InventoryActions from '@/components/shared/InventoryActions'
 import InventoryNav from '@/components/shared/InventoryNav'
-import { isWarehouseRole } from '@/types/database'
+import { isWarehouseRole, isAdminRole } from '@/types/database'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Inventory — Dashboard' }
@@ -20,6 +20,7 @@ export default async function InventoryPage() {
     .single()
 
   const isWarehouse = isWarehouseRole((profile as any)?.role ?? '')
+  const isAdmin = isAdminRole((profile as any)?.role ?? '')
 
   const { data: products } = await supabase
     .from('products')
@@ -76,7 +77,7 @@ export default async function InventoryPage() {
                       : <Badge className="bg-green-100 text-green-700 border-green-200 border">OK</Badge>}
                   </td>
                   <td className="p-3 text-right">
-                    <InventoryActions product={p} categories={categories ?? []} mode="edit" />
+                    <InventoryActions product={p} categories={categories ?? []} mode="edit" isAdmin={isAdmin} />
                   </td>
                 </tr>
               ))}

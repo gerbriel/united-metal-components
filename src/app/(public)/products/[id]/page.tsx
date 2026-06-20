@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import AddToCartButton from '@/components/shared/AddToCartButton'
+import ProductOrderForm from '@/components/shared/ProductOrderForm'
 import { Badge } from '@/components/ui/badge'
 import { Package, Weight, Ruler } from 'lucide-react'
 import Link from 'next/link'
@@ -20,13 +20,22 @@ export default async function ProductDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const { data: product } = await supabase
-    .from('products')
-    .select('*, product_categories(name, slug)')
-    .eq('id', id)
-    .single()
+  const [{ data: product }, { data: { user } }] = await Promise.all([
+    supabase.from('products').select('*, product_categories(name, slug)').eq('id', id).single(),
+    supabase.auth.getUser(),
+  ])
 
   if (!product) notFound()
+
+  let isContractor = false
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('customer_type')
+      .eq('id', user.id)
+      .single()
+    isContractor = (profile as any)?.customer_type === 'contractor'
+  }
 
   const { data: related } = await supabase
     .from('products')
@@ -96,7 +105,7 @@ export default async function ProductDetailPage({ params }: Props) {
             )}
           </div>
 
-          <AddToCartButton product={product} />
+          <ProductOrderForm product={product} isContractor={isContractor} />
         </div>
       </div>
 

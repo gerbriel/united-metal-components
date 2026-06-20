@@ -16,9 +16,10 @@ interface Props {
   product?: Product
   categories: ProductCategory[]
   mode?: 'add' | 'edit'
+  isAdmin?: boolean
 }
 
-export default function InventoryActions({ product, categories, mode = 'add' }: Props) {
+export default function InventoryActions({ product, categories, mode = 'add', isAdmin = true }: Props) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -55,9 +56,28 @@ export default function InventoryActions({ product, categories, mode = 'add' }: 
     }
 
     if (mode === 'edit' && product) {
-      const { error } = await supabase.from('products').update(payload).eq('id', product.id)
-      if (error) { toast.error('Failed to update product'); setLoading(false); return }
-      toast.success('Product updated')
+      const newQty = parseInt(form.stock_qty) || 0
+      const qtyChanged = product.stock_qty !== newQty
+
+      if (!isAdmin && qtyChanged) {
+        // Warehouse: route stock qty changes through approval queue
+        const { error: entryErr } = await supabase.from('inventory_entries').insert({
+          entry_type: 'stock_qty',
+          product_id: product.id,
+          old_value:  product.stock_qty,
+          new_value:  newQty,
+        })
+        if (entryErr) { toast.error('Failed to submit update'); setLoading(false); return }
+        toast.success('Stock update submitted for admin approval')
+        // Only apply the non-qty fields directly if admin
+        const { stock_qty: _, ...nonQtyPayload } = payload
+        const { error } = await supabase.from('products').update(nonQtyPayload).eq('id', product.id)
+        if (error) toast.error('Some fields may not have saved')
+      } else {
+        const { error } = await supabase.from('products').update(payload).eq('id', product.id)
+        if (error) { toast.error('Failed to update product'); setLoading(false); return }
+        toast.success('Product updated')
+      }
     } else {
       const { error } = await supabase.from('products').insert(payload)
       if (error) { toast.error('Failed to add product'); setLoading(false); return }

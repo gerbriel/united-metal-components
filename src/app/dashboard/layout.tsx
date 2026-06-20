@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2, ShieldCheck } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2, ShieldCheck, ShoppingBag, Building2, CheckSquare } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
@@ -7,13 +7,15 @@ import NotificationBell from '@/components/shared/NotificationBell'
 import { isWarehouseRole, isAdminRole, STAFF_ROLES } from '@/types/database'
 
 const ALL_NAV = [
-  { href: '/dashboard',            label: 'Overview',     icon: LayoutDashboard, warehouseOk: false },
-  { href: '/dashboard/orders',     label: 'Orders',       icon: ClipboardList,   warehouseOk: true  },
-  { href: '/dashboard/inventory',  label: 'Inventory',    icon: Package,         warehouseOk: true  },
-  { href: '/dashboard/crm',        label: 'CRM',          icon: Users,           warehouseOk: false },
-  { href: '/dashboard/analytics',  label: 'Analytics',    icon: BarChart3,       warehouseOk: false },
-  { href: '/dashboard/newsletter', label: 'Newsletter',   icon: Mail,            warehouseOk: false },
-  { href: '/dashboard/social',     label: 'Social Posts', icon: Share2,          warehouseOk: false },
+  { href: '/dashboard',                    label: 'Overview',        icon: LayoutDashboard, warehouseOk: false },
+  { href: '/dashboard/orders',             label: 'Orders',          icon: ClipboardList,   warehouseOk: true  },
+  { href: '/dashboard/inventory',          label: 'Inventory',       icon: Package,         warehouseOk: true  },
+  { href: '/dashboard/purchase-orders',    label: 'Purchase Orders', icon: ShoppingBag,     warehouseOk: false },
+  { href: '/dashboard/vendors',            label: 'Vendors',         icon: Building2,       warehouseOk: false },
+  { href: '/dashboard/crm',               label: 'CRM',             icon: Users,           warehouseOk: false },
+  { href: '/dashboard/analytics',          label: 'Analytics',       icon: BarChart3,       warehouseOk: false },
+  { href: '/dashboard/newsletter',         label: 'Newsletter',      icon: Mail,            warehouseOk: false },
+  { href: '/dashboard/social',             label: 'Social Posts',    icon: Share2,          warehouseOk: false },
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -77,6 +79,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Link href="/dashboard/admin"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
                 <ShieldCheck className="w-4 h-4" />User Management
+              </Link>
+              <Link href="/dashboard/inventory/approvals"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+                <CheckSquare className="w-4 h-4" />Inventory Approvals
               </Link>
             </>
           )}

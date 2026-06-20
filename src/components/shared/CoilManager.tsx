@@ -131,16 +131,31 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
     setAddLoading(false)
   }
 
-  const handleUpdateWeight = async (coilId: number) => {
+  const handleUpdateWeight = async (coilId: number, currentWeight: number | null) => {
     const w = parseFloat(weightInput)
     if (isNaN(w) || w < 0) { toast.error('Enter a valid weight'); return }
     setWeightLoading(true)
-    const { error } = await supabase
-      .from('product_coils')
-      .update({ current_weight_lbs: w, last_weighed_at: new Date().toISOString() })
-      .eq('id', coilId)
-    if (error) { toast.error(error.message); setWeightLoading(false); return }
-    toast.success('Weight updated')
+
+    if (isAdmin) {
+      // Admin: apply directly
+      const { error } = await supabase
+        .from('product_coils')
+        .update({ current_weight_lbs: w, last_weighed_at: new Date().toISOString() })
+        .eq('id', coilId)
+      if (error) { toast.error(error.message); setWeightLoading(false); return }
+      toast.success('Weight updated')
+    } else {
+      // Warehouse: submit for approval
+      const { error } = await supabase.from('inventory_entries').insert({
+        entry_type: 'coil_weight',
+        coil_id:    coilId,
+        old_value:  currentWeight,
+        new_value:  w,
+      })
+      if (error) { toast.error(error.message); setWeightLoading(false); return }
+      toast.success('Weight update submitted for admin approval')
+    }
+
     setWeightEditing(null)
     setWeightInput('')
     await fetchCoils()
@@ -425,11 +440,11 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
                               value={weightInput}
                               onChange={(e) => setWeightInput(e.target.value)}
                               autoFocus
-                              onKeyDown={(e) => e.key === 'Enter' && handleUpdateWeight(coil.id)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleUpdateWeight(coil.id, coil.current_weight_lbs)}
                             />
                             <Button
                               size="sm" className="h-7 text-xs"
-                              onClick={() => handleUpdateWeight(coil.id)}
+                              onClick={() => handleUpdateWeight(coil.id, coil.current_weight_lbs)}
                               disabled={weightLoading}
                             >
                               {weightLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}

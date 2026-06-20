@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import UpdateOrderStatus from '@/components/shared/UpdateOrderStatus'
 import StagingChecklist from '@/components/shared/StagingChecklist'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
+import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -70,7 +71,13 @@ export default async function DashboardOrderDetail({ params }: Props) {
     unit_price: i.unit_price,
     total_price: i.total_price,
     products: i.products,
+    notes: i.notes ?? null,
+    item_color: i.item_color ?? null,
+    is_special_order: !!i.is_special_order,
+    estimated_arrival_date: i.estimated_arrival_date ?? null,
   }))
+
+  const specialItems = orderItems.filter((i) => i.is_special_order)
 
   const customer = order.profiles as any
   const customerName = customer?.first_name && customer?.last_name
@@ -109,12 +116,22 @@ export default async function DashboardOrderDetail({ params }: Props) {
                   {orderItems.map((item) => (
                     <tr key={item.id}>
                       <td className="p-3">
-                        <p className="font-medium">{item.products?.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-medium">{item.products?.name}</p>
+                          {item.is_special_order && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                              Special Order
+                            </span>
+                          )}
+                        </div>
                         {item.products?.sku && (
                           <p className="text-xs text-muted-foreground">SKU: {item.products.sku}</p>
                         )}
-                        {item.products?.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5 max-w-xs truncate">{item.products.description}</p>
+                        {item.notes && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>
+                        )}
+                        {item.estimated_arrival_date && (
+                          <p className="text-xs text-amber-700 mt-0.5">ETA: {new Date(item.estimated_arrival_date).toLocaleDateString()}</p>
                         )}
                       </td>
                       <td className="p-3 text-right">
@@ -139,6 +156,26 @@ export default async function DashboardOrderDetail({ params }: Props) {
               </table>
             </CardContent>
           </Card>
+
+          {/* Special Order ETA — shown when there are special order items */}
+          {specialItems.length > 0 && !isWarehouse && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base text-amber-700">Special Order Items — Set Estimated Arrival</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SpecialOrderETA
+                  orderId={order.id}
+                  items={specialItems.map((i) => ({
+                    id: i.id,
+                    product_name: i.products?.name ?? 'Unknown',
+                    quantity: i.quantity,
+                    estimated_arrival_date: i.estimated_arrival_date,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Staging Checklist — shown during processing */}
           {showStaging && (

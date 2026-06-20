@@ -66,6 +66,10 @@ export default async function OrderDetailPage({ params }: Props) {
     unit_price: i.unit_price,
     total_price: i.total_price,
     products: i.products,
+    notes: i.notes ?? null,
+    item_color: i.item_color ?? null,
+    is_special_order: !!i.is_special_order,
+    estimated_arrival_date: i.estimated_arrival_date ?? null,
   }))
 
   return (
@@ -149,17 +153,31 @@ export default async function OrderDetailPage({ params }: Props) {
         <CardContent className="p-0">
           <div className="divide-y">
             {orderItems.map((item) => (
-              <div key={item.id} className="flex justify-between items-center p-4">
-                <div>
-                  <p className="font-medium text-sm">{item.products?.name}</p>
-                  {item.products?.sku && (
-                    <p className="text-xs text-muted-foreground">SKU: {item.products.sku}</p>
+              <div key={item.id} className="flex justify-between items-start p-4 gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <p className="font-medium text-sm">{item.products?.name}</p>
+                    {item.is_special_order && (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                        Special Order
+                      </span>
+                    )}
+                  </div>
+                  {item.notes && (
+                    <p className="text-xs text-muted-foreground">{item.notes}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Qty: {item.quantity}{item.products?.unit ? ` ${item.products.unit}` : ''} × ${item.unit_price.toFixed(2)}
+                    Qty: {item.quantity}{item.products?.unit ? ` ${item.products.unit}` : ''}
                   </p>
+                  {item.is_special_order && item.estimated_arrival_date && (
+                    <p className="text-xs text-amber-700 font-medium mt-1">
+                      Est. arrival: {new Date(item.estimated_arrival_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
+                  {item.is_special_order && !item.estimated_arrival_date && (
+                    <p className="text-xs text-muted-foreground italic mt-1">Arrival date TBD — we&apos;ll update you soon</p>
+                  )}
                 </div>
-                <span className="font-semibold">${item.total_price.toFixed(2)}</span>
               </div>
             ))}
           </div>

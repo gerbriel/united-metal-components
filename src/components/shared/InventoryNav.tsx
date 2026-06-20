@@ -1,16 +1,17 @@
 'use client'
 
 import Link from 'next/link'
-import { Package, Layers, Cylinder, Truck } from 'lucide-react'
+import { Package, Layers, Cylinder, Truck, CheckSquare } from 'lucide-react'
 
 const TABS = [
-  { key: 'products',  href: '/dashboard/inventory',           label: 'Products',  icon: Package  },
-  { key: 'coils',     href: '/dashboard/inventory/coils',     label: 'Coils',     icon: Layers   },
-  { key: 'tubes',     href: '/dashboard/inventory/tubes',     label: 'Tubes',     icon: Cylinder },
-  { key: 'receiving', href: '/dashboard/inventory/receiving', label: 'Receiving', icon: Truck    },
+  { key: 'products',   href: '/dashboard/inventory',             label: 'Products',   icon: Package     },
+  { key: 'coils',      href: '/dashboard/inventory/coils',       label: 'Coils',      icon: Layers      },
+  { key: 'tubes',      href: '/dashboard/inventory/tubes',       label: 'Tubes',      icon: Cylinder    },
+  { key: 'receiving',  href: '/dashboard/inventory/receiving',   label: 'Receiving',  icon: Truck       },
+  { key: 'approvals',  href: '/dashboard/inventory/approvals',   label: 'Approvals',  icon: CheckSquare },
 ]
 
-type ActiveTab = 'products' | 'coils' | 'tubes' | 'receiving'
+type ActiveTab = 'products' | 'coils' | 'tubes' | 'receiving' | 'approvals'
 
 export default function InventoryNav({ active }: { active: ActiveTab }) {
   return (
