@@ -46,7 +46,7 @@ export default function HeroSection() {
 
           {/* Headline */}
           <FadeUp delay={0.13}>
-            <h1 className="text-5xl sm:text-6xl lg:text-[72px] font-extrabold text-white leading-[1.04] tracking-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-[72px] font-extrabold text-white leading-[1.05] tracking-tight mb-6">
               Built for the{' '}
               <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-orange-400 bg-clip-text text-transparent">
                 toughest jobs

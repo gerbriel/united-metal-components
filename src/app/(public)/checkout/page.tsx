@@ -152,8 +152,8 @@ export default function CheckoutPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid lg:grid-cols-3 gap-6 lg:gap-8">
+          <div className="lg:col-span-2 space-y-6 order-2 lg:order-1">
             <Card>
               <CardHeader><CardTitle>Your Information</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -180,7 +180,7 @@ export default function CheckoutPage() {
             </Card>
           </div>
 
-          <div>
+          <div className="order-1 lg:order-2">
             <Card className="sticky top-20">
               <CardHeader><CardTitle>Order Summary</CardTitle></CardHeader>
               <CardContent className="space-y-3">

@@ -6,7 +6,7 @@ import NotificationBell from '@/components/shared/NotificationBell'
 import { createClient } from '@/lib/supabase/server'
 import { STAFF_ROLES } from '@/types/database'
 
-const NAV_CLS = 'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors'
+const NAV_CLS = 'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors whitespace-nowrap'
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -26,9 +26,10 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <>
       <PublicHeader />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
-        <div className="flex flex-col md:flex-row gap-8">
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+          {/* Mobile: horizontal scrollable nav */}
           <aside className="md:w-56 shrink-0">
-            <nav className="space-y-1">
+            <nav className="flex md:flex-col gap-1 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
               <Link href="/account" className={NAV_CLS}>
                 <User className="w-4 h-4" />Dashboard
               </Link>

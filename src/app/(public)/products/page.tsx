@@ -42,9 +42,25 @@ export default async function ProductsPage({ searchParams }: Props) {
         <p className="text-muted-foreground mt-1">{products?.length ?? 0} products</p>
       </div>
 
+      {/* Mobile: horizontal scrollable filter pills */}
+      <div className="lg:hidden mb-6 -mx-4 px-4">
+        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+          <a href="/products"
+            className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${!cat ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+            All
+          </a>
+          {categories?.map((c) => (
+            <a key={c.id} href={`/products?cat=${c.slug}`}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${cat === c.slug ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+              {c.name}
+            </a>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar filters */}
-        <aside className="lg:w-56 shrink-0">
+        {/* Desktop sidebar */}
+        <aside className="hidden lg:block lg:w-56 shrink-0">
           <h2 className="font-semibold mb-3 text-sm uppercase tracking-wide text-muted-foreground">Categories</h2>
           <ul className="space-y-1">
             <li>

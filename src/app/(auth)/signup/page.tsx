@@ -131,7 +131,7 @@ export default function SignupPage() {
           {/* Name */}
           <fieldset>
             <legend className="text-sm font-semibold mb-3 text-foreground">Personal Information</legend>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="firstName">First Name *</Label>
                 <Input id="firstName" placeholder="John" value={form.firstName} onChange={set('firstName')} required />
