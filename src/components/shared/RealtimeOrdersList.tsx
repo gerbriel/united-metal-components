@@ -20,6 +20,9 @@ interface Props {
   isWarehouse: boolean
   isAdmin: boolean
   currentStatus?: string
+  dateFrom?: string | null
+  dateTo?: string | null
+  customerTypes?: string[]
 }
 
 const WAREHOUSE_STATUSES = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
@@ -35,7 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled:        'text-red-700 bg-red-50 border-red-200',
 }
 
-export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin, currentStatus }: Props) {
+export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin, currentStatus, dateFrom, dateTo, customerTypes }: Props) {
   const [orders, setOrders]       = useState<OrderRow[]>(initialOrders)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [flash, setFlash]         = useState(false)
@@ -61,21 +64,32 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin
       }
     }
 
+    if (dateFrom) q = q.gte('created_at', dateFrom)
+    if (dateTo)   q = q.lte('created_at', dateTo + 'T23:59:59.999')
+
     const { data } = await q
     if (data) {
-      const filtered = isAdmin
+      let filtered = isAdmin
         ? data
         : data.filter((o) =>
             o.status !== 'completed' ||
             (o.profiles as any)?.pricing_tier !== 'contractor_tax_exempt_tbd'
           )
+
+      if (customerTypes && customerTypes.length > 0) {
+        filtered = filtered.filter((o) => {
+          const tier = (o.profiles as any)?.pricing_tier ?? '__unassigned__'
+          return customerTypes.includes(tier)
+        })
+      }
+
       setOrders(filtered as unknown as OrderRow[])
       setLastUpdate(new Date())
       setFlash(true)
       clearTimeout(flashTimer.current)
       flashTimer.current = setTimeout(() => setFlash(false), 1200)
     }
-  }, [currentStatus, isWarehouse])
+  }, [currentStatus, isWarehouse, dateFrom, dateTo, customerTypes])
 
   useEffect(() => {
     fetchOrders()

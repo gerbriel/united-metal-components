@@ -1,21 +1,20 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import RealtimeOrdersList from '@/components/shared/RealtimeOrdersList'
+import OrdersClientShell from '@/components/shared/OrdersClientShell'
 import type { Metadata } from 'next'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import { Tv } from 'lucide-react'
-import ExportCompletedOrdersButton from '@/components/shared/ExportCompletedOrdersButton'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
 
 const ALL_STATUS_TABS = [
-  'all', 'pending', 'confirmed', 'processing',
-  'ready_for_pickup', 'loading', 'completed', 'cancelled',
+  'pending', 'confirmed', 'processing',
+  'ready_for_pickup', 'loading', 'completed', 'cancelled', 'all',
 ]
 
-const WAREHOUSE_STATUS_TABS    = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
-const WAREHOUSE_STATUSES_IN    = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
+const WAREHOUSE_STATUS_TABS = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
+const WAREHOUSE_STATUSES_IN = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
 
 interface Props { searchParams: Promise<{ status?: string }> }
 
@@ -32,7 +31,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
 
   const isWarehouse = isWarehouseRole((profile as any)?.role)
   const isAdmin     = isAdminRole((profile as any)?.role ?? '')
-  const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : undefined)
+  const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : 'pending')
 
   let query = supabase
     .from('orders')
@@ -60,29 +59,21 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
 
   const tabs = isWarehouse ? WAREHOUSE_STATUS_TABS : ALL_STATUS_TABS
 
-  const isTabActive = (s: string) =>
-    isWarehouse ? s === effectiveStatus : (s === 'all' && !status) || s === status
+  const isTabActive = (s: string) => s === effectiveStatus
 
-  const tabHref = (s: string) =>
-    isWarehouse ? `/dashboard/orders?status=${s}` :
-    s === 'all' ? '/dashboard/orders' : `/dashboard/orders?status=${s}`
+  const tabHref = (s: string) => `/dashboard/orders?status=${s}`
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Orders</h1>
-        <div className="flex items-center gap-2">
-          {!isWarehouse && (
-            <ExportCompletedOrdersButton isAdmin={isAdmin} />
-          )}
-          <Link
-            href="/dashboard/orders/tv"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
-          >
-            <Tv className="w-3.5 h-3.5" />
-            TV Mode
-          </Link>
-        </div>
+        <Link
+          href="/dashboard/orders/tv"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
+        >
+          <Tv className="w-3.5 h-3.5" />
+          TV Mode
+        </Link>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -99,7 +90,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
         ))}
       </div>
 
-      <RealtimeOrdersList
+      <OrdersClientShell
         initialOrders={(initialOrders ?? []) as any}
         isWarehouse={isWarehouse}
         isAdmin={isAdmin}

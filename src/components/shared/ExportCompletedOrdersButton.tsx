@@ -8,6 +8,9 @@ import { toast } from 'sonner'
 
 interface Props {
   isAdmin: boolean
+  dateFrom?: string | null
+  dateTo?: string | null
+  customerTypes?: string[]
 }
 
 function escapeCSV(val: unknown): string {
@@ -23,14 +26,14 @@ function row(...cells: unknown[]): string {
   return cells.map(escapeCSV).join(',')
 }
 
-export default function ExportCompletedOrdersButton({ isAdmin }: Props) {
+export default function ExportCompletedOrdersButton({ isAdmin, dateFrom, dateTo, customerTypes }: Props) {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
   const handleExport = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      let q = supabase
         .from('orders')
         .select(`
           id, created_at, subtotal, tax, total, notes,
@@ -40,13 +43,25 @@ export default function ExportCompletedOrdersButton({ isAdmin }: Props) {
         .eq('status', 'completed')
         .order('created_at', { ascending: false })
 
+      if (dateFrom) q = q.gte('created_at', dateFrom)
+      if (dateTo)   q = q.lte('created_at', dateTo + 'T23:59:59.999')
+
+      const { data, error } = await q
+
       if (error) throw error
 
-      const orders = isAdmin
-        ? data
+      let orders = isAdmin
+        ? (data ?? [])
         : (data ?? []).filter(
             (o) => (o.profiles as any)?.pricing_tier !== 'contractor_tax_exempt_tbd'
           )
+
+      if (customerTypes && customerTypes.length > 0) {
+        orders = orders.filter((o) => {
+          const tier = (o.profiles as any)?.pricing_tier ?? '__unassigned__'
+          return customerTypes.includes(tier)
+        })
+      }
 
       const lines: string[] = [
         row(
@@ -56,7 +71,7 @@ export default function ExportCompletedOrdersButton({ isAdmin }: Props) {
         ),
       ]
 
-      for (const o of orders ?? []) {
+      for (const o of orders) {
         const p = o.profiles as any
         const customerName =
           p?.first_name && p?.last_name
