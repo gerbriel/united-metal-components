@@ -13,6 +13,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import { Loader2, ShoppingBag, LogIn } from 'lucide-react'
+import { checkoutSchema } from '@/lib/validate'
+import { sanitizeText, sanitizePhone } from '@/lib/sanitize'
 
 export default function CheckoutPage() {
   const { items, total, clearCart } = useCartStore()
@@ -47,6 +49,20 @@ export default function CheckoutPage() {
     e.preventDefault()
     if (!user) { toast.error('Please sign in to place an order'); return }
     if (items.length === 0) { toast.error('Your cart is empty'); return }
+
+    const result = checkoutSchema.safeParse(form)
+    if (!result.success) {
+      toast.error(result.error.issues[0].message)
+      return
+    }
+
+    const clean = {
+      name:    sanitizeText(form.name, 100),
+      phone:   sanitizePhone(form.phone),
+      address: sanitizeText(form.address, 500),
+      notes:   sanitizeText(form.notes, 2000),
+    }
+
     setLoading(true)
 
     const subtotal = total()
@@ -59,10 +75,10 @@ export default function CheckoutPage() {
       subtotal,
       tax,
       total: orderTotal,
-      shipping_name: form.name,
-      shipping_phone: form.phone,
-      shipping_addr: form.address,
-      notes: form.notes,
+      shipping_name: clean.name,
+      shipping_phone: clean.phone,
+      shipping_addr: clean.address,
+      notes: clean.notes,
     }).select().single()
 
     if (error || !order) { toast.error('Failed to place order. Please try again.'); setLoading(false); return }

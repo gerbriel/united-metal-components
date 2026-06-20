@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Phone, Mail, MapPin, Loader2 } from 'lucide-react'
+import { contactSchema } from '@/lib/validate'
+import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '', subscribe: false })
@@ -20,9 +22,25 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const result = contactSchema.safeParse(form)
+    if (!result.success) {
+      toast.error(result.error.issues[0].message)
+      return
+    }
+
+    const clean = {
+      name:    sanitizeText(form.name, 100),
+      email:   sanitizeEmail(form.email),
+      phone:   sanitizePhone(form.phone),
+      message: sanitizeText(form.message, 5000),
+    }
+
     setLoading(true)
-    if (form.subscribe && form.email) {
-      await supabase.from('newsletter_subscribers').upsert({ email: form.email, name: form.name, status: 'active' }, { onConflict: 'email' })
+    if (form.subscribe && clean.email) {
+      await supabase
+        .from('newsletter_subscribers')
+        .upsert({ email: clean.email, name: clean.name, status: 'active' }, { onConflict: 'email' })
     }
     toast.success("Message received! We'll be in touch within 1 business day.")
     setForm({ name: '', email: '', phone: '', message: '', subscribe: false })

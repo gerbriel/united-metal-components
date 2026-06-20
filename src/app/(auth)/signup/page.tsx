@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { signupSchema } from '@/lib/validate'
+import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
 
 export default function SignupPage() {
   const [form, setForm] = useState({ fullName: '', email: '', password: '', phone: '', company: '' })
@@ -22,20 +24,33 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
+
+    const result = signupSchema.safeParse(form)
+    if (!result.success) {
+      toast.error(result.error.issues[0].message)
+      return
+    }
+
+    const clean = {
+      fullName: sanitizeText(form.fullName, 100),
+      email:    sanitizeEmail(form.email),
+      password: form.password,
+      phone:    sanitizePhone(form.phone),
+      company:  sanitizeText(form.company, 100),
+    }
+
     setLoading(true)
 
     const { error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: { data: { full_name: form.fullName } },
+      email: clean.email,
+      password: clean.password,
+      options: { data: { full_name: clean.fullName } },
     })
     if (error) { toast.error(error.message); setLoading(false); return }
 
-    // Update profile with extra fields
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase.from('profiles').update({ phone: form.phone, company: form.company }).eq('id', user.id)
+      await supabase.from('profiles').update({ phone: clean.phone, company: clean.company }).eq('id', user.id)
     }
 
     toast.success('Account created! Welcome to United Metal Components.')
@@ -70,7 +85,7 @@ export default function SignupPage() {
             </div>
             <div className="space-y-2 col-span-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="Min. 6 characters" value={form.password} onChange={set('password')} required />
+              <Input id="password" type="password" placeholder="Min. 8 chars with letter + number" value={form.password} onChange={set('password')} required />
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={loading}>
