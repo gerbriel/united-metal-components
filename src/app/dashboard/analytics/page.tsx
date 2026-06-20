@@ -22,11 +22,9 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const [
     { data: rawEvents },
     { data: recentOrders },
-    { data: allOrders },
   ] = await Promise.all([
     supabase.from('analytics_events').select('page, session_id, user_role').gte('created_at', cutoff).limit(2000),
-    supabase.from('orders').select('id, status, total, created_at').gte('created_at', cutoff).order('created_at', { ascending: false }),
-    supabase.from('orders').select('id, status, total, created_at').order('created_at', { ascending: false }).limit(1000),
+    supabase.from('orders').select('id, status, created_at').gte('created_at', cutoff).order('created_at', { ascending: false }),
   ])
 
   // Segment filter
@@ -61,23 +59,10 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   // Order metrics for selected period
   const periodOrders = recentOrders ?? []
   const completedOrders = periodOrders.filter((o) => o.status === 'completed')
-  const periodRevenue   = completedOrders.reduce((s, o) => s + o.total, 0)
-  const avgOrderValue   = completedOrders.length > 0 ? periodRevenue / completedOrders.length : 0
 
   // Order status breakdown (period)
   const statusBreakdown: Record<string, number> = {}
   periodOrders.forEach((o) => { statusBreakdown[o.status] = (statusBreakdown[o.status] ?? 0) + 1 })
-
-  // Revenue by day (period) — group completed orders by date
-  const revenueByDay: Record<string, number> = {}
-  completedOrders.forEach((o) => {
-    const day = new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    revenueByDay[day] = (revenueByDay[day] ?? 0) + o.total
-  })
-
-  // All-time totals
-  const allCompleted  = (allOrders ?? []).filter((o) => o.status === 'completed')
-  const lifetimeRevenue = allCompleted.reduce((s, o) => s + o.total, 0)
 
   const STATUS_LABELS: Record<string, string> = {
     pending: 'Pending', confirmed: 'Confirmed', processing: 'Processing',
@@ -169,35 +154,23 @@ export default async function AnalyticsPage({ searchParams }: Props) {
         </div>
       </div>
 
-      {/* Order/revenue metrics */}
+      {/* Order metrics */}
       <div>
-        <h2 className="text-sm font-semibold text-muted-foreground mb-3">Orders & Revenue — Last {days} days</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <h2 className="text-sm font-semibold text-muted-foreground mb-3">Orders — Last {days} days</h2>
+        <div className="grid grid-cols-2 gap-4">
           {[
-            { label: 'Total Orders',      value: periodOrders.length },
-            { label: 'Completed Orders',  value: completedOrders.length },
-            { label: 'Revenue (Completed)', value: `$${periodRevenue.toFixed(0)}` },
-            { label: 'Avg Order Value',   value: completedOrders.length ? `$${avgOrderValue.toFixed(0)}` : '—' },
+            { label: 'Total Orders',     value: periodOrders.length },
+            { label: 'Completed Orders', value: completedOrders.length },
           ].map(({ label, value }) => (
             <Card key={label}>
               <CardContent className="p-5">
-                <p className="text-2xl font-bold truncate">{value}</p>
+                <p className="text-2xl font-bold">{value}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       </div>
-
-      {/* All-time revenue */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-5 flex items-center justify-between">
-          <div>
-            <p className="text-3xl font-bold text-primary">${lifetimeRevenue.toFixed(0)}</p>
-            <p className="text-sm text-muted-foreground">All-time completed revenue · {allCompleted.length} orders</p>
-          </div>
-        </CardContent>
-      </Card>
 
       <AnalyticsCharts />
 

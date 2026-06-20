@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { ORDER_STATUS_LABEL } from '@/types/database'
 import Link from 'next/link'
 
-interface OrderRow {
+export interface OrderRow {
   id: number
   status: string
   total: number
@@ -23,6 +23,9 @@ interface Props {
   dateFrom?: string | null
   dateTo?: string | null
   customerTypes?: string[]
+  searchQuery?: string
+  sortBy?: string
+  onOrdersChange?: (orders: OrderRow[]) => void
 }
 
 const WAREHOUSE_STATUSES = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
@@ -38,12 +41,20 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled:        'text-red-700 bg-red-50 border-red-200',
 }
 
-export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin, currentStatus, dateFrom, dateTo, customerTypes }: Props) {
-  const [orders, setOrders]       = useState<OrderRow[]>(initialOrders)
+function customerName(profiles: OrderRow['profiles']): string {
+  const p = profiles
+  return p?.first_name && p?.last_name ? `${p.first_name} ${p.last_name}` : p?.full_name ?? 'Unknown'
+}
+
+export default function RealtimeOrdersList({
+  initialOrders, isWarehouse, isAdmin, currentStatus,
+  dateFrom, dateTo, customerTypes, searchQuery, sortBy, onOrdersChange,
+}: Props) {
+  const [orders, setOrders]         = useState<OrderRow[]>(initialOrders)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [flash, setFlash]         = useState(false)
-  const supabase = createClient()
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [flash, setFlash]           = useState(false)
+  const supabase    = createClient()
+  const flashTimer  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const channelName = useRef(`orders-rt-${Date.now()}`)
 
   const fetchOrders = useCallback(async () => {
@@ -83,7 +94,9 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin
         })
       }
 
-      setOrders(filtered as unknown as OrderRow[])
+      const result = filtered as unknown as OrderRow[]
+      setOrders(result)
+      onOrdersChange?.(result)
       setLastUpdate(new Date())
       setFlash(true)
       clearTimeout(flashTimer.current)
@@ -105,6 +118,30 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin
     }
   }, [fetchOrders])
 
+  const displayOrders = useMemo(() => {
+    let result = orders
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((o) => {
+        const name = customerName(o.profiles)
+        return (
+          name.toLowerCase().includes(q) ||
+          String(o.id).includes(q) ||
+          (o.profiles?.phone ?? '').includes(q)
+        )
+      })
+    }
+
+    switch (sortBy) {
+      case 'oldest':     return [...result].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      case 'total_desc': return [...result].sort((a, b) => b.total - a.total)
+      case 'total_asc':  return [...result].sort((a, b) => a.total - b.total)
+      case 'items_desc': return [...result].sort((a, b) => (b.order_items?.length ?? 0) - (a.order_items?.length ?? 0))
+      default:           return result
+    }
+  }, [orders, searchQuery, sortBy])
+
   return (
     <div className="space-y-3">
       <div className={`flex justify-end transition-colors ${flash ? 'text-green-600' : 'text-muted-foreground'}`}>
@@ -116,14 +153,12 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin
 
       <Card>
         <div className="divide-y">
-          {orders.length === 0 && (
+          {displayOrders.length === 0 && (
             <CardContent className="p-8 text-center text-muted-foreground">No orders found.</CardContent>
           )}
-          {orders.map((o) => {
-            const p = o.profiles
-            const name = p?.first_name && p?.last_name
-              ? `${p.first_name} ${p.last_name}`
-              : p?.full_name ?? 'Unknown'
+          {displayOrders.map((o) => {
+            const name = customerName(o.profiles)
+            const isTbd = (o.profiles as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
 
             return (
               <Link
@@ -132,7 +167,12 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, isAdmin
                 className="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors"
               >
                 <div>
-                  <p className="font-semibold text-sm">Order #{o.id}</p>
+                  <p className="font-semibold text-sm">
+                    Order #{o.id}
+                    {isAdmin && isTbd && (
+                      <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">TBD</span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">{name}</p>
                   <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</p>
                 </div>
