@@ -24,20 +24,37 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
 
+  // Unauthenticated redirects
   if (path.startsWith('/account') && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
+  if (path.startsWith('/dashboard') && !user) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
 
-  if (path.startsWith('/dashboard')) {
-    if (!user) return NextResponse.redirect(new URL('/login', request.url))
+  // Profile checks for authenticated routes
+  if (user && (path.startsWith('/account') || path.startsWith('/dashboard'))) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, account_status')
       .eq('id', user.id)
       .single()
-    const STAFF_ROLES = ['employee', 'office_employee', 'warehouse_employee', 'admin']
-    if (!profile || !STAFF_ROLES.includes((profile as any).role)) {
-      return NextResponse.redirect(new URL('/', request.url))
+
+    // Suspended customers can't access their account
+    if (
+      profile?.account_status === 'suspended' &&
+      path.startsWith('/account') &&
+      path !== '/account/orders' // allow viewing past orders
+    ) {
+      return NextResponse.redirect(new URL('/suspended', request.url))
+    }
+
+    // Dashboard requires staff role
+    if (path.startsWith('/dashboard')) {
+      const STAFF_ROLES = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+      if (!profile || !STAFF_ROLES.includes((profile as any).role)) {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
     }
   }
 

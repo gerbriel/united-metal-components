@@ -1,5 +1,6 @@
 export type UserRole = 'customer' | 'employee' | 'office_employee' | 'warehouse_employee' | 'admin'
 export type EmployeeRole = 'office' | 'warehouse'
+export type AccountStatus = 'active' | 'suspended'
 export type OrderStatus =
   | 'pending'
   | 'confirmed'
@@ -36,6 +37,10 @@ export interface Database {
           zip: string | null
           notes: string | null
           avatar_url: string | null
+          account_status: AccountStatus
+          suspended_reason: string | null
+          suspended_at: string | null
+          suspended_by: string | null
           created_at: string
           updated_at: string
         }

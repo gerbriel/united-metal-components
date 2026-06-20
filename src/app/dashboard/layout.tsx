@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2 } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2, ShieldCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
@@ -69,6 +69,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Icon className="w-4 h-4" />{label}
             </Link>
           ))}
+          {isAdmin && (
+            <>
+              <div className="pt-2 pb-1 px-3">
+                <p className="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 font-semibold">Admin</p>
+              </div>
+              <Link href="/dashboard/admin"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+                <ShieldCheck className="w-4 h-4" />User Management
+              </Link>
+            </>
+          )}
         </nav>
 
         <div className="p-3 border-t border-sidebar-border">
