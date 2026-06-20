@@ -15,6 +15,7 @@ interface Subscriber {
   id: number
   email: string
   name: string | null
+  user_id: string | null
 }
 
 interface Props {
@@ -67,7 +68,7 @@ export default function NewsletterComposer({ subscribers }: Props) {
 
     if (error || !campaign) { toast.error('Failed to save campaign'); setLoading(false); return }
 
-    // Record recipients when sending
+    // Record recipients and send in-app notifications when sending
     if (status === 'sent' && selectedIds.size > 0) {
       const chosen = subscribers.filter((s) => selectedIds.has(s.id))
       await supabase.from('newsletter_campaign_recipients').insert(
@@ -78,6 +79,21 @@ export default function NewsletterComposer({ subscribers }: Props) {
           name:          s.name,
         }))
       )
+
+      // Send in-app notification to subscribers who have accounts
+      const withAccounts = chosen.filter((s) => s.user_id)
+      if (withAccounts.length > 0) {
+        const preview = form.body_html.replace(/<[^>]+>/g, '').slice(0, 200)
+        await supabase.from('notifications').insert(
+          withAccounts.map((s) => ({
+            user_id:  s.user_id!,
+            type:     'announcement',
+            title:    form.subject,
+            message:  preview,
+            order_id: null,
+          }))
+        )
+      }
     }
 
     toast.success(status === 'draft' ? 'Draft saved' : `Campaign sent to ${selectedIds.size} subscriber(s)`)

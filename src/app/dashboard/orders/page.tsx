@@ -7,10 +7,14 @@ import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
 
-const STATUS_TABS = [
+const ALL_STATUS_TABS = [
   'all', 'pending', 'confirmed', 'processing',
   'ready_for_pickup', 'loading', 'completed', 'cancelled',
 ]
+
+// Warehouse only sees active workflow statuses; pending/cancelled/all hidden
+const WAREHOUSE_STATUS_TABS = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
+const WAREHOUSE_STATUSES_IN = ['confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed']
 
 const STATUS_COLORS: Record<string, string> = {
   pending:          'text-yellow-700 bg-yellow-50 border-yellow-200',
@@ -38,27 +42,52 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
 
   const isWarehouse = isWarehouseRole((profile as any)?.role, (profile as any)?.employee_role)
 
+  // For warehouse: default to 'confirmed' when no status param
+  const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : undefined)
+
   let query = supabase
     .from('orders')
     .select('*, profiles(first_name, last_name, full_name, phone), order_items(id)')
     .order('created_at', { ascending: false })
 
-  if (status && status !== 'all') query = query.eq('status', status as any)
+  if (isWarehouse) {
+    // Warehouse always restricted to their visible statuses
+    if (effectiveStatus && WAREHOUSE_STATUSES_IN.includes(effectiveStatus)) {
+      query = query.eq('status', effectiveStatus as any)
+    } else {
+      query = query.in('status', WAREHOUSE_STATUSES_IN as any[])
+    }
+  } else {
+    if (effectiveStatus && effectiveStatus !== 'all') {
+      query = query.eq('status', effectiveStatus as any)
+    }
+  }
 
   const { data: orders } = await query
+
+  const tabs = isWarehouse ? WAREHOUSE_STATUS_TABS : ALL_STATUS_TABS
+
+  const isTabActive = (s: string) => {
+    if (isWarehouse) return s === effectiveStatus
+    return (s === 'all' && !status) || s === status
+  }
+
+  const tabHref = (s: string) => {
+    if (isWarehouse) return `/dashboard/orders?status=${s}`
+    return s === 'all' ? '/dashboard/orders' : `/dashboard/orders?status=${s}`
+  }
 
   return (
     <div className="space-y-5">
       <h1 className="text-2xl font-bold">Orders</h1>
 
-      {/* Status tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {STATUS_TABS.map((s) => (
+        {tabs.map((s) => (
           <Link
             key={s}
-            href={s === 'all' ? '/dashboard/orders' : `/dashboard/orders?status=${s}`}
+            href={tabHref(s)}
             className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap font-medium transition-colors ${
-              (s === 'all' && !status) || s === status
+              isTabActive(s)
                 ? 'bg-primary text-white'
                 : 'bg-white border hover:bg-slate-50'
             }`}

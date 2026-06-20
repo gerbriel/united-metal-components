@@ -9,11 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, AlertTriangle } from 'lucide-react'
 import type { OrderStatus } from '@/types/database'
 
 const ALL_STATUSES: OrderStatus[] = [
   'pending', 'confirmed', 'processing', 'ready_for_pickup', 'loading', 'completed', 'cancelled',
+]
+
+// Warehouse can only advance through their workflow; no cancel, no complete (auto)
+const WAREHOUSE_STATUSES: OrderStatus[] = [
+  'confirmed', 'processing', 'ready_for_pickup', 'loading',
 ]
 
 const STATUS_LABELS: Record<string, string> = {
@@ -42,6 +47,7 @@ interface Props {
   currentStatus: OrderStatus
   allItemsStaged?: boolean
   customerNoDefectsAt?: string | null
+  warehouseMode?: boolean
 }
 
 export default function UpdateOrderStatus({
@@ -50,28 +56,39 @@ export default function UpdateOrderStatus({
   currentStatus,
   allItemsStaged = false,
   customerNoDefectsAt,
+  warehouseMode = false,
 }: Props) {
+  const statusList = warehouseMode ? WAREHOUSE_STATUSES : ALL_STATUSES
   const [newStatus, setNewStatus] = useState<OrderStatus>(currentStatus)
-  const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [notes, setNotes]         = useState('')
+  const [loading, setLoading]     = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
-  // Gate: can't move to ready_for_pickup unless all items staged
-  const isBlocked =
+  // Staging gate: can't go to ready_for_pickup until all staged
+  const isBlockedStaging =
     newStatus === 'ready_for_pickup' &&
     currentStatus === 'processing' &&
     !allItemsStaged
 
-  // Gate: can't complete unless customer confirmed no defects
+  // Completion gate: warehouse can't complete without customer confirmation
+  // Office/admin see a warning but can override
   const isBlockedComplete =
     newStatus === 'completed' &&
     currentStatus === 'loading' &&
-    !customerNoDefectsAt
+    !customerNoDefectsAt &&
+    warehouseMode
+
+  // Office/admin warning (non-blocking) when completing without confirmation
+  const warnComplete =
+    newStatus === 'completed' &&
+    currentStatus === 'loading' &&
+    !customerNoDefectsAt &&
+    !warehouseMode
 
   const handleUpdate = async () => {
     if (newStatus === currentStatus) { toast.info('Status unchanged'); return }
-    if (isBlocked || isBlockedComplete) return
+    if (isBlockedStaging || isBlockedComplete) return
     setLoading(true)
 
     const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
@@ -109,7 +126,7 @@ export default function UpdateOrderStatus({
     setLoading(false)
   }
 
-  const blocked = isBlocked || isBlockedComplete
+  const hardBlocked = isBlockedStaging || isBlockedComplete
 
   return (
     <Card>
@@ -122,14 +139,14 @@ export default function UpdateOrderStatus({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ALL_STATUSES.map((s) => (
+              {statusList.map((s) => (
                 <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {isBlocked && (
+        {isBlockedStaging && (
           <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <p>All items must be checked off in the staging checklist before marking ready for pickup.</p>
@@ -140,6 +157,13 @@ export default function UpdateOrderStatus({
           <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <p>Customer must confirm all items loaded with no defects before completing the order.</p>
+          </div>
+        )}
+
+        {warnComplete && (
+          <div className="flex items-start gap-2 text-orange-700 bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <p>Customer has not confirmed the no-defects policy. You can still override as office staff.</p>
           </div>
         )}
 
@@ -156,7 +180,7 @@ export default function UpdateOrderStatus({
         <Button
           className="w-full"
           onClick={handleUpdate}
-          disabled={loading || newStatus === currentStatus || blocked}
+          disabled={loading || newStatus === currentStatus || hardBlocked}
         >
           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Update & Notify

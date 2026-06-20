@@ -195,16 +195,15 @@ export default async function DashboardOrderDetail({ params }: Props) {
         {/* Right column */}
         <div className="space-y-5">
 
-          {/* Update Status — only for office/admin */}
-          {!isWarehouse && (
-            <UpdateOrderStatus
-              orderId={order.id}
-              customerId={order.customer_id}
-              currentStatus={order.status as any}
-              allItemsStaged={allItemsStaged}
-              customerNoDefectsAt={order.customer_no_defects_at ?? null}
-            />
-          )}
+          {/* Update Status — office/admin get full control; warehouse gets limited workflow */}
+          <UpdateOrderStatus
+            orderId={order.id}
+            customerId={order.customer_id}
+            currentStatus={order.status as any}
+            allItemsStaged={allItemsStaged}
+            customerNoDefectsAt={order.customer_no_defects_at ?? null}
+            warehouseMode={isWarehouse}
+          />
 
           {/* Customer info */}
           <Card>

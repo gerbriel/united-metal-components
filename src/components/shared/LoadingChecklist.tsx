@@ -82,23 +82,44 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
 
   const handleNoDefects = async () => {
     setConfirmingDefects(true)
+    const now = new Date().toISOString()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error } = await supabase
       .from('orders')
-      .update({ customer_no_defects_at: new Date().toISOString() })
+      .update({ customer_no_defects_at: now, status: 'completed' })
       .eq('id', orderId)
       .eq('customer_id', customerId)
 
     if (error) {
       toast.error('Failed to confirm. Please try again.')
     } else {
+      // Record status history
+      await supabase.from('order_status_history').insert({
+        order_id:   orderId,
+        old_status: 'loading',
+        new_status: 'completed',
+        changed_by: user?.id ?? null,
+        notes:      'Auto-completed: customer confirmed all items received with no defects.',
+      })
+
+      // Notify customer
       await supabase.from('notifications').insert({
-        user_id: customerId,
-        type: 'order_update',
-        title: `Order #${orderId} — Loading Confirmed`,
-        message: 'You have confirmed all items were loaded with no defects.',
+        user_id:  customerId,
+        type:     'order_update',
+        title:    `Order #${orderId} — Completed`,
+        message:  'You confirmed all items were loaded with no defects. Your order is now complete. Thank you!',
         order_id: orderId,
       })
-      toast.success('Confirmation saved. Your order is being finalized.')
+
+      // Notify all staff
+      await supabase.rpc('notify_all_staff', {
+        p_order_id: orderId,
+        p_title:    `Order #${orderId} — Completed`,
+        p_message:  'Customer confirmed all items loaded with no defects. Order auto-completed.',
+      })
+
+      toast.success('Order complete! All items confirmed with no defects.')
       router.refresh()
     }
     setConfirmingDefects(false)

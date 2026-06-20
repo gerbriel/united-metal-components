@@ -17,7 +17,7 @@ export default async function NewsletterPage() {
   ] = await Promise.all([
     supabase
       .from('newsletter_subscribers')
-      .select('*', { count: 'exact' })
+      .select('id, email, name, user_id, status, subscribed_at', { count: 'exact' })
       .eq('status', 'active')
       .order('subscribed_at', { ascending: false }),
     supabase
@@ -36,6 +36,7 @@ export default async function NewsletterPage() {
     id: s.id,
     email: s.email,
     name: s.name ?? null,
+    user_id: (s as any).user_id ?? null,
   }))
 
   return (

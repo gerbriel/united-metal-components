@@ -7,6 +7,7 @@ import { CheckCircle, Circle, Clock } from 'lucide-react'
 import type { Metadata } from 'next'
 import OrderRealtimeStatus from '@/components/shared/OrderRealtimeStatus'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
+import StagingProgress from '@/components/shared/StagingProgress'
 import { ORDER_STATUS_LABEL, ORDER_STATUS_FLOW } from '@/types/database'
 
 interface Props { params: Promise<{ id: string }> }
@@ -48,7 +49,15 @@ export default async function OrderDetailPage({ params }: Props) {
     .order('created_at', { ascending: true })
 
   const currentStatusIdx = ORDER_STATUS_FLOW.indexOf(order.status as any)
-  const showLoadingChecklist = order.status === 'loading'
+  const showLoadingChecklist  = order.status === 'loading'
+  const showStagingProgress   = order.status === 'processing'
+
+  // Fetch staging state for customer view
+  const { data: stagingRows } = showStagingProgress
+    ? await supabase.from('order_item_staging').select('order_item_id').eq('order_id', order.id)
+    : { data: [] }
+
+  const initialStagedIds = (stagingRows ?? []).map((r: any) => r.order_item_id as number)
 
   const orderItems = (order.order_items as any[]).map((i: any) => ({
     id: i.id,
@@ -102,6 +111,16 @@ export default async function OrderDetailPage({ params }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {/* Staging progress — read-only customer view while warehouse prepares order */}
+      {showStagingProgress && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Order Being Prepared</CardTitle></CardHeader>
+          <CardContent>
+            <StagingProgress orderId={order.id} items={orderItems} initialStagedIds={initialStagedIds} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Loading stage — customer side of the dual-confirmation */}
       {showLoadingChecklist && (

@@ -85,9 +85,9 @@ export default function SignupPage() {
       }).eq('id', user.id)
     }
 
-    // Auto-subscribe to newsletter for pricing alerts
+    // Auto-subscribe to newsletter for pricing alerts, linking user_id for in-app notifications
     await supabase.from('newsletter_subscribers').upsert(
-      { email: clean.email, name: `${clean.firstName} ${clean.lastName}`.trim(), status: 'active' },
+      { email: clean.email, name: `${clean.firstName} ${clean.lastName}`.trim(), status: 'active', user_id: user?.id ?? null },
       { onConflict: 'email' }
     )
 
