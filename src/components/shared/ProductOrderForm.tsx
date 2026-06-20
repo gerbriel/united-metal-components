@@ -32,7 +32,6 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
   const isHatChannel = sku === 'HAT-CHANNEL'
   const isBrace = sku === 'BRACE'
   const hasColor = COLOR_SKUS.has(sku)
-  const showPricePerPiece = tubingConfig?.type === 'preset'
 
   const lengths =
     tubingConfig?.type === 'preset' ? tubingConfig.lengths
@@ -119,25 +118,19 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
             {lengths.map((l) => {
               const label = l <= 3 ? `${l}'` : `${l} ft`
               const isSelected = selectedLength === l && !useCustom
-              const piecePrice = showPricePerPiece ? product.price * l : null
               return (
                 <button
                   key={l}
                   type="button"
                   onClick={() => { setSelectedLength(l); setUseCustom(false) }}
                   className={[
-                    'px-4 py-2.5 rounded-lg border text-sm font-medium transition-all text-left',
+                    'px-4 py-2.5 rounded-lg border text-sm font-medium transition-all',
                     isSelected
                       ? 'bg-primary text-white border-primary shadow-sm'
                       : 'border-slate-200 hover:border-primary hover:text-primary bg-white',
                   ].join(' ')}
                 >
-                  <span className="block">{label}</span>
-                  {piecePrice !== null && (
-                    <span className={['block text-xs mt-0.5', isSelected ? 'text-white/80' : 'text-muted-foreground'].join(' ')}>
-                      ${piecePrice.toFixed(2)}/pc
-                    </span>
-                  )}
+                  {label}
                 </button>
               )
             })}
@@ -202,12 +195,16 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
                 title={c.name}
                 onClick={() => setSelectedColor(c.name)}
                 className={[
-                  'w-9 h-9 rounded-full border-2 transition-all',
+                  'w-9 h-9 rounded-full border-2 transition-all overflow-hidden',
                   selectedColor === c.name
                     ? 'border-primary scale-110 shadow-md ring-2 ring-primary/30'
                     : 'border-white shadow-sm hover:scale-105 hover:border-primary/60',
                 ].join(' ')}
-                style={{ backgroundColor: c.hex }}
+                style={
+                  c.image
+                    ? { backgroundImage: `url(${c.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                    : { backgroundColor: c.hex }
+                }
               />
             ))}
           </div>

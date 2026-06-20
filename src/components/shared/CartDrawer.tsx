@@ -45,11 +45,15 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
 
                 return (
                   <div key={key} className="flex gap-3">
-                    <div className="w-14 h-14 bg-muted rounded-md flex items-center justify-center shrink-0 relative">
+                    <div className="w-14 h-14 bg-muted rounded-md flex items-center justify-center shrink-0 overflow-hidden">
                       {colorDef ? (
                         <div
                           className="w-full h-full rounded-md"
-                          style={{ backgroundColor: colorDef.hex }}
+                          style={
+                            colorDef.image
+                              ? { backgroundImage: `url(${colorDef.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                              : { backgroundColor: colorDef.hex }
+                          }
                         />
                       ) : (
                         <ShoppingBag className="w-5 h-5 text-muted-foreground" />
@@ -69,8 +73,12 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">
                             {colorDef && (
                               <span
-                                className="w-2.5 h-2.5 rounded-full border border-slate-300 inline-block"
-                                style={{ backgroundColor: colorDef.hex }}
+                                className="w-2.5 h-2.5 rounded-full border border-slate-300 inline-block overflow-hidden"
+                                style={
+                                  colorDef.image
+                                    ? { backgroundImage: `url(${colorDef.image})`, backgroundSize: 'cover' }
+                                    : { backgroundColor: colorDef.hex }
+                                }
                               />
                             )}
                             {color}

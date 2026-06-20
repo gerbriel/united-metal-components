@@ -1,6 +1,15 @@
-export const COLORS = [
+type ColorEntry = {
+  name: string
+  hex: string
+  textDark: boolean
+  // Optional: path to a texture photo in /public for patterned finishes.
+  // Place images at public/images/colors/<filename>.jpg
+  image?: string
+}
+
+export const COLORS: ColorEntry[] = [
   { name: 'White',         hex: '#F5F5F5', textDark: true  },
-  { name: 'Light Stone',   hex: '#C8B896', textDark: true  },
+  { name: 'Light Stone',   hex: '#C8B896', textDark: true,  image: '/images/colors/light-stone.jpg'  },
   { name: 'Pebble Beige',  hex: '#D4BF9A', textDark: true  },
   { name: 'Mocha Tan',     hex: '#A88660', textDark: true  },
   { name: 'Taupe',         hex: '#8F7E6E', textDark: true  },
@@ -8,16 +17,16 @@ export const COLORS = [
   { name: 'Brown',         hex: '#5C3A1E', textDark: false },
   { name: 'Zinc Gray',     hex: '#686868', textDark: false },
   { name: 'Pewter Gray',   hex: '#969696', textDark: true  },
-  { name: 'Galvalume',     hex: '#C8C8C0', textDark: true  },
+  { name: 'Galvalume',     hex: '#C8C8C0', textDark: true,  image: '/images/colors/galvalume.jpg'    },
   { name: 'Hawaiian Blue', hex: '#3A74C4', textDark: false },
   { name: 'Forest Green',  hex: '#2A5024', textDark: false },
   { name: 'Barn Red',      hex: '#7A2020', textDark: false },
   { name: 'Black',         hex: '#1A1A1A', textDark: false },
   { name: 'Light Rock',    hex: '#A09080', textDark: false },
-  { name: 'Dark Stone',    hex: '#504540', textDark: false },
-] as const
+  { name: 'Dark Stone',    hex: '#504540', textDark: false, image: '/images/colors/dark-stone.jpg'   },
+]
 
-export type ColorName = typeof COLORS[number]['name']
+export type ColorName = string
 
 export type TubingConfig =
   | { type: 'preset'; lengths: number[] }
