@@ -12,24 +12,38 @@ const name = z
   .max(100, 'Too long')
   .regex(/^[a-zA-Z\s'\-\.]+$/, 'Contains invalid characters')
 
-export const signupSchema = z.object({
-  firstName:       name.describe('First name'),
-  lastName:        name.describe('Last name'),
-  companyName:     z.string().min(1, 'Company name is required').max(150, 'Too long'),
-  mailingAddress:  z.string().min(5, 'Mailing address is required').max(300, 'Too long'),
-  businessAddress: z.string().min(5, 'Business address is required').max(300, 'Too long'),
-  email:           z.string().email('Enter a valid email address').max(254),
-  phone:           z
-    .string()
-    .min(7, 'Phone number is required')
-    .regex(/^[0-9+\-()\s]{7,20}$/, 'Enter a valid phone number'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password is too long')
-    .regex(/[A-Za-z]/, 'Password must include at least one letter')
-    .regex(/[0-9]/, 'Password must include at least one number'),
+const password = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(128, 'Password is too long')
+  .regex(/[A-Za-z]/, 'Password must include at least one letter')
+  .regex(/[0-9]/, 'Password must include at least one number')
+
+const requiredPhone = z
+  .string()
+  .min(7, 'Phone number is required')
+  .regex(/^[0-9+\-()\s]{7,20}$/, 'Enter a valid phone number')
+
+export const signupRetailSchema = z.object({
+  firstName: name.describe('First name'),
+  lastName:  name.describe('Last name'),
+  email:     z.string().email('Enter a valid email address').max(254),
+  phone:     requiredPhone,
+  password,
 })
+
+export const signupContractorSchema = z.object({
+  firstName:         name.describe('First name'),
+  lastName:          name.describe('Last name'),
+  email:             z.string().email('Enter a valid email address').max(254),
+  phone:             requiredPhone,
+  companyName:       z.string().min(1, 'Company name is required').max(150, 'Too long'),
+  contractorLicense: z.string().max(100).optional().or(z.literal('')),
+  resellerLicense:   z.string().max(100).optional().or(z.literal('')),
+  password,
+})
+
+export const signupSchema = signupContractorSchema
 
 export const checkoutSchema = z.object({
   name: z

@@ -50,10 +50,9 @@ export default function ProductGrid({ products }: { products: ProductWithCategor
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2 flex-1">{p.description}</p>
               )}
               <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                <div>
-                  <span className="text-lg font-bold text-primary">${p.price.toFixed(2)}</span>
-                  {p.unit && <span className="text-xs text-muted-foreground ml-1">/ {p.unit}</span>}
-                </div>
+                <span className="text-xs text-muted-foreground italic">
+                  {p.unit ? `Sold per ${p.unit}` : 'Contact for pricing'}
+                </span>
                 {p.stock_qty > 0 ? (
                   <Button size="sm" onClick={(e) => handleAdd(e, p)} className="gap-1">
                     <ShoppingCart className="w-3 h-3" /> Add

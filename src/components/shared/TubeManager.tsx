@@ -52,7 +52,7 @@ interface Props {
   isAdmin:        boolean
 }
 
-const STANDARD_LENGTHS = [20, 22, 24, 26, 30]
+const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
 
 const EMPTY_SPEC_FORM = {
   product_id:                '',

@@ -21,6 +21,8 @@ interface UserRow {
   account_status: string
   suspended_reason: string | null
   can_receive_inventory: boolean
+  pricing_tier: string | null
+  customer_type: 'retail' | 'contractor' | null
   created_at: string
 }
 
@@ -47,7 +49,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, created_at')
+      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, created_at')
       .order('created_at', { ascending: false })
     if (data) setUsers(data as UserRow[])
   }, [])
@@ -71,6 +73,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
       p_can_receive_inventory: patch.can_receive_inventory != null
         ? Boolean(patch.can_receive_inventory)
         : null,
+      p_pricing_tier:          patch.pricing_tier !== undefined ? (patch.pricing_tier as string | null) : null,
     })
     if (error) toast.error(`Failed: ${error.message}`)
     else { toast.success('Updated'); await fetchUsers() }
@@ -122,6 +125,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                 <th className="text-left p-3">Role</th>
                 <th className="text-left p-3">Employee Type</th>
                 <th className="text-left p-3">Receiving</th>
+                <th className="text-left p-3">Pricing Tier</th>
                 <th className="text-left p-3">Status</th>
                 <th className="text-left p-3">Actions</th>
               </tr>
@@ -141,7 +145,18 @@ export default function AdminUserManager({ initialUsers }: Props) {
                       <p className="font-medium">{name}</p>
                       {u.company_name && <p className="text-xs text-muted-foreground">{u.company_name}</p>}
                       {u.phone && <p className="text-xs text-muted-foreground">{u.phone}</p>}
-                      <p className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {u.customer_type && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                            u.customer_type === 'contractor'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {u.customer_type === 'contractor' ? 'Contractor' : 'Retail'}
+                          </span>
+                        )}
+                        <p className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</p>
+                      </div>
                     </td>
 
                     <td className="p-3">
@@ -196,6 +211,31 @@ export default function AdminUserManager({ initialUsers }: Props) {
                         >
                           {u.can_receive_inventory ? 'Enabled' : 'Off'}
                         </button>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+
+                    <td className="p-3">
+                      {!isStaffRole(u.role) ? (
+                        <Select
+                          value={u.pricing_tier ?? '__unset__'}
+                          onValueChange={(v) => v && callRpc(u.id, {
+                            role: null, employee_role: null, account_status: null, suspended_reason: null,
+                            can_receive_inventory: null,
+                            pricing_tier: v === '__unset__' ? '__clear__' : v,
+                          })}
+                          disabled={isBusy}
+                        >
+                          <SelectTrigger className="w-44 h-8 text-xs">
+                            <SelectValue placeholder="— unassigned —" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__unset__" className="text-muted-foreground">— unassigned —</SelectItem>
+                            <SelectItem value="retail">Retail</SelectItem>
+                            <SelectItem value="retail_tax_exempt">Retail (Tax Exempt)</SelectItem>
+                            <SelectItem value="contractor">Contractor</SelectItem>
+                            <SelectItem value="contractor_tax_exempt">Contractor (Tax Exempt)</SelectItem>
+                          </SelectContent>
+                        </Select>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
 

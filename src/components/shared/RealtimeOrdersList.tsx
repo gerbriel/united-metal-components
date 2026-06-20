@@ -40,6 +40,7 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
   const [flash, setFlash]         = useState(false)
   const supabase = createClient()
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const channelName = useRef(`orders-rt-${Date.now()}`)
 
   const fetchOrders = useCallback(async () => {
     let q = supabase
@@ -63,7 +64,6 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
     if (data) {
       setOrders(data as unknown as OrderRow[])
       setLastUpdate(new Date())
-      // Flash indicator to signal a live update
       setFlash(true)
       clearTimeout(flashTimer.current)
       flashTimer.current = setTimeout(() => setFlash(false), 1200)
@@ -71,8 +71,10 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
   }, [currentStatus, isWarehouse])
 
   useEffect(() => {
+    fetchOrders()
+
     const channel = supabase
-      .channel('orders-realtime-list')
+      .channel(channelName.current)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
       .subscribe()
 

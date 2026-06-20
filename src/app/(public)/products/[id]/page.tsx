@@ -63,9 +63,8 @@ export default async function ProductDetailPage({ params }: Props) {
           <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
           {product.sku && <p className="text-sm text-muted-foreground mb-4">SKU: {product.sku}</p>}
 
-          <div className="text-4xl font-bold text-primary mb-1">
-            ${product.price.toFixed(2)}
-            {product.unit && <span className="text-lg font-normal text-muted-foreground ml-2">per {product.unit}</span>}
+          <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-slate-50 border rounded-lg">
+            <span className="text-sm text-muted-foreground italic">Pricing available upon request</span>
           </div>
 
           {product.description && (
@@ -109,7 +108,7 @@ export default async function ProductDetailPage({ params }: Props) {
             {related.map((r) => (
               <Link key={r.id} href={`/products/${r.id}`} className="p-4 border rounded-lg hover:border-primary hover:shadow-sm transition-all">
                 <p className="font-medium text-sm leading-tight">{r.name}</p>
-                <p className="text-primary font-bold mt-2">${r.price.toFixed(2)}{r.unit && <span className="text-xs text-muted-foreground font-normal">/{r.unit}</span>}</p>
+                <p className="text-xs text-muted-foreground italic mt-2">Contact for pricing{r.unit && ` · per ${r.unit}`}</p>
               </Link>
             ))}
           </div>

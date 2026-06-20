@@ -15,7 +15,7 @@ interface Props {
   tubeProducts: TubeProduct[]
 }
 
-const STANDARD_LENGTHS = [20, 22, 24, 26, 30]
+const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
 
 const EMPTY_COIL = {
   coil_identifier:     '',
