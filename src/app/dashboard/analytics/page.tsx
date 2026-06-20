@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AnalyticsCharts from '@/components/shared/AnalyticsCharts'
 import AnalyticsTracker from '@/components/shared/AnalyticsTracker'
 import type { Metadata } from 'next'
+import { isAdminRole } from '@/types/database'
 
 export const metadata: Metadata = { title: 'Analytics — Dashboard' }
 
@@ -19,13 +20,21 @@ export default async function AnalyticsPage({ searchParams }: Props) {
   const supabase = await createClient()
   const cutoff = new Date(Date.now() - days * 86400000).toISOString()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: viewerProfile } = await supabase.from('profiles').select('role').eq('id', user!.id).single()
+  const isAdmin = isAdminRole((viewerProfile as any)?.role ?? '')
+
   const [
     { data: rawEvents },
-    { data: recentOrders },
+    { data: rawOrders },
   ] = await Promise.all([
     supabase.from('analytics_events').select('page, session_id, user_role').gte('created_at', cutoff).limit(2000),
-    supabase.from('orders').select('id, status, created_at').gte('created_at', cutoff).order('created_at', { ascending: false }),
+    supabase.from('orders').select('id, status, created_at, profiles(pricing_tier)').gte('created_at', cutoff).order('created_at', { ascending: false }),
   ])
+
+  const recentOrders = isAdmin
+    ? (rawOrders ?? [])
+    : (rawOrders ?? []).filter((o) => (o.profiles as any)?.pricing_tier !== 'contractor_tax_exempt_tbd')
 
   // Segment filter
   const allEvents = rawEvents ?? []
