@@ -15,7 +15,7 @@ interface OrderItem {
 
 interface LoadingRow {
   order_item_id: number
-  employee_confirmed_at: string | null
+  staff_confirmed_at: string | null
   customer_confirmed_at: string | null
 }
 
@@ -23,7 +23,7 @@ interface Props {
   orderId: number
   customerId: string
   items: OrderItem[]
-  viewerRole: 'employee' | 'customer'
+  viewerRole: 'staff' | 'customer'
   customerNoDefectsAt: string | null
 }
 
@@ -37,7 +37,7 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
   const fetchRows = useCallback(async () => {
     const { data } = await supabase
       .from('order_item_loading')
-      .select('order_item_id, employee_confirmed_at, customer_confirmed_at')
+      .select('order_item_id, staff_confirmed_at, customer_confirmed_at')
       .eq('order_id', orderId)
     if (data) {
       const m = new Map<number, LoadingRow>()
@@ -63,8 +63,8 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
     const existing = rows.get(itemId)
 
     const patch =
-      viewerRole === 'employee'
-        ? { employee_confirmed_at: new Date().toISOString(), employee_confirmed_by: user?.id }
+      viewerRole === 'staff'
+        ? { staff_confirmed_at: new Date().toISOString(), staff_confirmed_by: user?.id }
         : { customer_confirmed_at: new Date().toISOString(), customer_confirmed_by: user?.id }
 
     const { error } = await supabase
@@ -125,7 +125,7 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
     setConfirmingDefects(false)
   }
 
-  const allEmployeeConfirmed = items.every((i) => rows.get(i.id)?.employee_confirmed_at)
+  const allEmployeeConfirmed = items.every((i) => rows.get(i.id)?.staff_confirmed_at)
   const allCustomerConfirmed = items.every((i) => rows.get(i.id)?.customer_confirmed_at)
   const noDefectsConfirmed   = !!customerNoDefectsAt
 
@@ -135,7 +135,7 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {viewerRole === 'employee'
+        {viewerRole === 'staff'
           ? 'Check off each item as you load it into the customer\'s vehicle.'
           : 'Check off each item as you confirm it has been loaded.'}
       </p>
@@ -149,11 +149,11 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
         <div className="divide-y">
           {items.map((item) => {
             const row = rows.get(item.id)
-            const empDone = !!row?.employee_confirmed_at
+            const empDone = !!row?.staff_confirmed_at
             const custDone = !!row?.customer_confirmed_at
             const isBusy = busy.has(item.id)
             const canCheck =
-              (viewerRole === 'employee' && !empDone) ||
+              (viewerRole === 'staff' && !empDone) ||
               (viewerRole === 'customer' && empDone && !custDone)
 
             return (
@@ -171,7 +171,7 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
 
                 {/* Employee column */}
                 <div className="w-24 flex justify-center">
-                  {viewerRole === 'employee' && !empDone ? (
+                  {viewerRole === 'staff' && !empDone ? (
                     <button onClick={() => confirmItem(item.id)} disabled={isBusy} className="hover:opacity-70 transition-opacity">
                       {isBusy ? <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /> : <Square className="w-5 h-5 text-muted-foreground" />}
                     </button>
@@ -207,7 +207,7 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
                 By confirming, you acknowledge that all items have been loaded and you have inspected them. All sales are final — no returns or exchanges after this confirmation.
               </p>
               {!allEmployeeConfirmed && (
-                <p className="text-xs text-muted-foreground mt-2 italic">Waiting for employee to finish loading…</p>
+                <p className="text-xs text-muted-foreground mt-2 italic">Waiting for staff to finish loading…</p>
               )}
               {allEmployeeConfirmed && !allCustomerConfirmed && (
                 <p className="text-xs text-muted-foreground mt-2 italic">Check off all items above first.</p>
@@ -242,14 +242,14 @@ export default function LoadingChecklist({ orderId, customerId, items, viewerRol
       )}
 
       {/* Employee: waiting for customer */}
-      {viewerRole === 'employee' && allEmployeeConfirmed && !noDefectsConfirmed && (
+      {viewerRole === 'staff' && allEmployeeConfirmed && !noDefectsConfirmed && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-muted-foreground">
           Waiting for customer to confirm items and accept no-defects policy.
         </div>
       )}
 
       {/* Employee: customer confirmed, can complete */}
-      {viewerRole === 'employee' && noDefectsConfirmed && (
+      {viewerRole === 'staff' && noDefectsConfirmed && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-green-600 shrink-0" />
           <p className="text-sm font-medium text-green-800">

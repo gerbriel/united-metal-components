@@ -19,10 +19,7 @@ export default async function InventoryPage() {
     .eq('id', user!.id)
     .single()
 
-  const isWarehouse = isWarehouseRole(
-    (profile as any)?.role ?? '',
-    (profile as any)?.employee_role ?? null
-  )
+  const isWarehouse = isWarehouseRole((profile as any)?.role ?? '')
 
   const { data: products } = await supabase
     .from('products')

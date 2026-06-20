@@ -29,7 +29,7 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
     .eq('id', user!.id)
     .single()
 
-  const isWarehouse = isWarehouseRole((profile as any)?.role, (profile as any)?.employee_role)
+  const isWarehouse = isWarehouseRole((profile as any)?.role)
   const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : undefined)
 
   let query = supabase

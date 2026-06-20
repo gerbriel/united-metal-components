@@ -1,4 +1,4 @@
-export type UserRole = 'customer' | 'employee' | 'office_employee' | 'warehouse_employee' | 'admin'
+export type UserRole = 'customer' | 'office_employee' | 'warehouse_employee' | 'admin'
 export type EmployeeRole = 'office' | 'warehouse'
 export type AccountStatus = 'active' | 'suspended'
 export type OrderStatus =
@@ -280,14 +280,14 @@ export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['R
 export type NewsletterCampaignRecipient = Database['public']['Tables']['newsletter_campaign_recipients']['Row']
 
 // Role helpers
-export const STAFF_ROLES: UserRole[] = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+export const STAFF_ROLES: UserRole[] = ['office_employee', 'warehouse_employee', 'admin']
 export const WAREHOUSE_ROLES: UserRole[] = ['warehouse_employee']
 
 export function isStaffRole(role: string): boolean {
   return STAFF_ROLES.includes(role as UserRole)
 }
-export function isWarehouseRole(role: string, employeeRole?: string | null): boolean {
-  return role === 'warehouse_employee' || (role === 'employee' && employeeRole === 'warehouse')
+export function isWarehouseRole(role: string): boolean {
+  return role === 'warehouse_employee'
 }
 export function isAdminRole(role: string): boolean {
   return role === 'admin'

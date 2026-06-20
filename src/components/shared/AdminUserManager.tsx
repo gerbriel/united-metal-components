@@ -29,11 +29,10 @@ interface UserRow {
 interface Props { initialUsers: UserRow[] }
 
 const ROLE_LABELS: Record<string, string> = {
-  customer:          'Customer',
-  employee:          'Employee (legacy)',
-  office_employee:   'Office Employee',
-  warehouse_employee:'Warehouse Employee',
-  admin:             'Admin',
+  customer:           'Customer',
+  office_employee:    'Office Employee',
+  warehouse_employee: 'Warehouse Employee',
+  admin:              'Admin',
 }
 
 const EMPLOYEE_ROLES = ['none', 'office', 'warehouse']

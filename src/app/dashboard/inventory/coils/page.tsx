@@ -24,7 +24,7 @@ export default async function CoilsPage() {
   if (!STAFF_ROLES.includes(role)) redirect('/')
 
   const isAdmin     = isAdminRole(role)
-  const isWarehouse = isWarehouseRole(role, empRole)
+  const isWarehouse = isWarehouseRole(role)
 
   const { data: coils } = await supabase
     .from('product_coils')

@@ -37,7 +37,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
     .eq('id', user!.id)
     .single()
 
-  const isWarehouse = isWarehouseRole((viewer as any)?.role, (viewer as any)?.employee_role)
+  const isWarehouse = isWarehouseRole((viewer as any)?.role)
 
   const { data: order } = await supabase
     .from('orders')
@@ -162,7 +162,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
                   orderId={order.id}
                   customerId={order.customer_id}
                   items={orderItems}
-                  viewerRole="employee"
+                  viewerRole="staff"
                   customerNoDefectsAt={order.customer_no_defects_at ?? null}
                 />
               </CardContent>

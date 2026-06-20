@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const role = (profile as any).role as string
   const empRole = (profile as any).employee_role as string | null
-  const isWarehouse = isWarehouseRole(role, empRole)
+  const isWarehouse = isWarehouseRole(role)
   const isAdmin = isAdminRole(role)
 
   const displayName = (profile as any).first_name && (profile as any).last_name

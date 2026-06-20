@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Loader2, Mail, Lock, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { STAFF_ROLES } from '@/types/database'
 
 type Mode = 'password' | 'magic'
 
@@ -33,7 +34,7 @@ export default function LoginPage() {
     if (user) {
       const { data: profileData } = await supabase.from('profiles').select('role').eq('id', user.id).single()
       const profile = profileData as { role: string } | null
-      router.push(profile?.role === 'employee' || profile?.role === 'admin' ? '/dashboard' : '/account')
+      router.push(STAFF_ROLES.includes(profile?.role as any) ? '/dashboard' : '/account')
       router.refresh()
     }
   }
