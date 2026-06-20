@@ -39,7 +39,7 @@ export default function RealtimeOrdersList({ initialOrders, isWarehouse, current
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [flash, setFlash]         = useState(false)
   const supabase = createClient()
-  const flashTimer = useRef<ReturnType<typeof setTimeout>>()
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const fetchOrders = useCallback(async () => {
     let q = supabase

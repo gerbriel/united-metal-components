@@ -20,6 +20,7 @@ interface UserRow {
   employee_role: string | null
   account_status: string
   suspended_reason: string | null
+  can_receive_inventory: boolean
   created_at: string
 }
 
@@ -37,7 +38,7 @@ const EMPLOYEE_ROLES = ['none', 'office', 'warehouse']
 
 export default function AdminUserManager({ initialUsers }: Props) {
   const [users, setUsers]           = useState<UserRow[]>(initialUsers)
-  const [suspendingId, setSuspending] = useState<string | null>(null)
+  const [suspendingId, setSuspendingId] = useState<string | null>(null)
   const [suspendReason, setSuspendReason] = useState('')
   const [loadingId, setLoadingId]   = useState<string | null>(null)
   const [search, setSearch]         = useState('')
@@ -46,7 +47,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, created_at')
+      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, created_at')
       .order('created_at', { ascending: false })
     if (data) setUsers(data as UserRow[])
   }, [])
@@ -59,14 +60,17 @@ export default function AdminUserManager({ initialUsers }: Props) {
     return () => { supabase.removeChannel(channel) }
   }, [fetchUsers])
 
-  const callRpc = async (userId: string, patch: Record<string, string | null>) => {
+  const callRpc = async (userId: string, patch: Record<string, string | boolean | null>) => {
     setLoadingId(userId)
     const { error } = await supabase.rpc('admin_update_user_profile', {
-      p_user_id:          userId,
-      p_role:             patch.role             ?? null,
-      p_employee_role:    patch.employee_role    ?? null,
-      p_account_status:   patch.account_status   ?? null,
-      p_suspended_reason: patch.suspended_reason ?? null,
+      p_user_id:               userId,
+      p_role:                  patch.role                    ?? null,
+      p_employee_role:         patch.employee_role           ?? null,
+      p_account_status:        patch.account_status          ?? null,
+      p_suspended_reason:      patch.suspended_reason        ?? null,
+      p_can_receive_inventory: patch.can_receive_inventory != null
+        ? Boolean(patch.can_receive_inventory)
+        : null,
     })
     if (error) toast.error(`Failed: ${error.message}`)
     else { toast.success('Updated'); await fetchUsers() }
@@ -117,6 +121,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                 <th className="text-left p-3">User</th>
                 <th className="text-left p-3">Role</th>
                 <th className="text-left p-3">Employee Type</th>
+                <th className="text-left p-3">Receiving</th>
                 <th className="text-left p-3">Status</th>
                 <th className="text-left p-3">Actions</th>
               </tr>
@@ -142,7 +147,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                     <td className="p-3">
                       <Select
                         value={u.role}
-                        onValueChange={(v) => handleRoleChange(u.id, v)}
+                        onValueChange={(v) => v && handleRoleChange(u.id, v)}
                         disabled={isBusy}
                       >
                         <SelectTrigger className="w-44 h-8 text-xs">
@@ -160,7 +165,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                       {isStaffRole(u.role) ? (
                         <Select
                           value={u.employee_role ?? 'none'}
-                          onValueChange={(v) => handleEmployeeRoleChange(u.id, v)}
+                          onValueChange={(v) => v && handleEmployeeRoleChange(u.id, v)}
                           disabled={isBusy}
                         >
                           <SelectTrigger className="w-32 h-8 text-xs">
@@ -172,6 +177,25 @@ export default function AdminUserManager({ initialUsers }: Props) {
                             ))}
                           </SelectContent>
                         </Select>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+
+                    <td className="p-3">
+                      {isStaffRole(u.role) ? (
+                        <button
+                          disabled={isBusy}
+                          onClick={() => callRpc(u.id, {
+                            role: null, employee_role: null, account_status: null, suspended_reason: null,
+                            can_receive_inventory: !u.can_receive_inventory,
+                          })}
+                          className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                            u.can_receive_inventory
+                              ? 'bg-green-100 text-green-700 border-green-300'
+                              : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                          }`}
+                        >
+                          {u.can_receive_inventory ? 'Enabled' : 'Off'}
+                        </button>
                       ) : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
 

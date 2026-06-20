@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import InventoryActions from '@/components/shared/InventoryActions'
+import InventoryNav from '@/components/shared/InventoryNav'
 import { isWarehouseRole } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -33,9 +34,14 @@ export default async function InventoryPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Inventory</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Inventory</h1>
+          <p className="text-sm text-muted-foreground">Standard products — units, hardware, accessories</p>
+        </div>
         <InventoryActions categories={categories ?? []} />
       </div>
+
+      <InventoryNav active="products" />
 
       <Card>
         <div className="overflow-x-auto">

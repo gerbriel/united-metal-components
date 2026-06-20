@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -24,14 +24,35 @@ function getDevice() {
 export default function AnalyticsTracker() {
   const pathname = usePathname()
   const supabase = createClient()
+  const userRef = useRef<{ id: string | null; role: string }>({ id: null, role: 'anonymous' })
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { userRef.current = { id: null, role: 'anonymous' }; return }
+      supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          userRef.current = {
+            id:   user.id,
+            role: (data as any)?.role ?? 'customer',
+          }
+        })
+    })
+  }, [])
+
+  useEffect(() => {
+    const { id, role } = userRef.current
     supabase.from('analytics_events').insert({
       session_id: getSessionId(),
-      event: 'pageview',
-      page: pathname,
-      referrer: document.referrer || null,
-      device: getDevice(),
+      event:      'pageview',
+      page:       pathname,
+      referrer:   document.referrer || null,
+      device:     getDevice(),
+      user_id:    id,
+      user_role:  role,
     }).then(() => {})
   }, [pathname])
 
