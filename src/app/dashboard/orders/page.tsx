@@ -5,6 +5,7 @@ import RealtimeOrdersList from '@/components/shared/RealtimeOrdersList'
 import type { Metadata } from 'next'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import { Tv } from 'lucide-react'
+import ExportCompletedOrdersButton from '@/components/shared/ExportCompletedOrdersButton'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
 
@@ -68,15 +69,20 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Orders</h1>
-        <Link
-          href="/dashboard/orders/tv"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
-        >
-          <Tv className="w-3.5 h-3.5" />
-          TV Mode
-        </Link>
+        <div className="flex items-center gap-2">
+          {!isWarehouse && (
+            <ExportCompletedOrdersButton isAdmin={isAdmin} />
+          )}
+          <Link
+            href="/dashboard/orders/tv"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
+          >
+            <Tv className="w-3.5 h-3.5" />
+            TV Mode
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
