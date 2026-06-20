@@ -13,8 +13,14 @@ export default async function ProductsPage({ searchParams }: Props) {
   const { cat, q } = await searchParams
   const supabase = await createClient()
 
-  // Fetch categories
-  const { data: categories } = await supabase.from('product_categories').select('*').order('name')
+  // Only show categories that have at least one active product
+  const { data: activeCatIds } = await supabase
+    .from('products')
+    .select('category_id')
+    .eq('active', true)
+  const catIdSet = new Set((activeCatIds ?? []).map((r) => r.category_id).filter(Boolean))
+  const { data: allCategories } = await supabase.from('product_categories').select('*').order('name')
+  const categories = (allCategories ?? []).filter((c) => catIdSet.has(c.id))
 
   // Build query
   let query = supabase

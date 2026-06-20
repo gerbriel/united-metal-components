@@ -18,8 +18,9 @@ import { cn } from '@/lib/utils'
 const navLinks = [
   { href: '/products', label: 'Products' },
   { href: '/products?cat=panels', label: 'Sheet Metal' },
-  { href: '/products?cat=doors-hardware', label: 'Doors' },
-  { href: '/products?cat=trusses', label: 'Trusses' },
+  { href: '/products?cat=acero-doors', label: 'Garage Doors' },
+  { href: '/products?cat=doors-hardware', label: 'Walk-in Doors' },
+  { href: '/products?cat=square-tubing', label: 'Tubing' },
   { href: '/contact', label: 'Contact' },
 ]
 

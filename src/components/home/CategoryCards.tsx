@@ -1,18 +1,18 @@
 import Link from 'next/link'
-import { Layers, DoorOpen, Package, Home, Anchor, Thermometer } from 'lucide-react'
+import { Layers, DoorOpen, Package, Wrench, Anchor, Thermometer } from 'lucide-react'
 
 const categories = [
   {
     name: 'Sheet Metal Panels',
     slug: 'panels',
     Icon: Layers,
-    desc: '29 GA painted & galvalume',
+    desc: '29 GA painted, galvalume & stone',
   },
   {
-    name: 'Doors & Hardware',
-    slug: 'doors-hardware',
+    name: 'Garage Doors',
+    slug: 'acero-doors',
     Icon: DoorOpen,
-    desc: 'Walk-in to 14×14 garage doors',
+    desc: 'Acero, Model 2000 / 2500 / 3100 & mini',
   },
   {
     name: 'Square Tubing',
@@ -21,10 +21,10 @@ const categories = [
     desc: '12 & 14 GA structural tubing',
   },
   {
-    name: 'Trusses',
-    slug: 'trusses',
-    Icon: Home,
-    desc: "18' to 30' span trusses",
+    name: 'Trim & Components',
+    slug: 'trim-components',
+    Icon: Wrench,
+    desc: 'Eve, corner, J/L, ridge cap & more',
   },
   {
     name: 'Anchors',
@@ -36,7 +36,7 @@ const categories = [
     name: 'Insulation',
     slug: 'insulation',
     Icon: Thermometer,
-    desc: 'Rolls & bubble wrap insulation',
+    desc: "4' & 6' rolls, foam strips & enclosures",
   },
 ]
 
