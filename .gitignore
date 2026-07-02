@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# stamped engineering plans / source spreadsheets — internal, do not publish
+/Engineering/
+Copy of Material Cheat Sheet.xlsx
+*.xlsx
