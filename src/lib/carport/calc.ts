@@ -21,6 +21,102 @@ export function ftIn(ft: number): string {
 
 const round = (n: number) => Math.round(n)
 
+// ── MIRROR of Carports client/src/data/structural.js (source of truth) ────────
+// Tables 5.1/5.2, the widespan schedule, and the leg/truss regimes below are
+// copied verbatim from the builder. Change them THERE first, then re-mirror here
+// (see AGENTS.md — keep the repos in sync).
+
+// Two width regimes: the generic Table-4 charts stop at 30′ (wider → snow-driven
+// widespan spacing); >40′ switches the triangulated truss single → doubled.
+export const CHART_MAX_WIDTH = 30
+export const TRUSS_MIN_WIDTH = 40
+
+// Row axis — GROUND SNOW / ROOF LIVE LOAD (PSF); column axis — WIND (MPH).
+const SNOW_ROWS = [30, 40, 50, 60, 70, 80, 90]
+const WIND_COLS = [105, 115, 130, 140, 155, 165, 180]
+const rowIdx = (snow: number) => { const i = SNOW_ROWS.findIndex((s) => snow <= s); return i < 0 ? SNOW_ROWS.length - 1 : i }
+const colIdx = (wind: number) => { const i = WIND_COLS.findIndex((w) => wind <= w); return i < 0 ? WIND_COLS.length - 1 : i }
+
+// TABLE 5.1 — PURLIN SPACING (in.), 18GA hat channel, keyed by FRAME SPACING
+// block (in.) then [snow row][wind col].
+const PURLIN_18: Record<number, number[][]> = {
+  60: [
+    [36, 30, 24, 18, 18, 12, 12],
+    [30, 30, 24, 18, 18, 12, 12],
+    [24, 24, 24, 18, 18, 12, 12],
+    [18, 18, 18, 18, 18, 12, 12],
+    [18, 18, 18, 18, 18, 12, 12],
+    [18, 18, 18, 18, 18, 12, 12],
+    [12, 12, 12, 12, 12, 12, 12],
+  ],
+  54: [
+    [48, 36, 30, 24, 18, 18, 12],
+    [42, 42, 36, 30, 24, 18, 12],
+    [30, 30, 30, 24, 18, 18, 12],
+    [30, 30, 30, 24, 18, 18, 12],
+    [24, 24, 24, 18, 18, 18, 12],
+    [18, 18, 18, 18, 18, 18, 12],
+    [18, 18, 18, 18, 18, 18, 12],
+  ],
+  48: [
+    [54, 48, 36, 30, 24, 24, 18],
+    [42, 42, 36, 30, 24, 24, 18],
+    [40, 40, 40, 36, 30, 24, 18],
+    [36, 36, 36, 36, 30, 24, 18],
+    [30, 30, 30, 30, 30, 24, 18],
+    [24, 24, 24, 24, 24, 24, 18],
+    [24, 24, 24, 24, 24, 24, 18],
+  ],
+  42: [
+    [54, 48, 42, 42, 36, 30, 30],
+    [42, 42, 42, 42, 36, 30, 30],
+    [40, 40, 40, 40, 36, 30, 30],
+    [36, 36, 36, 36, 36, 30, 30],
+    [32, 32, 32, 32, 32, 30, 30],
+    [32, 32, 32, 32, 32, 30, 30],
+    [30, 30, 30, 30, 30, 30, 30],
+  ],
+  36: [
+    [54, 48, 42, 42, 36, 36, 30],
+    [42, 42, 42, 42, 36, 36, 30],
+    [40, 40, 40, 40, 36, 36, 30],
+    [36, 36, 36, 36, 36, 36, 30],
+    [32, 32, 32, 32, 32, 32, 30],
+    [32, 32, 32, 32, 32, 32, 30],
+    [30, 30, 30, 30, 30, 30, 30],
+  ],
+}
+// TABLE 5.2 — GIRT SPACING (in.), keyed by FRAME SPACING block (in.) then wind col.
+const GIRT_BY_FRAME: Record<number, number[]> = {
+  60: [60, 48, 36, 30, 24, 24, 18],
+  54: [60, 60, 48, 42, 36, 30, 24],
+  48: [60, 60, 54, 54, 42, 36, 30],
+  42: [60, 60, 54, 54, 48, 42, 42],
+  36: [60, 60, 54, 54, 48, 42, 42],
+}
+// Frame spacing (Table 4) rounds DOWN to a block so secondary members are never
+// under-specified.
+const FRAME_BLOCKS = [60, 54, 48, 42, 36]
+const frameBlock = (spacingFtVal: number) => {
+  const inches = spacingFtVal * 12
+  return FRAME_BLOCKS.find((b) => b <= inches + 0.5) ?? 36
+}
+
+// Widespan (>30′) truss/frame spacing by ground snow — anchored at 8′6″ @ 30 PSF
+// and scaled inverse-to-load, rounded to ½′ (floor 2′6″).
+export function widespanTrussSpacing(snow: number): number {
+  return Math.max(2.5, Math.round((8.5 * 30 / snow) * 2) / 2)
+}
+
+// Web members per half-truss grow with the clear span.
+export function webPanelsFor(width: number): number {
+  if (width <= 14) return 1
+  if (width <= 23) return 2
+  if (width <= 30) return 3
+  return 4
+}
+// ── end mirror ────────────────────────────────────────────────────────────────
+
 // Table 8-A.1 — max end-wall post spacing (ft) by wind speed × eave-height band.
 function endPostSpacingFt(windSpeed: number, eaveHeight: number): number {
   const band = eaveHeight <= 7 ? 0 : eaveHeight <= 9 ? 1 : 2
@@ -72,31 +168,58 @@ export function calculateBom(
     : rafterRun / Math.max(0.01, Math.cos(pitchAngle))
   const roofBeamsPerFrame = hasRidge ? 2 : 1
 
-  // ---- Frame spacing (Table 4) --------------------------------------------
+  // ---- Frame spacing (Table 4 / widespan schedule) -------------------------
   const enclosed = encloseSides && encloseEnds
   const vertical = roofStyle === 'vertical'
+  const widespan = width > CHART_MAX_WIDTH   // >30′: no generic chart → snow-driven widespan spacing
   let frameSpacingFt = rules.trussSpacing > 0 ? rules.trussSpacing : 5
   let frameChart: string | null = null
   let loadAllowed = true
-  const fs = lookupFrameSpacing({
-    width, enclosed, eaveHeight: legHeight, groundSnow, windSpeed, vertical,
-  })
-  if (fs === null) {
-    // Width > 30' has no generic chart — keep the editable trussSpacing fallback.
-    warnings.push(`${width}' wide is beyond the generic charts (≤30') — spacing is an estimate; needs project-specific engineering.`)
-  } else if (!fs.permitted) {
-    frameChart = fs.chart
-    loadAllowed = false
-    warnings.push(`Not permitted: ${width}' @ ${groundSnow} psf / ${windSpeed} mph / ${legHeight}' eave (${enclosed ? 'enclosed' : 'open'}) exceeds the generic charts — needs project-specific engineering.`)
+  if (widespan) {
+    // Mirrors the builder: widespan trusses follow their own snow schedule.
+    frameSpacingFt = widespanTrussSpacing(groundSnow)
+    warnings.push(`${width}' wide is beyond the generic charts (≤30') — using the snow-driven widespan truss schedule; needs project-specific engineering.`)
   } else {
-    frameSpacingFt = fs.spacingFt as number
-    frameChart = fs.chart
+    const fs = lookupFrameSpacing({
+      width, enclosed, eaveHeight: legHeight, groundSnow, windSpeed, vertical,
+    })
+    if (fs === null) {
+      warnings.push(`No chart matched ${width}' × ${legHeight}' eave — spacing is an estimate.`)
+    } else if (!fs.permitted) {
+      frameChart = fs.chart
+      loadAllowed = false
+      warnings.push(`Not permitted: ${width}' @ ${groundSnow} psf / ${windSpeed} mph / ${legHeight}' eave (${enclosed ? 'enclosed' : 'open'}) exceeds the generic charts — needs project-specific engineering.`)
+    } else {
+      frameSpacingFt = fs.spacingFt as number
+      frameChart = fs.chart
+    }
   }
+
+  // Tables 5.1/5.2 key off the CHART spacing block — before the certified/extra-
+  // truss tightening below (mirrors the builder's ordering exactly).
+  const chartSpacingFt = frameSpacingFt
 
   // Certified (Built To Local Code) buildings tighten frame spacing to ≤4′ o.c.,
   // never looser — mirrors the Carports source-of-truth engineering model.
   const certified = input.certification === 'local_code'
   if (certified) frameSpacingFt = Math.min(frameSpacingFt, 4)
+
+  // ---- Legs / trusses (width + height regimes, mirrors deriveStructure) -----
+  // >30′ wide → built-up column: ladder, or zig-zag when tall (≥14′). ≤30′: double
+  // for tall (>12′) or heavy-duty (12ga / certified), else a single standard post.
+  const heavy = certified || input.gauge === 12
+  let legType: 'standard' | 'double' | 'ladder' | 'zigzag' =
+    widespan                    ? (legHeight >= 14 ? 'zigzag' : 'ladder')
+    : (legHeight > 12 || heavy) ? 'double'
+    : 'standard'
+  if (input.legStyle && input.legStyle !== 'auto')
+    legType = input.legStyle === 'single' ? 'standard' : input.legStyle
+  // >30′ → triangulated (A-frame web) truss; doubled above 40′ (certified ≥26′ pairs too).
+  const trussType: 'single' | 'double' =
+    (width > TRUSS_MIN_WIDTH || (certified && width >= 26)) ? 'double' : 'single'
+  const webPanels = webPanelsFor(width)
+  // Closed end walls: single intermediate posts under 13′ eave, double at 13′+.
+  const endLegType: 'standard' | 'double' = legHeight >= 13 ? 'double' : 'standard'
 
   // Code-required minimum frame count from the (max) governing spacing, then any extra
   // trusses the user dictates. Adding extras justifies the frames: they spread evenly
@@ -113,7 +236,6 @@ export function calculateBom(
   // A CERTIFIED build always carries diagonal sway braces, and the plans force them
   // whenever the design wind speed is ≥ 140 mph — so either auto-triggers bracing.
   // Otherwise it follows the user's choice (still recommended on wide/tall/snowy builds).
-  const widespan = width > 30
   const highWind = windSpeed >= 140
   const bracingMandatory = certified || highWind
   const bracingRecommended = widespan || legHeight >= 11 || groundSnow >= 30
@@ -187,13 +309,21 @@ export function calculateBom(
       ? `Table ${frameChart}′ · ${groundSnow}psf/${windSpeed}mph · max ${ftIn(maxFrameSpacingFt)} o.c.`
       : `est. max ${ftIn(maxFrameSpacingFt)} o.c.`
     const extraNote = extraTrusses > 0 ? ` · +${extraTrusses} extra (justified)` : ''
+    const trussNote = trussType === 'double'
+      ? ` · doubled (paired) truss · ${webPanels - 1} web${webPanels - 1 > 1 ? 's' : ''}/side`
+      : widespan ? ` · ${webPanels - 1} web${webPanels - 1 > 1 ? 's' : ''}/side` : ''
     lines.push({
       category: 'Structure', item: 'Trusses / bows (frames)', qty: frames, unit: 'each',
-      detail: `${width}' wide · ${ftIn(actualSpacingFt)} o.c.${extraNote} · ${chartNote}`,
+      detail: `${width}' wide · ${ftIn(actualSpacingFt)} o.c.${extraNote}${trussNote} · ${chartNote}`,
     })
+    const legLabel =
+      legType === 'zigzag' ? 'zig-zag leg (built-up)'
+      : legType === 'ladder' ? 'ladder leg (built-up)'
+      : legType === 'double' ? 'double leg (2 tubes welded)'
+      : '2½" tube'
     lines.push({
       category: 'Structure', item: 'Column posts (legs)', qty: columns, unit: 'each',
-      detail: `${ftIn(legHeight)} · 2½" tube (both sides)`, sku: 'TUBE-MAIN',
+      detail: `${ftIn(legHeight)} · ${legLabel} (both sides)`, sku: 'TUBE-MAIN',
     })
     lines.push({
       category: 'Structure', item: 'Roof beams / rafters', qty: frames * roofBeamsPerFrame, unit: 'each',
@@ -225,7 +355,7 @@ export function calculateBom(
   if (endPosts > 0) {
     lines.push({
       category: 'Structure', item: 'End-wall posts', qty: endPosts, unit: 'each',
-      detail: `${endPostsPerEnd}/end @ ${epSpacing}' o.c. · 2½" tube`, sku: 'TUBE-MAIN',
+      detail: `${endPostsPerEnd}/end @ ${epSpacing}' o.c. · 2½" tube${endLegType === 'double' ? ' (double, 13\'+ eave)' : ''}`, sku: 'TUBE-MAIN',
     })
   }
   // Diagonal sway braces — Math.max(2, closedSides·2) per the plan brace details.
@@ -237,9 +367,20 @@ export function calculateBom(
     })
   }
 
-  // Purlins (roof) + girts (walls) — counts from spacing.
-  const purlinSpacing = rules.purlinSpacingFt > 0 ? rules.purlinSpacingFt : 2.5
-  const girtSpacing = rules.girtSpacingFt > 0 ? rules.girtSpacingFt : 3.5
+  // Purlins (roof) + girts (walls) — spacing from Tables 5.1 / 5.2, keyed by the
+  // chart frame-spacing block, with load (snow×wind) on top for purlins and wind
+  // for girts (mirrors the builder). A rules value > 0 is a manual override.
+  const r = rowIdx(groundSnow)
+  const c = colIdx(windSpeed)
+  const fblk = frameBlock(chartSpacingFt)
+  const purlinCell = PURLIN_18[fblk]?.[r]?.[c] ?? 0
+  let purlinSpacing = rules.purlinSpacingFt > 0
+    ? rules.purlinSpacingFt
+    : purlinCell > 0 ? purlinCell / 12 : 2.0
+  if (input.extraPurlins) purlinSpacing = Math.min(purlinSpacing, 1.5) // "Extra Purlins" → tighten to ≤18″
+  const girtSpacing = rules.girtSpacingFt > 0
+    ? rules.girtSpacingFt
+    : (GIRT_BY_FRAME[fblk]?.[c] ?? 24) / 12
   const purlinRunsPerSlope = frames > 0 ? Math.ceil(slopeLen / purlinSpacing) + 1 : 0
   const purlinRuns = purlinRunsPerSlope * (hasRidge ? 2 : 1)
   if (purlinRuns > 0) {
@@ -393,6 +534,20 @@ export function calculateBom(
       bracing,
       bracingRecommended,
       bracingReason,
+      // Leg / truss regimes (mirrors deriveStructure)
+      widespan,
+      legType,
+      trussType,
+      webPanels,
+      endLegType,
+      legReason:
+        legType === 'zigzag' ? `${width}′ widespan · ${legHeight}′ eave` :
+        legType === 'ladder' ? `${width}′ widespan (>30′)` :
+        legType === 'double' ? (legHeight > 12 ? `${legHeight}′ eave (tall)` : (certified ? 'certified' : '12 ga')) :
+        'standard height',
+      trussReason:
+        (trussType === 'double' ? `${width}′ span · ` : '') +
+        (webPanels === 1 ? 'king post' : `${webPanels - 1} web${webPanels - 1 > 1 ? 's' : ''}/side`),
     },
     warnings,
   }

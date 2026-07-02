@@ -18,9 +18,9 @@ export interface RuleSet {
   ridgeCapPieceLength: number
 
   // Structure
-  trussSpacing: number // ft between trusses/bows (fallback when Table 4 not used)
-  purlinSpacingFt: number // ft between roof purlins (fallback / override for Table 5.1)
-  girtSpacingFt: number // ft between wall girts (fallback / override for Table 5.2)
+  trussSpacing: number // ft between trusses/bows (last-resort fallback when no chart matches)
+  purlinSpacingFt: number // ft between roof purlins — 0 = auto from Table 5.1, >0 = manual override
+  girtSpacingFt: number // ft between wall girts — 0 = auto from Table 5.2, >0 = manual override
 
   // Fasteners
   screwsPerPanel: number
@@ -56,8 +56,8 @@ export const DEFAULT_RULES: RuleSet = {
   ridgeCapPieceLength: 11,
 
   trussSpacing: 5,
-  purlinSpacingFt: 2.5,
-  girtSpacingFt: 3.5,
+  purlinSpacingFt: 0, // auto (Table 5.1 by frame block × snow × wind)
+  girtSpacingFt: 0, // auto (Table 5.2 by frame block × wind)
 
   screwsPerPanel: 40,
   screwsPerBox: 250,
@@ -102,8 +102,8 @@ export const RULE_FIELDS: {
   { key: 'windowTubingFt', label: 'Tubing / window', group: 'Openings', suffix: 'ft' },
   { key: 'windowBrackets', label: 'Brackets / window', group: 'Openings' },
   { key: 'rollUpTubingFt', label: 'Tubing / roll-up', group: 'Openings', suffix: 'ft' },
-  { key: 'purlinSpacingFt', label: 'Purlin spacing', group: 'Structure', suffix: 'ft' },
-  { key: 'girtSpacingFt', label: 'Girt spacing', group: 'Structure', suffix: 'ft' },
+  { key: 'purlinSpacingFt', label: 'Purlin spacing (0 = auto)', group: 'Structure', suffix: 'ft' },
+  { key: 'girtSpacingFt', label: 'Girt spacing (0 = auto)', group: 'Structure', suffix: 'ft' },
   { key: 'screwsPurlinToBeam', label: 'Screws / purlin joint', group: 'Fasteners' },
   { key: 'screwsGirtToPost', label: 'Screws / girt joint', group: 'Fasteners' },
   { key: 'screwsEaveHatChannel', label: 'Screws / eave channel', group: 'Fasteners' },

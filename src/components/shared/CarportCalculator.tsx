@@ -69,6 +69,9 @@ const DEFAULT_INPUT: CarportInput = {
   certification: 'uncertified',
   bracing: 'none',
   extraTrusses: 0,
+  extraPurlins: false,
+  gauge: 12, // 12ga is the standard frame tube (mirrors the builder's default)
+  legStyle: 'auto',
   walkDoors: 0,
   windows: 0,
   rollUps: [],
@@ -289,6 +292,19 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
               </div>
 
               <div className="space-y-1.5">
+                <Label>Steel gauge</Label>
+                <Segmented
+                  value={String(input.gauge ?? 12)}
+                  options={[
+                    { id: '12', label: '12 Gauge (Std)' },
+                    { id: '14', label: '14 Gauge' },
+                  ]}
+                  onChange={(v) => set('gauge', Number(v) as 12 | 14)}
+                />
+                <p className="text-xs text-muted-foreground">12 ga is heavier steel — counts as heavy-duty (double legs).</p>
+              </div>
+
+              <div className="space-y-1.5">
                 <Label>Wall panel orientation</Label>
                 <Select
                   value={input.wallOrientation}
@@ -386,6 +402,52 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                   )
                 })()}
 
+                {/* Leg (column) style — Auto keeps the derived logic; override to force a type */}
+                <div className="space-y-1.5">
+                  <Label>Leg style</Label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        ['auto', 'Auto (recommended)'],
+                        ['single', 'Single Post'],
+                        ['double', 'Double'],
+                        ['ladder', 'Ladder (built-up)'],
+                        ['zigzag', 'ZigZag (built-up)'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => set('legStyle', id)}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1.5 text-left text-xs font-medium transition-colors',
+                          (input.legStyle ?? 'auto') === id
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {(input.legStyle ?? 'auto') === 'auto' && (
+                    <p className="text-xs text-muted-foreground">
+                      Auto derives the legs from width / height / gauge / certification.
+                    </p>
+                  )}
+                </div>
+
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-primary w-4 h-4"
+                    checked={!!input.extraPurlins}
+                    onChange={(e) => set('extraPurlins', e.target.checked)}
+                  />
+                  Extra purlins
+                  <span className="text-xs text-muted-foreground">tightens roof purlins to ≤18″ o.c.</span>
+                </label>
+
                 {/* Auto-derived engineering package */}
                 <div className="rounded-lg border bg-muted/30 p-3">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -393,6 +455,16 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                   </p>
                   <div className="space-y-1">
                     {[
+                      {
+                        label: 'Legs',
+                        value: { standard: 'Standard legs', double: 'Double legs', ladder: 'Ladder legs', zigzag: 'ZigZag legs' }[result.meta.legType],
+                        why: result.meta.legReason,
+                      },
+                      {
+                        label: 'Trusses',
+                        value: input.roofStyle === 'standard' ? 'Rounded bow' : result.meta.widespan ? 'Webbed A-frame' : 'Peak-brace A-frame',
+                        why: result.meta.trussReason,
+                      },
                       {
                         label: 'Frames',
                         value: `${Math.round(result.meta.frameSpacingFt * 12)}″ o.c.`,

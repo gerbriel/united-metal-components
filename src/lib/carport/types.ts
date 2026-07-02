@@ -5,6 +5,9 @@ export type RoofStyle = 'standard' | 'horizontal' | 'vertical'
 export type WallOrientation = 'horizontal' | 'vertical'
 export type Certification = 'uncertified' | 'local_code'
 export type Bracing = 'none' | 'diagonal'
+export type LegStyle = 'auto' | 'single' | 'double' | 'ladder' | 'zigzag'
+export type LegType = 'standard' | 'double' | 'ladder' | 'zigzag'
+export type TrussType = 'single' | 'double'
 
 export interface RollUpDoor {
   width: number // ft
@@ -35,6 +38,13 @@ export interface CarportInput {
   // Extra trusses/bows added beyond the code-required minimum. When > 0 the frames
   // are justified (spread evenly) across the length, tightening the on-center spacing.
   extraTrusses?: number
+  // "Extra Purlins" option — tightens roof purlin spacing to ≤18″ (mirrors the builder).
+  extraPurlins?: boolean
+  // Frame tube gauge — 12 (standard, heavier steel) | 14 (lighter). 12ga counts as
+  // heavy-duty → double legs (mirrors the builder, whose default is 12).
+  gauge?: 12 | 14
+  // Leg style override — 'auto' (default) derives from width/height/gauge/certification.
+  legStyle?: LegStyle
   // openings
   walkDoors: number
   windows: number
@@ -82,6 +92,14 @@ export interface BomResult {
     bracing: Bracing // resolved diagonal sway bracing
     bracingRecommended: boolean // recommended by size/loads even when not mandatory
     bracingReason: string // why bracing is on/off (for the readout)
+    // Leg / truss regimes (mirrors the builder's deriveStructure)
+    widespan: boolean // width > 30′ (beyond the generic charts)
+    legType: LegType // resolved column construction
+    trussType: TrussType // single or doubled (paired) truss
+    webPanels: number // web members per half-truss (1 = king post only)
+    endLegType: LegType // end-wall post construction (double at 13′+ eave)
+    legReason: string // why the leg type was chosen (for the readout)
+    trussReason: string // why the truss type was chosen (for the readout)
   }
   warnings: string[]
 }
