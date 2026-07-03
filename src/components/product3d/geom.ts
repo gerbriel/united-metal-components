@@ -135,18 +135,22 @@ export function bubbleTexture(bg = '#808080', rim = '#6f6f6f', hi = '#e6e6e6'): 
       }
       let col = bgC
       if (d < R) {
+        // dome: broad highlight core easing to the film, narrow shaded rim at the edge
         const t = d / R
-        col = t < 0.4 ? mix(hiC, bgC, t / 0.4) : mix(bgC, rimC, (t - 0.4) / 0.6)
+        col = t < 0.68 ? mix(hiC, bgC, t / 0.68) : mix(bgC, rimC, (t - 0.68) / 0.32)
       }
       const o = (y * S + x) * 4
       data[o] = col[0]; data[o + 1] = col[1]; data[o + 2] = col[2]; data[o + 3] = 255
     }
   }
   const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat)
+  // NO mipmaps, plain linear filtering: this GL context (SwiftShader headless and
+  // some software stacks) samples every mipmapped texture as its 1x1 average —
+  // the pattern vanishes entirely. Keep repeats moderate to limit aliasing.
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
   tex.magFilter = THREE.LinearFilter
-  tex.minFilter = THREE.LinearMipmapLinearFilter
-  tex.generateMipmaps = true
+  tex.minFilter = THREE.LinearFilter
+  tex.generateMipmaps = false
   tex.colorSpace = THREE.SRGBColorSpace
   tex.needsUpdate = true
   bubbleTexCache[key] = tex

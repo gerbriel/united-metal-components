@@ -37,9 +37,9 @@ function useSteel(colorName?: string | null, fallbackHex?: string) {
 // so galvanized tube gets a duller, partly diffuse finish (hot-dip zinc is matte)
 // that stays light under the key lights instead of reading black.
 function useTubeSteel(colorName?: string | null) {
-  const steel = useSteel(colorName, '#b4b9be')
+  const steel = useSteel(colorName, '#bfc4c9')
   return isMetallicFinish(colorName)
-    ? { ...steel, metalness: 0.75, roughness: 0.38, envMapIntensity: 1.6 }
+    ? { ...steel, metalness: 0.7, roughness: 0.3, envMapIntensity: 2.2 }
     : steel
 }
 
@@ -449,68 +449,66 @@ function TitenHD({ params }: ModelProps) {
   )
 }
 
-// ── Asphalt anchor (30" barbed rod with rail hook) ──────────────────────────────
-// Always painted black — finish colors don't apply. A ¾" steel rod with a mushroom
-// driving head, a ½" round-bar rail hook welded near the top (arm out over the base
-// rail with the elbow turned down, straight counter-arm on the other side), and
-// three arrow-barb fin plates staggered down the lower shaft. The barbs sweep
-// up-and-out: the anchor drives down through the rail into the asphalt, and the
-// spikes bite when it tries to pull back out.
+// ── Asphalt anchor (30" barbed rod, loose L-bracket head) ───────────────────────
+// Mobile-home-style asphalt anchor, always black/bare steel — finish colors don't
+// apply. A ¾" rod with three diamond-barb plates staggered up the lower shaft
+// (swept toward the head: it drives down, the barbs bite on pull-out) and a long
+// taper to the driving point. At the top a LOOSE L-bracket rides on the rod — the
+// rod runs through a clearance hole in the bracket's top leg and a cross-pin at
+// the tip keeps it captured; the open hole beside it is what gets bolted down.
 const ANCHOR_BLACK = { color: '#212327', metalness: 0.5, roughness: 0.55 }
 
 function AsphaltAnchor() {
   const L = 2.5, r = 0.034            // 30" × ¾" rod
   const top = L / 2
-  const barR = 0.021                  // hook bar (~½" dia)
-  const hookY = top - 0.2             // upper (hook) arm height
-  const armY = top - 0.34             // lower counter-arm height
-  const reach = 0.28, elbowR = 0.05   // hook arm run + elbow bend radius
-  // Double-chevron barb plate: weld base on the rod axis, both spikes up-and-out.
+  const plateT = 0.016                // ~3/16" plate stock
+  const legX = -0.07                  // bracket bend line (down-leg side)
+  const plateY = top - 0.082          // top-leg mid-plane
+  // Bracket top leg: flat plate with a loose rod hole at the bend end and the
+  // open bolt hole out on the free end.
+  const bracketGeo = useMemo(() => {
+    const s = new THREE.Shape()
+    const x1 = 0.165, hw = 0.07
+    s.moveTo(legX, -hw); s.lineTo(x1, -hw); s.lineTo(x1, hw); s.lineTo(legX, hw); s.closePath()
+    const rodHole = new THREE.Path(); rodHole.absarc(0, 0, r + 0.008, 0, Math.PI * 2, true)
+    const boltHole = new THREE.Path(); boltHole.absarc(0.115, 0, 0.027, 0, Math.PI * 2, true)
+    s.holes.push(rodHole, boltHole)
+    return extrudeProfile(s, plateT)
+  }, [])
+  // Diamond barb: parallelogram plate leaning toward the head, angle-cut outer edge.
   const finGeo = useMemo(() => {
     const s = new THREE.Shape()
     s.moveTo(0, 0)
-    s.lineTo(1.5 / 12, 1.0 / 12)      // lower spike tip
-    s.lineTo(0.62 / 12, 1.15 / 12)    // notch valley
-    s.lineTo(1.5 / 12, 2.3 / 12)      // upper spike tip
-    s.lineTo(0, 1.5 / 12)
+    s.lineTo(1.7 / 12, 1.1 / 12)      // swept lower edge
+    s.lineTo(1.7 / 12, 2.05 / 12)     // outer edge
+    s.lineTo(0, 1.45 / 12)            // swept upper edge back to the rod
     s.closePath()
-    return extrudeProfile(s, 0.016)   // ~3/16" plate
+    return extrudeProfile(s, plateT)
   }, [])
   return (
     <group>
-      {/* shaft (bottom edge chamfered from driving) */}
-      <mesh position={[0, 0.015, 0]} castShadow>
-        <cylinderGeometry args={[r, r, L - 0.03, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      {/* shaft, long taper to the driving point */}
+      <mesh position={[0, 0.07, 0]} castShadow>
+        <cylinderGeometry args={[r, r, L - 0.14, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
       </mesh>
-      <mesh position={[0, -top + 0.015, 0]} castShadow>
-        <cylinderGeometry args={[r, r * 0.65, 0.03, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      <mesh position={[0, -top + 0.07, 0]} castShadow>
+        <cylinderGeometry args={[r, 0.008, 0.14, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
       </mesh>
-      {/* mushroom driving head */}
-      <mesh position={[0, top + 0.014, 0]} castShadow>
-        <cylinderGeometry args={[0.05, 0.05, 0.028, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      {/* capture cross-pin through the tip, above the bracket */}
+      <mesh position={[0, top - 0.025, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.009, 0.009, 0.075, 12]} /><meshStandardMaterial {...ANCHOR_BLACK} />
       </mesh>
-      <mesh position={[0, top + 0.028, 0]} scale={[1, 0.55, 1]} castShadow>
-        <sphereGeometry args={[0.05, 24, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      {/* rail hook: arm out, elbow, stub hanging down over the rail lip */}
-      <mesh position={[reach / 2, hookY, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[barR, barR, reach, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      <mesh position={[reach, hookY - elbowR, 0]} castShadow>
-        <torusGeometry args={[elbowR, barR, 12, 16, Math.PI / 2]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      <mesh position={[reach + elbowR, hookY - elbowR - 0.045, 0]} castShadow>
-        <cylinderGeometry args={[barR, barR, 0.09, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      {/* straight counter-arm on the far side */}
-      <mesh position={[-0.1, armY, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[barR, barR, 0.2, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      <mesh position={[-0.2, armY, 0]} castShadow>
-        <sphereGeometry args={[barR, 12, 12]} /><meshStandardMaterial {...ANCHOR_BLACK} />
-      </mesh>
-      {/* staggered arrow-barb fins down the lower shaft, alternating sides */}
-      {([[-0.28, 0], [-0.65, Math.PI], [-1.0, 0]] as const).map(([y, rot]) => (
+      {/* loose L-bracket, swiveled off-plane like it hangs in real life */}
+      <group rotation={[0, -0.35, 0]}>
+        <mesh geometry={bracketGeo} position={[0, plateY, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow>
+          <meshStandardMaterial {...ANCHOR_BLACK} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh position={[legX - plateT / 2, plateY - plateT / 2 - 0.1, 0]} castShadow>
+          <boxGeometry args={[plateT, 0.2, 0.14]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+        </mesh>
+      </group>
+      {/* staggered diamond-barb fins, alternating sides */}
+      {([[0.35, 0], [-0.25, Math.PI], [-0.62, 0]] as const).map(([y, rot]) => (
         <mesh key={y} geometry={finGeo} position={[0, y, 0]} rotation={[0, rot, 0]} castShadow>
           <meshStandardMaterial {...ANCHOR_BLACK} side={THREE.DoubleSide} />
         </mesh>
@@ -536,6 +534,168 @@ function Anchor({ colorName }: ModelProps) {
       <mesh position={[0, rodL / 2 - 0.02, 0]} castShadow><cylinderGeometry args={[0.17, 0.17, 0.03, 24]} /><meshStandardMaterial {...steel} /></mesh>
       {/* pointed tip */}
       <mesh position={[0, -rodL / 2 - 0.13, 0]} castShadow><coneGeometry args={[rodR, 0.28, 18]} /><meshStandardMaterial {...steel} /></mesh>
+    </group>
+  )
+}
+
+// ── Mobile-home auger anchor (MHA) ───────────────────────────────────────────────
+// Earth auger: long galvanized rod with a single-turn helix PLATE near the pointed
+// tip (screws into the ground) and a slotted strap head at the top.
+function AugerAnchor() {
+  const rodR = 0.045, rodL = 1.9
+  // One wide, thin fin turn of the thread sweep = the auger helix plate.
+  const helix = useMemo(() => screwThreadGeometry(rodR, 0.21, 0.1, 1, 0.012, 96), [])
+  return (
+    <group rotation={[0, 0, Math.PI * 0.38]}>
+      {/* rod */}
+      <mesh castShadow><cylinderGeometry args={[rodR, rodR, rodL, 20]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
+      {/* auger helix plate near the tip */}
+      <mesh geometry={helix} position={[0, -rodL / 2 + 0.28, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {/* pointed tip */}
+      <mesh position={[0, -rodL / 2 - 0.1, 0]} rotation={[Math.PI, 0, 0]} castShadow>
+        <coneGeometry args={[rodR, 0.22, 20]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* slotted strap head: flattened block with a dark strap slot */}
+      <mesh position={[0, rodL / 2 + 0.09, 0]} castShadow>
+        <boxGeometry args={[0.2, 0.2, 0.07]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      <mesh position={[0, rodL / 2 + 0.09, 0]}>
+        <boxGeometry args={[0.12, 0.05, 0.075]} />
+        <meshStandardMaterial color="#3a3e42" metalness={0.4} roughness={0.7} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Hex bolt (MHA bolts) ─────────────────────────────────────────────────────────
+// Plain zinc hex bolt: hex head with washer face, smooth shank, threaded lower
+// half, chamfered flat end (no drill point — it's a bolt, not a screw).
+function HexBolt() {
+  const r = 0.07, shankL = 0.55, threadL = 0.38
+  const thread = useMemo(() => screwThreadGeometry(r, 0.096, threadL, 8, 0.019), [])
+  const top = 0.5
+  return (
+    <group rotation={[0, 0, Math.PI * 0.3]}>
+      {/* hex head + washer face */}
+      <mesh position={[0, top + 0.075, 0]} castShadow>
+        <cylinderGeometry args={[0.155, 0.155, 0.13, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading />
+      </mesh>
+      <mesh position={[0, top + 0.006, 0]} castShadow>
+        <cylinderGeometry args={[0.165, 0.165, 0.016, 28]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* smooth shank, then threads */}
+      <mesh position={[0, top - shankL / 2, 0]} castShadow>
+        <cylinderGeometry args={[r, r, shankL, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      <mesh geometry={thread} position={[0, top - shankL - threadL / 2 + 0.02, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, top - shankL - threadL / 2 + 0.02, 0]} castShadow>
+        <cylinderGeometry args={[r, r, threadL, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* chamfered flat end */}
+      <mesh position={[0, top - shankL - threadL + 0.006, 0]} castShadow>
+        <cylinderGeometry args={[r, r * 0.72, 0.028, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Walk-in door knob ─────────────────────────────────────────────────────────────
+// Polished stainless ball knob on a neck over a round rosette (mounted to a small
+// door-slab swatch so the scale reads).
+function DoorKnob() {
+  const chrome = { color: '#dfe3e7', metalness: 0.8, roughness: 0.22, envMapIntensity: 1.6 }
+  const slab = { color: '#e8e8e6', metalness: 0.2, roughness: 0.6 }
+  return (
+    <group rotation={[0, 0.5, 0]}>
+      {/* door-slab swatch behind */}
+      <mesh position={[0, 0, -0.06]} receiveShadow>
+        <boxGeometry args={[1.1, 1.1, 0.08]} /><meshStandardMaterial {...slab} />
+      </mesh>
+      {/* rosette */}
+      <mesh position={[0, 0, 0.02]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.19, 0.21, 0.05, 32]} />
+        <meshStandardMaterial {...chrome} />
+      </mesh>
+      {/* neck */}
+      <mesh position={[0, 0, 0.12]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.07, 0.09, 0.16, 24]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+      {/* ball knob (slightly squashed sphere) */}
+      <mesh position={[0, 0, 0.3]} scale={[1, 1, 0.82]} castShadow>
+        <sphereGeometry args={[0.17, 32, 24]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Walk-in door hardware (butt hinge) ───────────────────────────────────────────
+// A zinc butt hinge opened ~120°: two leaves with countersunk screw holes joined
+// by a knuckle barrel with a finial pin.
+function Hinge() {
+  const leafW = 0.42, leafH = 0.95, t = 0.022
+  const hole = { color: '#3a3e42', metalness: 0.4, roughness: 0.7 }
+  const holes = [-0.32, 0, 0.32]
+  const leaf = (sign: number) => (
+    <group rotation={[0, sign * (Math.PI / 3), 0]}>
+      <mesh position={[sign * (leafW / 2 + 0.02), 0, 0]} castShadow receiveShadow>
+        <boxGeometry args={[leafW, leafH, t]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {holes.map((y) => (
+        <mesh key={y} position={[sign * (leafW / 2 + 0.02), y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.035, 0.035, t + 0.006, 16]} /><meshStandardMaterial {...hole} />
+        </mesh>
+      ))}
+    </group>
+  )
+  return (
+    <group rotation={[0.15, 0.35, 0]}>
+      {leaf(1)}
+      {leaf(-1)}
+      {/* knuckle barrel + pin finials */}
+      <mesh castShadow><cylinderGeometry args={[0.045, 0.045, leafH, 20]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
+      {[1, -1].map((s) => (
+        <mesh key={s} position={[0, s * (leafH / 2 + 0.025), 0]} castShadow>
+          <sphereGeometry args={[0.05, 16, 12]} /><meshStandardMaterial {...SCREW_ZINC} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Garage-door hardware kit ──────────────────────────────────────────────────────
+// The parts that read "door hardware" at a glance: a torsion SPRING coil, a length
+// of angle track behind it, and a few loose hex bolts in front.
+class CoilCurve extends THREE.Curve<THREE.Vector3> {
+  constructor(private r: number, private turns: number, private len: number) { super() }
+  getPoint(t: number, target = new THREE.Vector3()) {
+    const a = 2 * Math.PI * this.turns * t
+    return target.set(this.len * (t - 0.5), this.r * Math.cos(a), this.r * Math.sin(a))
+  }
+}
+function DoorHardwareKit() {
+  const spring = useMemo(() => new THREE.TubeGeometry(new CoilCurve(0.13, 26, 1.3), 900, 0.024, 10, false), [])
+  const track = useMemo(() => extrudeProfile(ribbonShape([[0.14, 0], [0, 0], [0, 0.14]], 0.02), 1.7), [])
+  const springMat = { color: '#7a4a2a', metalness: 0.6, roughness: 0.5 }   // oil-tempered spring steel
+  return (
+    <group rotation={[0.1, 0.4, 0]}>
+      {/* angle track laid behind */}
+      <mesh geometry={track} position={[0, -0.16, -0.3]} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {/* torsion spring on its shaft */}
+      <mesh position={[0, 0.12, 0.1]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.045, 0.045, 1.7, 16]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
+      <mesh geometry={spring} position={[0, 0.12, 0.1]} castShadow><meshStandardMaterial {...springMat} /></mesh>
+      {/* loose bolts in front */}
+      {[-0.45, 0, 0.45].map((x, i) => (
+        <group key={x} position={[x, -0.34, 0.42]} rotation={[Math.PI / 2.3, 0, i * 0.7]} scale={0.55}>
+          <mesh castShadow><cylinderGeometry args={[0.155, 0.155, 0.13, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading /></mesh>
+          <mesh position={[0, -0.3, 0]} castShadow><cylinderGeometry args={[0.07, 0.07, 0.5, 16]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
+        </group>
+      ))}
     </group>
   )
 }
@@ -754,8 +914,8 @@ function MoistureBarrier() {
   }, [])
   // Color maps carry the bubble pattern (bump alone washes out under the soft
   // studio light); the gray bump clones add relief on hardware that shows it.
-  // Cylinder UVs are normalized (repeat = bubbles around/along); extrude UVs are
-  // in feet (repeat 10 → ~1.2" bubbles).
+  // One texture tile holds 8×8 bubbles. Cylinder UVs are normalized (repeat ×8
+  // bubbles around/along); extrude UVs are in feet (repeat 0.6 → ~2.5" bubbles).
   const maps = useMemo(() => {
     const mk = (bg: string, rim: string, hi: string, ru: number, rv: number) => {
       const t = bubbleTexture(bg, rim, hi).clone()
@@ -764,11 +924,11 @@ function MoistureBarrier() {
       return t
     }
     return {
-      bodyWhite: mk('#dcdedc', '#aaaeaa', '#ffffff', 64, 32),
-      bodyBump: mk('#808080', '#6f6f6f', '#e6e6e6', 64, 32),
-      tailFoil: mk('#b9bec5', '#7d838d', '#ffffff', 14, 14),
-      tailWhite: mk('#dcdedc', '#aaaeaa', '#ffffff', 14, 14),
-      tailBump: mk('#808080', '#6f6f6f', '#e6e6e6', 14, 14),
+      bodyWhite: mk('#dcdedc', '#bcbfbc', '#ffffff', 5.5, 2.75),
+      bodyBump: mk('#808080', '#6f6f6f', '#e6e6e6', 5.5, 2.75),
+      tailFoil: mk('#b9bec5', '#7f8590', '#ffffff', 1.0, 1.0),
+      tailWhite: mk('#dcdedc', '#bcbfbc', '#ffffff', 1.0, 1.0),
+      tailBump: mk('#808080', '#6f6f6f', '#e6e6e6', 1.0, 1.0),
     }
   }, [])
   // Materials are built imperatively with the maps in the CONSTRUCTOR: the first
@@ -929,6 +1089,11 @@ const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
   'asphalt-anchor': AsphaltAnchor,
   'wedge-anchor': WedgeAnchor,
   'titen-hd': TitenHD,
+  'auger-anchor': AugerAnchor,
+  'hex-bolt': HexBolt,
+  'door-knob': DoorKnob,
+  'hinge': Hinge,
+  'door-hardware': DoorHardwareKit,
   'truss': Truss,
   'window': Window,
   'garage-door': GarageDoor,

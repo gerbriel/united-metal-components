@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation'
 import ProductOrderForm from '@/components/shared/ProductOrderForm'
 import ProductViewer from '@/components/product3d/ProductViewer'
 import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
+import VariantSelect, { type VariantOption } from '@/components/shared/VariantSelect'
 import { isRollupDoor, doorLineKey, sortDoorProducts, parseDoorSize, isCommonDoorSize } from '@/lib/doorLines'
+import { variantGroupFor } from '@/lib/product-config'
 import { applyProductOverrides } from '@/lib/product-overrides'
 import { Badge } from '@/components/ui/badge'
 import { Weight, Ruler } from 'lucide-react'
@@ -42,6 +44,25 @@ export default async function ProductDetailPage({ params }: Props) {
     isContractor = (profile as any)?.customer_type === 'contractor'
   }
 
+  // Variant groups (tubing gauges, screw packages — see VARIANT_GROUPS): offer
+  // the group's other SKUs as a dropdown, exactly like door sizes.
+  const vgroup = variantGroupFor(product.sku)
+  let variantOptions: VariantOption[] | null = null
+  if (vgroup) {
+    const { data: vsiblings } = await supabase
+      .from('products')
+      .select('id, sku')
+      .in('sku', vgroup.members.map((m) => m.sku))
+      .eq('active', true)
+    if (vsiblings && vsiblings.length > 1) {
+      const idBySku = new Map(vsiblings.map((s) => [s.sku, s.id]))
+      variantOptions = vgroup.members
+        .filter((m) => idBySku.has(m.sku))
+        .map((m) => ({ id: idBySku.get(m.sku)!, label: m.label, section: m.section }))
+    }
+  }
+  const variantIds = new Set(variantOptions?.map((o) => o.id) ?? [])
+
   const { data: relatedRaw } = await supabase
     .from('products')
     .select('id, name, sku, price, unit')
@@ -49,7 +70,7 @@ export default async function ProductDetailPage({ params }: Props) {
     .neq('id', product.id)
     .eq('active', true)
     .limit(4)
-  const related = relatedRaw?.map(applyProductOverrides)
+  const related = relatedRaw?.map(applyProductOverrides).filter((r) => !variantIds.has(r.id))
 
   // Roll-up doors: every size is its own SKU — offer the line's other sizes as
   // a dropdown (common sizes first) instead of leaving them as separate finds.
@@ -71,6 +92,9 @@ export default async function ProductDetailPage({ params }: Props) {
   }
 
   const cat = (product as any).product_categories
+  // With a variant dropdown carrying the size/package, the page titles as the
+  // group ("14 GA Square Tubing") rather than the member SKU's full name.
+  const displayName = variantOptions && vgroup ? vgroup.name : product.name
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -82,7 +106,7 @@ export default async function ProductDetailPage({ params }: Props) {
           <Link href={`/products?cat=${cat.slug}`} className="hover:text-primary">{cat.name}</Link>
         </>}
         <span>/</span>
-        <span className="text-foreground">{product.name}</span>
+        <span className="text-foreground">{displayName}</span>
       </nav>
 
       <div className="grid lg:grid-cols-2 gap-10">
@@ -92,7 +116,7 @@ export default async function ProductDetailPage({ params }: Props) {
         {/* Info */}
         <div>
           {cat && <Badge variant="secondary" className="mb-3">{cat.name}</Badge>}
-          <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
+          <h1 className="text-3xl font-bold mb-2">{displayName}</h1>
           {product.sku && <p className="text-sm text-muted-foreground mb-4">SKU: {product.sku}</p>}
 
           <div className="inline-flex items-center gap-2 mb-4 px-4 py-2 bg-slate-50 border rounded-lg">
@@ -119,6 +143,9 @@ export default async function ProductDetailPage({ params }: Props) {
           </div>
 
           {sizeOptions && <DoorSizeSelect options={sizeOptions} currentId={product.id} />}
+          {variantOptions && vgroup && (
+            <VariantSelect label={vgroup.selectLabel} options={variantOptions} currentId={product.id} />
+          )}
 
           <div className="flex items-center gap-2 mb-6">
             {product.stock_qty > 0 ? (

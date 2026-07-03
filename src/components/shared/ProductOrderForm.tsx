@@ -18,6 +18,7 @@ import {
   COLOR_SKUS,
   PANEL_SKUS,
   isWasherScrew,
+  variantGroupFor,
 } from '@/lib/product-config'
 
 interface Props {
@@ -33,8 +34,11 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
   const isPanel = PANEL_SKUS.has(sku)
   const isHatChannel = sku === 'HAT-CHANNEL'
   const isBrace = sku === 'BRACE'
-  // Washered/colored roofing screws share the panel color palette (bare screws don't).
-  const hasColor = COLOR_SKUS.has(sku) || isWasherScrew(sku, product.name)
+  // Washered/colored roofing screws share the panel color palette (bare screws
+  // don't). A variant group's `colors` flag overrides the SKU/name detection —
+  // e.g. the 125-ct box is washered but its name never says so.
+  const group = variantGroupFor(sku)
+  const hasColor = group?.colors ?? (COLOR_SKUS.has(sku) || isWasherScrew(sku, product.name))
 
   const lengths =
     tubingConfig?.type === 'preset' ? tubingConfig.lengths

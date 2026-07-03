@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Package, ShoppingCart } from 'lucide-react'
 import ProductThumb from '@/components/product3d/ProductThumb'
 import DoorLineCard from '@/components/shared/DoorLineCard'
-import { groupDoorLines } from '@/lib/doorLines'
+import VariantGroupCard from '@/components/shared/VariantGroupCard'
+import { groupCatalog } from '@/lib/catalogGroups'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import type { Product } from '@/types/database'
@@ -35,13 +36,16 @@ export default function ProductGrid({ products }: { products: ProductWithCategor
   }
 
   // Roll-up doors collapse to one card per model line (with a size dropdown)
-  // instead of a card — and a WebGL canvas — per size SKU.
-  const entries = groupDoorLines(products)
+  // instead of a card — and a WebGL canvas — per size SKU; variant-group SKUs
+  // (tubing gauges, screw packages) collapse the same way.
+  const entries = groupCatalog(products)
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
       {entries.map((entry) => {
         if (entry.kind === 'doorLine') return <DoorLineCard key={entry.key} products={entry.products} />
+        if (entry.kind === 'variants')
+          return <VariantGroupCard key={entry.group.key} group={entry.group} products={entry.products} />
         const p = entry.product
         return (
         <Link key={p.id} href={`/products/${p.id}`}>

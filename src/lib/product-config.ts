@@ -45,6 +45,83 @@ export function isWasherScrew(sku?: string | null, name?: string | null): boolea
   return /washer|w\/|with|paint|colou?r/.test(s)              // washered / colored
 }
 
+// ── Variant groups ─────────────────────────────────────────────
+// Several SKUs presented as ONE storefront product with a dropdown — the same
+// treatment door model lines get. The grid shows one card per group; the
+// product page shows a selector that navigates between the member products.
+export interface VariantMember {
+  sku: string
+  label: string     // dropdown option text, e.g. '2.5" × 2.5"' or 'Box (3,000 ct)'
+  section?: string  // optional dropdown section heading, e.g. 'Scrap'
+}
+
+export interface VariantGroup {
+  key: string
+  name: string        // card / product-page title, e.g. '14 GA Square Tubing'
+  selectLabel: string // dropdown label: 'Size', 'Package', …
+  colors?: boolean    // force the color picker on (true) or off (false) for all members
+  members: VariantMember[] // display order; the first member present is the default
+}
+
+export const VARIANT_GROUPS: VariantGroup[] = [
+  {
+    key: 'tube-14ga',
+    name: '14 GA Square Tubing',
+    selectLabel: 'Size',
+    members: [
+      { sku: 'TUBE-2.5-14GA',        label: '2.5" × 2.5"' },
+      { sku: 'TUBE-2.25-14GA',       label: '2.25" × 2.25"' },
+      { sku: 'TUBE-2.0-14GA',        label: '2" × 2"' },
+      { sku: 'TUBE-2.5-14GA-SCRAP',  label: '2.5" × 2.5"',   section: 'Scrap' },
+      { sku: 'TUBE-2.25-14GA-SCRAP', label: '2.25" × 2.25"', section: 'Scrap' },
+      { sku: 'TUBE-2.0-14GA-SCRAP',  label: '2" × 2"',       section: 'Scrap' },
+    ],
+  },
+  {
+    key: 'tube-12ga',
+    name: '12 GA Square Tubing',
+    selectLabel: 'Size',
+    members: [
+      { sku: 'TUBE-2.25-12GA',       label: '2.25" × 2.25"' },
+      { sku: 'TUBE-2.25-12GA-SCRAP', label: '2.25" × 2.25"', section: 'Scrap' },
+    ],
+  },
+  {
+    key: 'screws-washers',
+    name: 'Screws w/ Washers',
+    selectLabel: 'Package',
+    colors: true, // washered screws are painted to match panel colors
+    members: [
+      { sku: 'SCREWS-BOX-W',         label: 'Box (3,000 ct)' },
+      { sku: 'SCREWS-BAG-W',         label: 'Bag (250 ct)' },
+      { sku: 'SCREWS-BOX-125',       label: 'Box (125 ct)' },
+      { sku: 'SCREWS-BOX-W-PAINTED', label: '1½" Painted — Box' },
+      { sku: 'SCREWS-BAG-W-PAINTED', label: '1½" Painted — Bag' },
+    ],
+  },
+  {
+    key: 'screws-no-washers',
+    name: 'Screws w/o Washers',
+    selectLabel: 'Package',
+    colors: false, // bare-zinc screws — no color choice
+    members: [
+      { sku: 'SCREWS-BOX-WO', label: 'Box (3,000 ct)' },
+      { sku: 'SCREWS-BAG-WO', label: 'Bag (250 ct)' },
+    ],
+  },
+]
+
+const GROUP_BY_SKU = new Map<string, VariantGroup>()
+for (const g of VARIANT_GROUPS) for (const m of g.members) GROUP_BY_SKU.set(m.sku, g)
+
+export function variantGroupFor(sku?: string | null): VariantGroup | undefined {
+  return sku ? GROUP_BY_SKU.get(sku) : undefined
+}
+
+export function variantLabel(group: VariantGroup, sku?: string | null): string | undefined {
+  return group.members.find((m) => m.sku === sku)?.label
+}
+
 export type TubingConfig =
   | { type: 'preset'; lengths: number[] }
   | { type: 'special-order' }

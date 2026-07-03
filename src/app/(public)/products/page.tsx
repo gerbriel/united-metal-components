@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import ProductGrid from '@/components/shared/ProductGrid'
 import { applyAllProductOverrides } from '@/lib/product-overrides'
+import { groupCatalog } from '@/lib/catalogGroups'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Products' }
@@ -45,7 +46,8 @@ export default async function ProductsPage({ searchParams }: Props) {
         <h1 className="text-3xl font-bold">
           {activeCategory ? activeCategory.name : q ? `Search: "${q}"` : 'All Products'}
         </h1>
-        <p className="text-muted-foreground mt-1">{products?.length ?? 0} products</p>
+        {/* Count what the grid actually shows: door lines and variant groups are one product each */}
+        <p className="text-muted-foreground mt-1">{groupCatalog(products).length} products</p>
       </div>
 
       {/* Mobile: horizontal scrollable filter pills */}
@@ -86,7 +88,7 @@ export default async function ProductsPage({ searchParams }: Props) {
 
         {/* Product grid */}
         <div className="flex-1">
-          <ProductGrid products={applyAllProductOverrides(products ?? [])} />
+          <ProductGrid products={products} />
         </div>
       </div>
     </div>

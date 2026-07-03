@@ -25,6 +25,11 @@ export type Archetype =
   | 'asphalt-anchor'
   | 'wedge-anchor'
   | 'titen-hd'
+  | 'auger-anchor'
+  | 'hex-bolt'
+  | 'door-knob'
+  | 'hinge'
+  | 'door-hardware'
   | 'truss'
   | 'window'
   | 'garage-door'
@@ -61,6 +66,15 @@ const BY_SKU: Record<string, Archetype> = {
   // says otherwise.
   'CONC-5-SHORT': 'titen-hd',
   'CONC-7-LONG': 'wedge-anchor',
+  // Mobile-home hardware: auger earth anchor + its hex bolts.
+  'MHA': 'auger-anchor',
+  'MHA-BOLTS': 'hex-bolt',
+  // Door hardware: knob, hinge set, garage-door hardware kit; the HD walk-in
+  // door reuses the walk-in door model.
+  'WALKIN-KNOB': 'door-knob',
+  'WALKIN-HW': 'hinge',
+  'WALKIN-DOOR-HD': 'walkin-door',
+  'DOOR-HW': 'door-hardware',
   'WELD-NIPPLE': 'nipple',
   'BUNDLE-PKG': 'bundle',
   'WALKIN-DOOR': 'walkin-door',
@@ -79,6 +93,7 @@ const BY_CATEGORY: Record<string, Archetype> = {
   'rebar': 'rebar',
   'screws': 'screw',
   'anchors': 'anchor',
+  'doors-hardware': 'door-hardware',
   'trusses': 'truss',
   'windows': 'window',
   'moisture-barrier': 'moisture-barrier',
