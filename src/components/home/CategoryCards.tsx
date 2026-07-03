@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Layers, DoorOpen, Package, Wrench, Anchor, Thermometer } from 'lucide-react'
+import { Layers, DoorOpen, Package, Wrench, Anchor, Droplets } from 'lucide-react'
 
 const categories = [
   {
@@ -33,9 +33,9 @@ const categories = [
     desc: 'Asphalt, concrete & mobile home',
   },
   {
-    name: 'Insulation',
-    slug: 'insulation',
-    Icon: Thermometer,
+    name: 'Moisture Barrier',
+    slug: 'moisture-barrier',
+    Icon: Droplets,
     desc: "4' & 6' rolls, foam strips & enclosures",
   },
 ]

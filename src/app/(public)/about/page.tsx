@@ -21,7 +21,7 @@ const values = [
   {
     Icon: Package,
     title: 'Full Inventory',
-    desc: 'Panels, trusses, doors, tubing, anchors, insulation — everything for your metal building project in one place.',
+    desc: 'Panels, trusses, doors, tubing, anchors, moisture barrier — everything for your metal building project in one place.',
   },
   {
     Icon: ShieldCheck,
@@ -62,7 +62,7 @@ export default function AboutPage() {
                   United Metal Components was founded to solve a simple problem: builders in the Fresno area needed a reliable, local source for quality metal building materials without the long lead times or inconsistent quality of big-box suppliers.
                 </p>
                 <p>
-                  We carry the full range of components you need — from 29-gauge sheet metal panels and structural square tubing to trusses, anchors, garage doors, and insulation. Everything is stocked locally and available for same-day pickup.
+                  We carry the full range of components you need — from 29-gauge sheet metal panels and structural square tubing to trusses, anchors, garage doors, and moisture barrier. Everything is stocked locally and available for same-day pickup.
                 </p>
                 <p>
                   Whether you&apos;re a professional contractor building a carport for a client or a homeowner adding a metal storage structure to your property, we have the materials and the expertise to help you get it done right.

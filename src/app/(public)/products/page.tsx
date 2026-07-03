@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import ProductGrid from '@/components/shared/ProductGrid'
+import { applyAllProductOverrides } from '@/lib/product-overrides'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Products' }
@@ -22,20 +23,19 @@ export default async function ProductsPage({ searchParams }: Props) {
   const { data: allCategories } = await supabase.from('product_categories').select('*').order('name')
   const categories = (allCategories ?? []).filter((c) => catIdSet.has(c.id))
 
-  // Build query
+  // Build query. Category filtering happens after display overrides so items
+  // re-homed on the front end (see product-overrides) land in the right category.
   let query = supabase
     .from('products')
     .select('*, product_categories(name, slug)')
     .eq('active', true)
     .order('name')
 
-  if (cat) {
-    const { data: catRow } = await supabase.from('product_categories').select('id').eq('slug', cat).single()
-    if (catRow) query = query.eq('category_id', catRow.id)
-  }
   if (q) query = query.ilike('name', `%${q}%`)
 
-  const { data: products } = await query
+  const { data: rawProducts } = await query
+  let products = applyAllProductOverrides(rawProducts ?? [])
+  if (cat) products = products.filter((p) => p.product_categories?.slug === cat)
 
   const activeCategory = categories?.find((c) => c.slug === cat)
 
@@ -86,7 +86,7 @@ export default async function ProductsPage({ searchParams }: Props) {
 
         {/* Product grid */}
         <div className="flex-1">
-          <ProductGrid products={products ?? []} />
+          <ProductGrid products={applyAllProductOverrides(products ?? [])} />
         </div>
       </div>
     </div>

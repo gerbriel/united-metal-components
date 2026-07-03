@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useConfigurator } from '@/store/configurator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +17,7 @@ import {
   PANEL_LENGTHS,
   COLOR_SKUS,
   PANEL_SKUS,
+  isWasherScrew,
 } from '@/lib/product-config'
 
 interface Props {
@@ -31,7 +33,8 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
   const isPanel = PANEL_SKUS.has(sku)
   const isHatChannel = sku === 'HAT-CHANNEL'
   const isBrace = sku === 'BRACE'
-  const hasColor = COLOR_SKUS.has(sku)
+  // Washered/colored roofing screws share the panel color palette (bare screws don't).
+  const hasColor = COLOR_SKUS.has(sku) || isWasherScrew(sku, product.name)
 
   const lengths =
     tubingConfig?.type === 'preset' ? tubingConfig.lengths
@@ -48,6 +51,13 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
   const [customIn, setCustomIn] = useState('')
   const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [qty, setQty] = useState(1)
+
+  // Drive the interactive 3D viewer's finish from the selected color. Reset the
+  // shared configurator when this form mounts for a (new) product.
+  const setStoreColor = useConfigurator((s) => s.setColor)
+  const resetConfig = useConfigurator((s) => s.reset)
+  useEffect(() => { resetConfig() }, [product.id, resetConfig])
+  useEffect(() => { setStoreColor(selectedColor) }, [selectedColor, setStoreColor])
 
   // Special order — call only
   if (tubingConfig?.type === 'special-order') {

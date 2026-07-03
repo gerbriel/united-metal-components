@@ -7,7 +7,7 @@ const productLinks = [
   ['Square Tubing', '/products?cat=square-tubing'],
   ['Trusses', '/products?cat=trusses'],
   ['Anchors', '/products?cat=anchors'],
-  ['Insulation', '/products?cat=insulation'],
+  ['Moisture Barrier', '/products?cat=moisture-barrier'],
 ]
 
 const companyLinks = [

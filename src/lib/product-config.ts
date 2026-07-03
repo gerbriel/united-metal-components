@@ -28,6 +28,23 @@ export const COLORS: ColorEntry[] = [
 
 export type ColorName = string
 
+// Roofing screws come in two variants:
+//  • WITH a bonded EPDM sealing washer → painted hex head + colored rubber washer,
+//    offered in the same finish colors as the panels (the COLORS palette above).
+//  • WITHOUT a washer → plain bare-zinc hex-washer-head screw, no color.
+// Detect the variant from the SKU / product name (handles "w/", "w/o", "with",
+// "without", "painted", "color"). Returns true only for the washered/colored kind.
+export function isScrewProduct(sku?: string | null, name?: string | null): boolean {
+  const s = `${sku ?? ''} ${name ?? ''}`.toLowerCase()
+  return /screw/.test(s)
+}
+export function isWasherScrew(sku?: string | null, name?: string | null): boolean {
+  if (!isScrewProduct(sku, name)) return false
+  const s = `${sku ?? ''} ${name ?? ''}`.toLowerCase()
+  if (/without|w\/o|\bwo\b|no washer/.test(s)) return false   // bare (no washer)
+  return /washer|w\/|with|paint|colou?r/.test(s)              // washered / colored
+}
+
 export type TubingConfig =
   | { type: 'preset'; lengths: number[] }
   | { type: 'special-order' }

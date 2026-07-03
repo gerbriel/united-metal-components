@@ -5,6 +5,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Package, ShoppingCart } from 'lucide-react'
+import ProductThumb from '@/components/product3d/ProductThumb'
+import DoorLineCard from '@/components/shared/DoorLineCard'
+import { groupDoorLines } from '@/lib/doorLines'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import type { Product } from '@/types/database'
@@ -31,13 +34,20 @@ export default function ProductGrid({ products }: { products: ProductWithCategor
     toast.success(`${product.name} added to cart`)
   }
 
+  // Roll-up doors collapse to one card per model line (with a size dropdown)
+  // instead of a card — and a WebGL canvas — per size SKU.
+  const entries = groupDoorLines(products)
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-      {products.map((p) => (
+      {entries.map((entry) => {
+        if (entry.kind === 'doorLine') return <DoorLineCard key={entry.key} products={entry.products} />
+        const p = entry.product
+        return (
         <Link key={p.id} href={`/products/${p.id}`}>
           <Card className="group hover:shadow-lg transition-shadow h-full flex flex-col">
-            <div className="aspect-video bg-slate-100 rounded-t-lg flex items-center justify-center">
-              <Package className="w-10 h-10 text-slate-300 group-hover:text-primary transition-colors" />
+            <div className="aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
+              <ProductThumb product={p} />
             </div>
             <CardContent className="p-4 flex flex-col flex-1">
               {p.product_categories && (
@@ -64,7 +74,8 @@ export default function ProductGrid({ products }: { products: ProductWithCategor
             </CardContent>
           </Card>
         </Link>
-      ))}
+        )
+      })}
     </div>
   )
 }

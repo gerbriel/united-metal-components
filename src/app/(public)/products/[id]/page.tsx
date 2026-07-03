@@ -2,8 +2,12 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import ProductOrderForm from '@/components/shared/ProductOrderForm'
+import ProductViewer from '@/components/product3d/ProductViewer'
+import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
+import { isRollupDoor, doorLineKey, sortDoorProducts, parseDoorSize, isCommonDoorSize } from '@/lib/doorLines'
+import { applyProductOverrides } from '@/lib/product-overrides'
 import { Badge } from '@/components/ui/badge'
-import { Package, Weight, Ruler } from 'lucide-react'
+import { Weight, Ruler } from 'lucide-react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
@@ -12,20 +16,21 @@ interface Props { params: Promise<{ id: string }> }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
   const supabase = await createClient()
-  const { data } = await supabase.from('products').select('name').eq('id', id).single()
-  return { title: data?.name ?? 'Product' }
+  const { data } = await supabase.from('products').select('name, sku').eq('id', id).single()
+  return { title: data ? applyProductOverrides(data).name : 'Product' }
 }
 
 export default async function ProductDetailPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [{ data: product }, { data: { user } }] = await Promise.all([
+  const [{ data: rawProduct }, { data: { user } }] = await Promise.all([
     supabase.from('products').select('*, product_categories(name, slug)').eq('id', id).single(),
     supabase.auth.getUser(),
   ])
 
-  if (!product) notFound()
+  if (!rawProduct) notFound()
+  const product = applyProductOverrides(rawProduct)
 
   let isContractor = false
   if (user) {
@@ -37,13 +42,33 @@ export default async function ProductDetailPage({ params }: Props) {
     isContractor = (profile as any)?.customer_type === 'contractor'
   }
 
-  const { data: related } = await supabase
+  const { data: relatedRaw } = await supabase
     .from('products')
-    .select('id, name, price, unit')
+    .select('id, name, sku, price, unit')
     .eq('category_id', product.category_id ?? 0)
     .neq('id', product.id)
     .eq('active', true)
     .limit(4)
+  const related = relatedRaw?.map(applyProductOverrides)
+
+  // Roll-up doors: every size is its own SKU — offer the line's other sizes as
+  // a dropdown (common sizes first) instead of leaving them as separate finds.
+  let sizeOptions: { id: number; label: string; common: boolean }[] | null = null
+  if (isRollupDoor(product)) {
+    const { data: siblings } = await supabase
+      .from('products')
+      .select('id, name, sku')
+      .like('sku', `${doorLineKey(product)}-%`)
+      .eq('category_id', product.category_id ?? 0)
+      .eq('active', true)
+    if (siblings && siblings.length > 1) {
+      sizeOptions = sortDoorProducts(siblings).map((s) => ({
+        id: s.id,
+        label: parseDoorSize(s.name)?.label ?? s.name,
+        common: isCommonDoorSize(s.name),
+      }))
+    }
+  }
 
   const cat = (product as any).product_categories
 
@@ -61,10 +86,8 @@ export default async function ProductDetailPage({ params }: Props) {
       </nav>
 
       <div className="grid lg:grid-cols-2 gap-10">
-        {/* Image placeholder */}
-        <div className="aspect-square bg-slate-100 rounded-xl flex items-center justify-center">
-          <Package className="w-24 h-24 text-slate-300" />
-        </div>
+        {/* Interactive 3D rendering (replaces static product image) */}
+        <ProductViewer product={product} />
 
         {/* Info */}
         <div>
@@ -94,6 +117,8 @@ export default async function ProductDetailPage({ params }: Props) {
               </div>
             )}
           </div>
+
+          {sizeOptions && <DoorSizeSelect options={sizeOptions} currentId={product.id} />}
 
           <div className="flex items-center gap-2 mb-6">
             {product.stock_qty > 0 ? (

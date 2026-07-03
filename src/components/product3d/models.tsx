@@ -1,0 +1,949 @@
+'use client'
+
+import { useMemo } from 'react'
+import * as THREE from 'three'
+import {
+  ribbonShape,
+  extrudeProfile,
+  l5Center,
+  L5_RIB_H,
+  splitUnderside,
+  bubbleTexture,
+  colorHex,
+  steelMaterialProps,
+  isMetallicFinish,
+  screwThreadGeometry,
+  drillPointGeometry,
+} from './geom'
+import type { Archetype } from './resolve'
+
+// Shared prop shape: every model receives the resolved finish color (by name) and
+// any parsed params (tube size, door W×H, …).
+interface ModelProps {
+  colorName?: string | null
+  params?: Record<string, number>
+}
+
+// Painted / bare steel material props for the current finish.
+function useSteel(colorName?: string | null, fallbackHex?: string) {
+  return useMemo(
+    () => ({ color: colorHex(colorName, fallbackHex), ...steelMaterialProps(colorName) }),
+    [colorName, fallbackHex],
+  )
+}
+
+// Tube stock (square tubing, base rail, truss members): bare tube is a light
+// zinc-grey. Its long flat faces mirror the dark env backdrop at full metalness,
+// so galvanized tube gets a duller, partly diffuse finish (hot-dip zinc is matte)
+// that stays light under the key lights instead of reading black.
+function useTubeSteel(colorName?: string | null) {
+  const steel = useSteel(colorName, '#b4b9be')
+  return isMetallicFinish(colorName)
+    ? { ...steel, metalness: 0.75, roughness: 0.38, envMapIntensity: 1.6 }
+    : steel
+}
+
+// ── Square tubing / inserts ─────────────────────────────────────────────────────
+// Hollow square section (open ends read as a real tube), laid along X.
+function SquareTube({ colorName, params }: ModelProps) {
+  const sizeIn = params?.size ?? 2.25
+  const s = sizeIn / 12          // face width, ft
+  const wall = 0.014             // ~0.17" wall
+  const len = Math.max(2.2, s * 12)
+  const geo = useMemo(() => {
+    const h = s / 2
+    const shape = new THREE.Shape()
+    shape.moveTo(-h, -h); shape.lineTo(h, -h); shape.lineTo(h, h); shape.lineTo(-h, h); shape.closePath()
+    const ih = h - wall
+    const hole = new THREE.Path()
+    hole.moveTo(-ih, -ih); hole.lineTo(ih, -ih); hole.lineTo(ih, ih); hole.lineTo(-ih, ih); hole.closePath()
+    shape.holes.push(hole)
+    return extrudeProfile(shape, len)
+  }, [s, len])
+  const steel = useTubeSteel(colorName)
+  return <mesh geometry={geo} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+// ── Rectangular base rail ───────────────────────────────────────────────────────
+function BaseRail({ colorName }: ModelProps) {
+  const w = 2.5 / 12, t = 1.5 / 12, len = 3.2, wall = 0.016
+  const geo = useMemo(() => {
+    const hw = w / 2, ht = t / 2
+    const shape = new THREE.Shape()
+    shape.moveTo(-hw, -ht); shape.lineTo(hw, -ht); shape.lineTo(hw, ht); shape.lineTo(-hw, ht); shape.closePath()
+    const hole = new THREE.Path()
+    hole.moveTo(-hw + wall, -ht + wall); hole.lineTo(hw - wall, -ht + wall)
+    hole.lineTo(hw - wall, ht - wall); hole.lineTo(-hw + wall, ht - wall); hole.closePath()
+    shape.holes.push(hole)
+    return extrudeProfile(shape, len)
+  }, [])
+  const steel = useTubeSteel(colorName)
+  return <mesh geometry={geo} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+// ── Sheet-metal panel (L5 profile) ──────────────────────────────────────────────
+// A full 36"-coverage L5 sheet: five ¾" major ribs on 9" centers (one at each edge
+// for the side lap) with paired stiffener ribs across every pan. Painted sheets
+// show the off-white backer coat on the underside; galvalume/bare stays uniform.
+const PANEL_BACKER = { color: '#EDEAE0', metalness: 0.35, roughness: 0.55 }
+
+function Panel({ colorName }: ModelProps) {
+  const len = 5
+  const geo = useMemo(
+    () => splitUnderside(extrudeProfile(ribbonShape(l5Center(5), 0.02), len)),
+    [],
+  )
+  const steel = useSteel(colorName, '#c8c8c0')
+  // Galvalume (and no-color/bare) sheets are the same metal on both faces; every
+  // painted color gets the off-white backer underneath.
+  const painted = !!colorName && !colorName.toLowerCase().includes('galvalume')
+  const under = painted ? PANEL_BACKER : steel
+  return (
+    <mesh geometry={geo} castShadow receiveShadow>
+      <meshStandardMaterial attach="material-0" {...steel} side={THREE.DoubleSide} />
+      <meshStandardMaterial attach="material-1" {...under} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+// ── Skylight panel (translucent white polycarbonate, same L5 profile) ────────────
+// Always white plastic — ignores the finish color entirely.
+function Skylight() {
+  const len = 5
+  const geo = useMemo(() => extrudeProfile(ribbonShape(l5Center(5), 0.02), len), [])
+  return (
+    <mesh geometry={geo} castShadow receiveShadow>
+      <meshPhysicalMaterial
+        color="#f7f8f5"
+        metalness={0}
+        roughness={0.22}
+        clearcoat={0.7}
+        clearcoatRoughness={0.25}
+        transparent
+        opacity={0.65}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
+  )
+}
+
+// ── Trim: folded sheet profiles (extruded along their run) ──────────────────────
+function extrudedTrim(center: [number, number][], len: number, thickness = 0.02) {
+  return extrudeProfile(ribbonShape(center, thickness), len)
+}
+
+function TrimL({ colorName }: ModelProps) {
+  const F = 4 / 12, len = 4
+  const geo = useMemo(() => extrudedTrim([[F, 0], [0, 0], [0, F]], len), [])
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function TrimJ({ colorName }: ModelProps) {
+  // J-channel: deep back leg, bottom, short front return lip.
+  const D = 2 / 12, W = 1.4 / 12, lip = 0.7 / 12, len = 4
+  const geo = useMemo(() => extrudedTrim([[0, D], [0, 0], [W, 0], [W, lip]], len), [])
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function TrimCorner({ colorName }: ModelProps) {
+  // Outside corner: two 3" faces at 90° each ending in a small return hem.
+  const F = 3 / 12, H = 0.7 / 12, k = 0.7, len = 4
+  const geo = useMemo(
+    () => extrudedTrim([[F - H * k, H * k], [F, 0], [0, 0], [0, F], [H * k, F - H * k]], len),
+    [],
+  )
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function TrimSideVert({ colorName }: ModelProps) {
+  // Side vertical trim: a wide face with two folded return legs (channel over the edge).
+  const face = 3.5 / 12, leg = 1.1 / 12, len = 4
+  const geo = useMemo(
+    () => extrudedTrim([[leg, -leg], [0, 0], [0, face], [leg, face + leg * 0]], len),
+    [],
+  )
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function TrimFlashing({ colorName }: ModelProps) {
+  // Step flashing: a wide flat pan with a bent-up back leg and a small front drip.
+  const W = 6 / 12, up = 1.6 / 12, drip = 0.9 / 12, len = 4
+  const geo = useMemo(
+    () => extrudedTrim([[-drip * 0.6, -drip], [0, 0], [W, 0], [W, up]], len),
+    [],
+  )
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function TrimBoxEve({ colorName }: ModelProps) {
+  // Boxed eave cap (from the Carports profile): top flat, outer face, bottom return, drip.
+  const H = 0.46, WT = 0.26, WB = 0.38, HK = 0.12, len = 4
+  const geo = useMemo(
+    () => extrudedTrim([[WT, H], [0, H], [0, 0], [WB, 0], [WB + HK * 0.6, -HK]], len, 0.024),
+    [],
+  )
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function RidgeCap({ colorName }: ModelProps) {
+  // 14" strip bent to a peak (≈18° each slope) with a drip leg at each edge.
+  const theta = (18 * Math.PI) / 180
+  const W = (14 / 12 - 2 * 0.06) / 2, hem = 0.06, len = 4.5
+  const geo = useMemo(() => {
+    const cz = Math.cos(theta), sz = Math.sin(theta)
+    const lwe: [number, number] = [-W * cz, -W * sz]
+    const rwe: [number, number] = [W * cz, -W * sz]
+    const center: [number, number][] = [
+      [lwe[0], lwe[1] - hem], lwe, [0, 0], rwe, [rwe[0], rwe[1] - hem],
+    ]
+    return extrudedTrim(center, len, 0.024)
+  }, [])
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+function HatChannel({ colorName }: ModelProps) {
+  // Top-hat section: two bottom flanges, two walls, a raised top web.
+  const f = 1.2 / 12, w = 1.5 / 12, h = 1.0 / 12, len = 4.5
+  const geo = useMemo(
+    () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len),
+    [],
+  )
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+// ── L-bracket ───────────────────────────────────────────────────────────────────
+function LBracket({ colorName }: ModelProps) {
+  const leg = 0.5, th = 0.05, wide = 0.42
+  const steel = useSteel(colorName, '#7f8489')
+  const holeMat = { color: '#2b2f33', metalness: 0.3, roughness: 0.8 }
+  return (
+    <group>
+      <mesh position={[leg / 2, th / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[leg, th, wide]} /><meshStandardMaterial {...steel} />
+      </mesh>
+      <mesh position={[th / 2, leg / 2, 0]} castShadow receiveShadow>
+        <boxGeometry args={[th, leg, wide]} /><meshStandardMaterial {...steel} />
+      </mesh>
+      {[-0.12, 0.12].map((z) => (
+        <mesh key={z} position={[leg * 0.6, th / 2 + 0.001, z]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, th + 0.01, 16]} /><meshStandardMaterial {...holeMat} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Rebar anchor (ribbed rod, dark matte silver, hex nut welded to the top end as
+// the driving head — ignores finish color) ──────────────────────────────────────
+function Rebar() {
+  const len = 4, r = 0.06
+  const mat = { color: '#63686d', metalness: 0.5, roughness: 0.8 }
+  const weldMat = { color: '#4b4f53', metalness: 0.45, roughness: 0.9 }
+  return (
+    <group rotation={[0, 0, Math.PI / 2]}>
+      <mesh castShadow receiveShadow><cylinderGeometry args={[r, r, len, 20]} /><meshStandardMaterial {...mat} /></mesh>
+      {Array.from({ length: 22 }).map((_, i) => (
+        <mesh key={i} position={[0, -len / 2 + (i + 0.5) * (len / 22), 0]} rotation={[0, 0, 0.5]}>
+          <torusGeometry args={[r + 0.008, 0.012, 6, 16]} /><meshStandardMaterial {...mat} />
+        </mesh>
+      ))}
+      {/* hex nut welded flush to the top end */}
+      <mesh position={[0, len / 2 - 0.06, 0]} castShadow>
+        <cylinderGeometry args={[0.115, 0.115, 0.12, 6]} /><meshStandardMaterial {...mat} flatShading />
+      </mesh>
+      {/* weld bead where the nut meets the rod */}
+      <mesh position={[0, len / 2 - 0.13, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[r + 0.018, 0.026, 8, 24]} /><meshStandardMaterial {...weldMat} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── 12-14 × 1" Hex Washer Head Self-Drilling Screw ──────────────────────────────
+// Two variants share one bright-ZINC lower half — a REAL swept helical thread
+// (TubeGeometry along a helix, not stacked rings) over the core shaft, an unthreaded
+// round shank, then a flattened self-drilling (Tek) drill point:
+//   • Screw     — WITH bonded EPDM sealing washer: painted hex washer head + colored
+//                 rubber washer (panel colors; white default).
+//   • ScrewBare — WITHOUT washer: bare-zinc hex washer head, no color, no rubber.
+const SCREW_ZINC = { color: '#d3d7db', metalness: 0.82, roughness: 0.38 }
+
+function ScrewLower() {
+  const r = 0.065   // thread root / shaft radius
+  // Sharp V-profile helical thread — a thin triangular fin swept along the helix
+  // (8 turns over the run, crest well proud of the root, gap between crests).
+  const thread = useMemo(() => screwThreadGeometry(r, 0.118, 0.52, 8, 0.026), [])
+  // TEK #3 point per the close-up reference: a LONG double-D pilot (cylinder with
+  // two milled flats), an almond-shaped gash scooped into each flat, and a SHORT
+  // sharp pyramid grind at the end.
+  const point = useMemo(() => drillPointGeometry(0.058, 0.22, 0.075, 64, 56, 0.72, 0.45, 0), [])
+  return (
+    <>
+      {/* core shaft (stops higher — the drill point owns more of the length) */}
+      <mesh position={[0, 0.58, 0]} castShadow>
+        <cylinderGeometry args={[r, r, 0.56, 28]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* helical V-thread */}
+      <mesh geometry={thread} position={[0, 0.57, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {/* taper from the shaft into the drill pilot */}
+      <mesh position={[0, 0.28, 0]} castShadow>
+        <cylinderGeometry args={[r, 0.058, 0.04, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* drill point (long flatted pilot, short pyramid tip) */}
+      <mesh geometry={point} position={[0, 0.04, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+    </>
+  )
+}
+
+// Hex washer head: a tall, crisp 6-flat hex (flat-shaded so the facets read) with a
+// chamfered top edge, sitting DIRECTLY on a thin wide integral washer flange with a
+// small underside bevel — no bulky cone between them. `mat` colors head + flange.
+function HexWasherHead({ mat }: { mat: Record<string, unknown> }) {
+  return (
+    <>
+      {/* hex head — crisp flats */}
+      <mesh position={[0, 1.0, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.15, 0.17, 6]} /><meshStandardMaterial {...mat} flatShading />
+      </mesh>
+      {/* chamfered top edge */}
+      <mesh position={[0, 1.098, 0]} castShadow>
+        <cylinderGeometry args={[0.112, 0.15, 0.026, 6]} /><meshStandardMaterial {...mat} flatShading />
+      </mesh>
+      {/* thin, wide integral washer flange directly under the hex */}
+      <mesh position={[0, 0.898, 0]} castShadow>
+        <cylinderGeometry args={[0.235, 0.235, 0.034, 44]} /><meshStandardMaterial {...mat} />
+      </mesh>
+      {/* flange underside bevel */}
+      <mesh position={[0, 0.874, 0]} castShadow>
+        <cylinderGeometry args={[0.235, 0.195, 0.014, 44]} /><meshStandardMaterial {...mat} />
+      </mesh>
+    </>
+  )
+}
+
+function Screw({ colorName }: ModelProps) {
+  const headHex = colorHex(colorName, '#F2F2F0')          // painted head/flange (panel colors)
+  const painted = { color: headHex, metalness: 0.25, roughness: 0.5 }
+  const epdm = { color: '#2b2d30', metalness: 0.0, roughness: 0.95 }  // dark bonded neoprene/EPDM
+  return (
+    <group rotation={[0, 0, Math.PI * 0.12]}>
+      <HexWasherHead mat={painted} />
+      {/* bright metal backing washer */}
+      <mesh position={[0, 0.856, 0]} castShadow>
+        <cylinderGeometry args={[0.205, 0.205, 0.022, 44]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* bonded EPDM sealing washer (dark rubber) */}
+      <mesh position={[0, 0.818, 0]} castShadow>
+        <cylinderGeometry args={[0.175, 0.16, 0.054, 44]} /><meshStandardMaterial {...epdm} />
+      </mesh>
+      <ScrewLower />
+    </group>
+  )
+}
+
+function ScrewBare() {
+  return (
+    <group rotation={[0, 0, Math.PI * 0.12]}>
+      <HexWasherHead mat={SCREW_ZINC} />
+      <ScrewLower />
+    </group>
+  )
+}
+
+// ── Concrete wedge anchor (Strong-Tie style stud anchor) ────────────────────────
+// Zinc stud: chamfered threaded top with hex nut + flat washer, long smooth shank,
+// and the working end — a slitted expansion CLIP riding on a flared wedge mandrel
+// at the very bottom (the part that bites the concrete).
+function WedgeAnchor({ params }: ModelProps) {
+  const inches = params?.len ?? 7
+  const L = 0.9 + inches * 0.09          // representative: 5" → 1.35, 7" → 1.53
+  const r = 0.05
+  const top = L / 2, bot = -L / 2
+  const threadLen = 0.5
+  const thread = useMemo(() => screwThreadGeometry(r, 0.068, threadLen, 11, 0.017), [])
+  return (
+    <group rotation={[0, 0, Math.PI * 0.38]}>
+      {/* stud */}
+      <mesh position={[0, 0, 0]} castShadow>
+        <cylinderGeometry args={[r, r, L, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* chamfered top end (dome-chamfer so the nut starts easily) */}
+      <mesh position={[0, top + 0.014, 0]} castShadow>
+        <cylinderGeometry args={[r * 0.7, r, 0.03, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* thread run below the top */}
+      <mesh geometry={thread} position={[0, top - threadLen / 2, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {/* hex nut threaded partway down + flat washer under it */}
+      <mesh position={[0, top - 0.26, 0]} castShadow>
+        <cylinderGeometry args={[0.118, 0.118, 0.11, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading />
+      </mesh>
+      <mesh position={[0, top - 0.33, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.15, 0.022, 28]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* expansion clip: a slightly proud slitted sleeve above the mandrel */}
+      <mesh position={[0, bot + 0.19, 0]} castShadow>
+        <cylinderGeometry args={[r + 0.009, r + 0.009, 0.17, 24, 1, true]} />
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {[0.6, 2.7].map((a) => (
+        <mesh key={a} position={[Math.cos(a) * (r + 0.012), bot + 0.19, -Math.sin(a) * (r + 0.012)]} rotation={[0, a, 0]}>
+          <boxGeometry args={[0.006, 0.17, 0.012]} />
+          <meshStandardMaterial color="#5b6167" metalness={0.6} roughness={0.6} />
+        </mesh>
+      ))}
+      {/* wedge mandrel: flares out at the bottom, then a chamfered flat butt */}
+      <mesh position={[0, bot + 0.055, 0]} castShadow>
+        <cylinderGeometry args={[r, r + 0.016, 0.11, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      <mesh position={[0, bot - 0.012, 0]} castShadow>
+        <cylinderGeometry args={[r + 0.016, r + 0.004, 0.024, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Titen HD (Strong-Tie heavy-duty screw anchor for concrete) ──────────────────
+// Big zinc hex-washer head on a THICK shank with tall, wide-pitch cutting threads
+// running down to a tapered gimlet tip.
+function TitenHD({ params }: ModelProps) {
+  const inches = params?.len ?? 5
+  const shaftLen = 0.55 + inches * 0.07   // representative: 5" → 0.9
+  const r = 0.078
+  const topY = 0.86                        // meets the HexWasherHead flange
+  const botY = topY - shaftLen
+  const threadLen = shaftLen - 0.1
+  const thread = useMemo(
+    () => screwThreadGeometry(r, 0.135, threadLen, Math.round(threadLen / 0.11), 0.034),
+    [threadLen],
+  )
+  return (
+    <group rotation={[0, 0, Math.PI * 0.12]}>
+      <HexWasherHead mat={SCREW_ZINC} />
+      {/* thick shank */}
+      <mesh position={[0, (topY + botY) / 2, 0]} castShadow>
+        <cylinderGeometry args={[r, r, shaftLen, 28]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* heavy cutting thread down the shank */}
+      <mesh geometry={thread} position={[0, topY - 0.06 - threadLen / 2, 0]} castShadow>
+        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      </mesh>
+      {/* gimlet taper to a blunt point */}
+      <mesh position={[0, botY - 0.055, 0]} castShadow>
+        <cylinderGeometry args={[r, 0.02, 0.12, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Asphalt anchor (30" barbed rod with rail hook) ──────────────────────────────
+// Always painted black — finish colors don't apply. A ¾" steel rod with a mushroom
+// driving head, a ½" round-bar rail hook welded near the top (arm out over the base
+// rail with the elbow turned down, straight counter-arm on the other side), and
+// three arrow-barb fin plates staggered down the lower shaft. The barbs sweep
+// up-and-out: the anchor drives down through the rail into the asphalt, and the
+// spikes bite when it tries to pull back out.
+const ANCHOR_BLACK = { color: '#212327', metalness: 0.5, roughness: 0.55 }
+
+function AsphaltAnchor() {
+  const L = 2.5, r = 0.034            // 30" × ¾" rod
+  const top = L / 2
+  const barR = 0.021                  // hook bar (~½" dia)
+  const hookY = top - 0.2             // upper (hook) arm height
+  const armY = top - 0.34             // lower counter-arm height
+  const reach = 0.28, elbowR = 0.05   // hook arm run + elbow bend radius
+  // Double-chevron barb plate: weld base on the rod axis, both spikes up-and-out.
+  const finGeo = useMemo(() => {
+    const s = new THREE.Shape()
+    s.moveTo(0, 0)
+    s.lineTo(1.5 / 12, 1.0 / 12)      // lower spike tip
+    s.lineTo(0.62 / 12, 1.15 / 12)    // notch valley
+    s.lineTo(1.5 / 12, 2.3 / 12)      // upper spike tip
+    s.lineTo(0, 1.5 / 12)
+    s.closePath()
+    return extrudeProfile(s, 0.016)   // ~3/16" plate
+  }, [])
+  return (
+    <group>
+      {/* shaft (bottom edge chamfered from driving) */}
+      <mesh position={[0, 0.015, 0]} castShadow>
+        <cylinderGeometry args={[r, r, L - 0.03, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      <mesh position={[0, -top + 0.015, 0]} castShadow>
+        <cylinderGeometry args={[r, r * 0.65, 0.03, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      {/* mushroom driving head */}
+      <mesh position={[0, top + 0.014, 0]} castShadow>
+        <cylinderGeometry args={[0.05, 0.05, 0.028, 24]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      <mesh position={[0, top + 0.028, 0]} scale={[1, 0.55, 1]} castShadow>
+        <sphereGeometry args={[0.05, 24, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      {/* rail hook: arm out, elbow, stub hanging down over the rail lip */}
+      <mesh position={[reach / 2, hookY, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[barR, barR, reach, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      <mesh position={[reach, hookY - elbowR, 0]} castShadow>
+        <torusGeometry args={[elbowR, barR, 12, 16, Math.PI / 2]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      <mesh position={[reach + elbowR, hookY - elbowR - 0.045, 0]} castShadow>
+        <cylinderGeometry args={[barR, barR, 0.09, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      {/* straight counter-arm on the far side */}
+      <mesh position={[-0.1, armY, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[barR, barR, 0.2, 16]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      <mesh position={[-0.2, armY, 0]} castShadow>
+        <sphereGeometry args={[barR, 12, 12]} /><meshStandardMaterial {...ANCHOR_BLACK} />
+      </mesh>
+      {/* staggered arrow-barb fins down the lower shaft, alternating sides */}
+      {([[-0.28, 0], [-0.65, Math.PI], [-1.0, 0]] as const).map(([y, rot]) => (
+        <mesh key={y} geometry={finGeo} position={[0, y, 0]} rotation={[0, rot, 0]} castShadow>
+          <meshStandardMaterial {...ANCHOR_BLACK} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Generic anchor (mobile-home: threaded rod + nut, pointed tip) ────────────────
+function Anchor({ colorName }: ModelProps) {
+  const steel = useSteel(colorName, '#9aa0a6')
+  const rodR = 0.055, rodL = 2.2
+  return (
+    <group rotation={[0, 0, Math.PI / 2]}>
+      <mesh castShadow><cylinderGeometry args={[rodR, rodR, rodL, 18]} /><meshStandardMaterial {...steel} /></mesh>
+      {Array.from({ length: 30 }).map((_, i) => (
+        <mesh key={i} position={[0, rodL / 2 - 0.05 - i * 0.06, 0]}>
+          <torusGeometry args={[rodR + 0.01, 0.011, 5, 14]} /><meshStandardMaterial {...steel} />
+        </mesh>
+      ))}
+      {/* hex nut + bearing washer near the head */}
+      <mesh position={[0, rodL / 2 - 0.14, 0]} castShadow><cylinderGeometry args={[0.13, 0.13, 0.11, 6]} /><meshStandardMaterial {...steel} /></mesh>
+      <mesh position={[0, rodL / 2 - 0.02, 0]} castShadow><cylinderGeometry args={[0.17, 0.17, 0.03, 24]} /><meshStandardMaterial {...steel} /></mesh>
+      {/* pointed tip */}
+      <mesh position={[0, -rodL / 2 - 0.13, 0]} castShadow><coneGeometry args={[rodR, 0.28, 18]} /><meshStandardMaterial {...steel} /></mesh>
+    </group>
+  )
+}
+
+// ── Roof truss (open-web triangle) ──────────────────────────────────────────────
+function Truss({ colorName }: ModelProps) {
+  const steel = useTubeSteel(colorName)
+  const span = 4, rise = 1.1, r = 0.045
+  // Endpoints of a simple king-post + diagonal truss.
+  const bl: [number, number, number] = [-span / 2, 0, 0]
+  const br: [number, number, number] = [span / 2, 0, 0]
+  const peak: [number, number, number] = [0, rise, 0]
+  const members: [[number, number, number], [number, number, number]][] = [
+    [bl, br],           // bottom chord
+    [bl, peak],         // left top chord
+    [br, peak],         // right top chord
+    [[0, 0, 0], peak],  // king post
+    [[-span / 4, 0, 0], peak],
+    [[span / 4, 0, 0], peak],
+  ]
+  return (
+    <group>
+      {members.map(([a, b], i) => {
+        const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b)
+        const mid = va.clone().add(vb).multiplyScalar(0.5)
+        const len = va.distanceTo(vb)
+        const quat = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize(),
+        )
+        return (
+          <mesh key={i} position={mid.toArray()} quaternion={[quat.x, quat.y, quat.z, quat.w]} castShadow>
+            <cylinderGeometry args={[r, r, len, 12]} /><meshStandardMaterial {...steel} />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
+// ── Window (framed, glazed) ─────────────────────────────────────────────────────
+function Window({ params }: ModelProps) {
+  const wIn = params?.w ?? 24, hIn = params?.h ?? 36
+  const w = wIn / 12, h = hIn / 12, fr = 0.12, d = 0.14
+  // Window frames are white vinyl regardless of the building color.
+  const frame = { color: '#f5f5f2', metalness: 0.05, roughness: 0.45 }
+  const frames: [number, number, number, number, number][] = [
+    [0, h / 2 - fr / 2, w, fr, 0], [0, -h / 2 + fr / 2, w, fr, 0],
+    [-w / 2 + fr / 2, 0, fr, h, 0], [w / 2 - fr / 2, 0, fr, h, 0],
+    [0, 0, fr * 0.7, h, 1],
+  ]
+  return (
+    <group>
+      {frames.map((f, i) => (
+        <mesh key={i} position={[f[0], f[1], 0]} castShadow>
+          <boxGeometry args={[f[2], f[3], d]} /><meshStandardMaterial {...frame} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[w - fr, h - fr, 0.04]} />
+        <meshStandardMaterial color="#9fd3e0" metalness={0.1} roughness={0.05} transparent opacity={0.4} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Roll-up door (Janus-pattern rolling sheet door) ─────────────────────────────
+// Dimensions follow the Janus 650/2500 spec sheets (see ROLLUP-DOOR-REFERENCE.md):
+// 26 ga corrugated curtain coiling onto a spring barrel above the opening, 2" roll-
+// formed guides spaced curtain + 1", galvanized-angle bottom bar with PVC astragal,
+// right-hand mini latch. United Metal doors have no bracket plates — the dead-axle
+// torque tube just protrudes from each end of the coil (~3-1/4" per spec sideroom).
+function GarageDoor({ colorName, params }: ModelProps) {
+  const w = params?.w ?? 8, h = params?.h ?? 8
+  // No color selected → painted High Gloss White (the Janus default), not bare steel.
+  const picked = useSteel(colorName, '#f4f4f0')
+  const steel = colorName ? picked : { color: '#f4f4f0', metalness: 0.35, roughness: 0.45 }
+  const galv = { color: '#b4b9bd', metalness: 0.85, roughness: 0.32 }
+  const zinc = { color: '#c9b46a', metalness: 0.8, roughness: 0.35 }   // yellow-zinc latch
+  const pvc = { color: '#3a3a3a', metalness: 0, roughness: 0.95 }
+
+  const curtainW = w + 0.08          // curtain runs into the guides (width + 1")
+  const coilR = 0.5 + h * 0.02       // ≈16" dia roll for an 8' door (spec headroom)
+  const coilY = h / 2 + coilR + 0.03 // barrel centered above the opening
+  const coilZ = -coilR + 0.012      // front tangent meets the curtain plane (z≈0)
+
+  // Corrugated curtain: shallow rounded wave ~3.3" pitch, ~0.7" deep (scaled from
+  // Janus drawings) — softer than the trapezoidal R-panel rib.
+  const curtainGeo = useMemo(() => {
+    const pitch = 0.275, depth = 0.058, sheet = 0.012
+    const top = coilY, bot = -h / 2
+    const len = top - bot
+    const steps = Math.max(24, Math.round((len / pitch) * 10))
+    const pts: [number, number][] = []
+    for (let i = 0; i <= steps; i++) {
+      const y = bot + (i / steps) * len
+      pts.push([y, depth * 0.5 * (1 - Math.cos((2 * Math.PI * y) / pitch))])
+    }
+    return extrudeProfile(ribbonShape(pts, sheet), curtainW)
+  }, [h, coilY, curtainW])
+
+  // Guides: 2" face × 2" leg channel each side of the opening.
+  const gF = 2 / 12, gD = 2 / 12, gT = 0.018
+  const guideX = w / 2 + gF / 2
+  const Guide = ({ side }: { side: 1 | -1 }) => (
+    <group position={[side * guideX, 0, 0]}>
+      <mesh position={[0, 0, gD / 2]} castShadow><boxGeometry args={[gF, h, gT]} /><meshStandardMaterial {...galv} /></mesh>
+      <mesh position={[0, 0, -gD / 2]} castShadow><boxGeometry args={[gF, h, gT]} /><meshStandardMaterial {...galv} /></mesh>
+      <mesh position={[side * (gF / 2), 0, 0]} castShadow><boxGeometry args={[gT, h, gD]} /><meshStandardMaterial {...galv} /></mesh>
+      {/* head stop clip near the top of the guide */}
+      <mesh position={[0, h / 2 - 0.5, gD / 2 + 0.015]}><boxGeometry args={[gF * 0.8, 0.09, 0.03]} /><meshStandardMaterial {...galv} /></mesh>
+    </group>
+  )
+
+  return (
+    <group position={[0, -(coilY + coilR - h / 2) / 2, 0]}>
+      {/* coiled curtain on the barrel, wrap edge hinted at each end */}
+      <group position={[0, coilY, coilZ]}>
+        <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[coilR, coilR, curtainW, 48]} /><meshStandardMaterial {...steel} />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (curtainW / 2 - 0.005), 0, 0]} rotation={[0, s * Math.PI / 2, 0]}>
+            <torusGeometry args={[coilR - 0.02, 0.012, 8, 48]} /><meshStandardMaterial {...steel} />
+          </mesh>
+        ))}
+        {/* dead-axle torque tube protruding from each end of the coil */}
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (curtainW / 2 + 0.11), 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+            <cylinderGeometry args={[0.055, 0.055, 0.32, 16]} /><meshStandardMaterial {...galv} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* corrugated curtain (profile x→Y, depth→Z, run→X) */}
+      <mesh geometry={curtainGeo} rotation={[0, Math.PI / 2, Math.PI / 2]} castShadow receiveShadow>
+        <meshStandardMaterial {...steel} side={THREE.DoubleSide} />
+      </mesh>
+
+      <Guide side={-1} />
+      <Guide side={1} />
+
+      {/* bottom bar: galvanized angle + PVC bulb astragal + handle + stop clips */}
+      <group position={[0, -h / 2 + 0.07, 0]}>
+        <mesh castShadow><boxGeometry args={[curtainW, 0.13, 0.04]} /><meshStandardMaterial {...galv} /></mesh>
+        <mesh position={[0, -0.02, -0.07]}><boxGeometry args={[curtainW, 0.02, 0.13]} /><meshStandardMaterial {...galv} /></mesh>
+        <mesh position={[0, -0.075, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.032, 0.032, curtainW, 16]} /><meshStandardMaterial {...pvc} />
+        </mesh>
+        {/* lift handle (stirrup) centered on the outside face */}
+        <group position={[0, 0.01, 0.09]}>
+          {[-0.14, 0.14].map((x) => (
+            <mesh key={x} position={[x, 0, 0.015]}><boxGeometry args={[0.03, 0.03, 0.05]} /><meshStandardMaterial {...galv} /></mesh>
+          ))}
+          <mesh position={[0, 0, 0.045]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.018, 0.018, 0.32, 12]} /><meshStandardMaterial {...galv} />
+          </mesh>
+        </group>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * (curtainW / 2 - 0.08), 0.09, 0.03]}><boxGeometry args={[0.1, 0.05, 0.03]} /><meshStandardMaterial {...galv} /></mesh>
+        ))}
+      </group>
+
+      {/* curtain-mounted mini latch, right side above the bottom bar */}
+      <mesh position={[w / 2 - 0.28, -h / 2 + 0.45, 0.075]} castShadow>
+        <boxGeometry args={[0.38, 0.2, 0.035]} /><meshStandardMaterial {...zinc} />
+      </mesh>
+    </group>
+  )
+}
+
+// ── Walk-in door (slab + frame + knob) ──────────────────────────────────────────
+function WalkinDoor({ colorName, params }: ModelProps) {
+  const w = (params?.w ?? 36) / 12, h = (params?.h ?? 80) / 12, d = 0.14
+  const steel = useSteel(colorName, '#dcdcdc')
+  const knob = { color: '#b9a24a', metalness: 0.9, roughness: 0.2 }
+  return (
+    <group>
+      <mesh castShadow receiveShadow><boxGeometry args={[w, h, d]} /><meshStandardMaterial {...steel} /></mesh>
+      {/* recessed panel */}
+      <mesh position={[0, 0, d / 2 + 0.005]}><boxGeometry args={[w * 0.7, h * 0.8, 0.02]} /><meshStandardMaterial {...steel} /></mesh>
+      <mesh position={[w / 2 - 0.22, 0, d / 2 + 0.02]}><sphereGeometry args={[0.07, 20, 20]} /><meshStandardMaterial {...knob} /></mesh>
+    </group>
+  )
+}
+
+// ── Roll (tape) ─────────────────────────────────────────────────────────────────
+function Roll() {
+  const r = 0.9, len = 2.6
+  const outer = { color: '#eef1f4', metalness: 0.0, roughness: 0.95 }
+  return (
+    <group rotation={[0, 0, Math.PI / 2]}>
+      <mesh castShadow receiveShadow><cylinderGeometry args={[r, r, len, 40]} /><meshStandardMaterial {...outer} /></mesh>
+      {/* spiral core */}
+      <mesh position={[0, len / 2 + 0.001, 0]}><cylinderGeometry args={[0.18, 0.18, 0.02, 24]} /><meshStandardMaterial color="#c9b18a" roughness={0.9} /></mesh>
+      <mesh position={[0, -len / 2 - 0.001, 0]}><cylinderGeometry args={[0.18, 0.18, 0.02, 24]} /><meshStandardMaterial color="#c9b18a" roughness={0.9} /></mesh>
+    </group>
+  )
+}
+
+// ── Moisture barrier (double-bubble roll: white poly outside, foil inside) ───────
+// Matched to the supplier photos: the roll lies on its side, the tail unrolls off
+// the bottom and lies flat with its foil (inner) face UP, curling loose at the free
+// end; ends show the wound film edge around a dark hollow core. The bubble read
+// comes from a shared procedural bump map on both faces.
+function MoistureBarrier() {
+  const r = 0.85, len = 2.6, th = 0.018
+  const tailGeo = useMemo(() => {
+    const rr = r + 0.012 // the wrap hugs just outside the roll surface
+    const pts: [number, number][] = []
+    for (const deg of [-128, -116, -104, -92]) {
+      const a = (deg * Math.PI) / 180
+      pts.push([rr * Math.cos(a), rr * Math.sin(a)])
+    }
+    pts.push([0.55, -rr], [1.45, -rr], [1.95, -rr + 0.03], [2.25, -rr + 0.14])
+    return splitUnderside(extrudeProfile(ribbonShape(pts, th), len * 0.96))
+  }, [])
+  // Color maps carry the bubble pattern (bump alone washes out under the soft
+  // studio light); the gray bump clones add relief on hardware that shows it.
+  // Cylinder UVs are normalized (repeat = bubbles around/along); extrude UVs are
+  // in feet (repeat 10 → ~1.2" bubbles).
+  const maps = useMemo(() => {
+    const mk = (bg: string, rim: string, hi: string, ru: number, rv: number) => {
+      const t = bubbleTexture(bg, rim, hi).clone()
+      t.repeat.set(ru, rv)
+      t.needsUpdate = true
+      return t
+    }
+    return {
+      bodyWhite: mk('#dcdedc', '#aaaeaa', '#ffffff', 64, 32),
+      bodyBump: mk('#808080', '#6f6f6f', '#e6e6e6', 64, 32),
+      tailFoil: mk('#b9bec5', '#7d838d', '#ffffff', 14, 14),
+      tailWhite: mk('#dcdedc', '#aaaeaa', '#ffffff', 14, 14),
+      tailBump: mk('#808080', '#6f6f6f', '#e6e6e6', 14, 14),
+    }
+  }, [])
+  // Materials are built imperatively with the maps in the CONSTRUCTOR: the first
+  // shader compile then includes USE_MAP for certain (assigning map via props left
+  // material.version at 0 and the map never reached the compiled shader).
+  const mats = useMemo(() => {
+    const white = { color: '#ffffff', metalness: 0.05, roughness: 0.6 }
+    const foil = { color: '#ffffff', metalness: 0.62, roughness: 0.38 }
+    return {
+      body: new THREE.MeshStandardMaterial({ ...white, map: maps.bodyWhite, bumpMap: maps.bodyBump, bumpScale: 0.9 }),
+      tailFoil: new THREE.MeshStandardMaterial({ ...foil, map: maps.tailFoil, bumpMap: maps.tailBump, bumpScale: 0.9, side: THREE.DoubleSide }),
+      tailWhite: new THREE.MeshStandardMaterial({ ...white, map: maps.tailWhite, bumpMap: maps.tailBump, bumpScale: 0.9, side: THREE.DoubleSide }),
+    }
+  }, [maps])
+  return (
+    <group>
+      {/* roll body, axis along X */}
+      <group rotation={[0, 0, Math.PI / 2]}>
+        <mesh material={mats.body} castShadow receiveShadow>
+          <cylinderGeometry args={[r, r, len, 44]} />
+        </mesh>
+        {/* wound film edge + dark hollow core at each end */}
+        {[len / 2 + 0.001, -len / 2 - 0.001].map((y) => (
+          <group key={y} position={[0, y, 0]}>
+            <mesh><cylinderGeometry args={[r * 0.99, r * 0.99, 0.002, 44]} /><meshStandardMaterial color="#e6e8e8" metalness={0.15} roughness={0.7} /></mesh>
+            <mesh><cylinderGeometry args={[0.15, 0.15, 0.006, 24]} /><meshStandardMaterial color="#3a3d40" metalness={0.1} roughness={0.9} /></mesh>
+          </group>
+        ))}
+      </group>
+      {/* unraveled tail: foil (inside) faces up, white (outside) faces down */}
+      <mesh geometry={tailGeo} material={[mats.tailFoil, mats.tailWhite]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow />
+    </group>
+  )
+}
+
+// ── Foam closure strips (die-cut to the L5 panel profile) ───────────────────────
+// Solid black foam strips, 2" wide, spanning the full 36" panel coverage: the male
+// (inside) closure has a flat base with the L5 profile standing proud to fill the
+// ribs from below; the female (outside) closure has the profile cut into its
+// underside and a flat top. Major ribs only — real closures don't pick up the pan
+// stiffeners. Sold as separate products; the legacy combined SKU shows the pair.
+const FOAM_MAT = { color: '#141416', metalness: 0.0, roughness: 1.0 }
+const FOAM_W = 2 / 12       // strip width (2")
+const FOAM_SKIN = 0.45 / 12 // foam body beyond the profile line
+
+// Close the L5 profile polyline against a flat line: below it → male, above → female.
+function foamGeo(kind: 'male' | 'female') {
+  const prof = l5Center(5, false)
+  const first = prof[0], last = prof[prof.length - 1]
+  const yFlat = kind === 'male' ? -FOAM_SKIN : L5_RIB_H + FOAM_SKIN
+  const s = new THREE.Shape()
+  s.moveTo(first[0], first[1])
+  for (const [x, y] of prof.slice(1)) s.lineTo(x, y)
+  s.lineTo(last[0], yFlat)
+  s.lineTo(first[0], yFlat)
+  s.closePath()
+  return extrudeProfile(s, FOAM_W)
+}
+
+function FoamStripMale() {
+  const geo = useMemo(() => foamGeo('male'), [])
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...FOAM_MAT} /></mesh>
+}
+
+function FoamStripFemale() {
+  const geo = useMemo(() => foamGeo('female'), [])
+  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...FOAM_MAT} /></mesh>
+}
+
+function FoamStrip() {
+  const maleGeo = useMemo(() => foamGeo('male'), [])
+  const femaleGeo = useMemo(() => foamGeo('female'), [])
+  return (
+    <group>
+      {/* mating pair: male below (ribs up), female floating above with the profile
+          cut facing down — the way they sandwich a panel end */}
+      <mesh geometry={maleGeo} position={[0, -0.16, 0]} castShadow receiveShadow><meshStandardMaterial {...FOAM_MAT} /></mesh>
+      <mesh geometry={femaleGeo} position={[0, 0.12, 0]} castShadow receiveShadow><meshStandardMaterial {...FOAM_MAT} /></mesh>
+    </group>
+  )
+}
+
+// ── Welding nipple (short threaded coupling) ────────────────────────────────────
+function Nipple({ colorName }: ModelProps) {
+  const steel = useSteel(colorName, '#a7adb3')
+  const R = 0.28, len = 0.9
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape(); shape.absarc(0, 0, R, 0, Math.PI * 2, false)
+    const hole = new THREE.Path(); hole.absarc(0, 0, R - 0.09, 0, Math.PI * 2, true)
+    shape.holes.push(hole)
+    return extrudeProfile(shape, len)
+  }, [])
+  return (
+    <group rotation={[0, Math.PI / 2, 0]}>
+      <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <mesh key={i} position={[0, 0, -len / 2 + 0.06 + i * 0.09]}>
+          <torusGeometry args={[R + 0.004, 0.012, 6, 28]} /><meshStandardMaterial {...steel} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Bundle (strapped stack of brackets) ─────────────────────────────────────────
+function Bundle({ colorName }: ModelProps) {
+  const steel = useSteel(colorName, '#7f8489')
+  const strap = { color: '#2b2f33', metalness: 0.2, roughness: 0.8 }
+  const w = 1.8, h = 1.1, d = 1.4
+  return (
+    <group>
+      <mesh castShadow receiveShadow><boxGeometry args={[w, h, d]} /><meshStandardMaterial {...steel} /></mesh>
+      {/* segment lines to read as stacked pieces */}
+      {[-0.3, 0, 0.3].map((y) => (
+        <mesh key={y} position={[0, y * h, d / 2 + 0.002]}><boxGeometry args={[w * 0.98, 0.02, 0.01]} /><meshStandardMaterial color="#4b5157" /></mesh>
+      ))}
+      {[-0.5, 0.5].map((x) => (
+        <mesh key={x} position={[x, 0, 0]}><boxGeometry args={[0.06, h + 0.03, d + 0.03]} /><meshStandardMaterial {...strap} /></mesh>
+      ))}
+    </group>
+  )
+}
+
+// ── Generic crate (fallback) ────────────────────────────────────────────────────
+function GenericBox({ colorName }: ModelProps) {
+  const steel = useSteel(colorName, '#9aa0a6')
+  const edge = { color: '#5b6167', metalness: 0.5, roughness: 0.6 }
+  const w = 1.6, h = 1.2, d = 1.2
+  const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d))
+  return (
+    <group>
+      <mesh castShadow receiveShadow><boxGeometry args={[w, h, d]} /><meshStandardMaterial {...steel} /></mesh>
+      <lineSegments geometry={edges}><lineBasicMaterial color={edge.color} /></lineSegments>
+    </group>
+  )
+}
+
+// ── Dispatcher ───────────────────────────────────────────────────────────────────
+const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
+  'square-tube': SquareTube,
+  'brace': SquareTube,
+  'base-rail': BaseRail,
+  'panel': Panel,
+  'skylight': Skylight,
+  'trim-l': TrimL,
+  'trim-j': TrimJ,
+  'trim-corner': TrimCorner,
+  'trim-side-vert': TrimSideVert,
+  'trim-flashing': TrimFlashing,
+  'trim-box-eve': TrimBoxEve,
+  'ridge-cap': RidgeCap,
+  'hat-channel': HatChannel,
+  'l-bracket': LBracket,
+  'rebar': Rebar,
+  'screw': Screw,
+  'screw-bare': ScrewBare,
+  'anchor': Anchor,
+  'asphalt-anchor': AsphaltAnchor,
+  'wedge-anchor': WedgeAnchor,
+  'titen-hd': TitenHD,
+  'truss': Truss,
+  'window': Window,
+  'garage-door': GarageDoor,
+  'walkin-door': WalkinDoor,
+  'roll': Roll,
+  'moisture-barrier': MoistureBarrier,
+  'foam-strip': FoamStrip,
+  'foam-male': FoamStripMale,
+  'foam-female': FoamStripFemale,
+  'nipple': Nipple,
+  'bundle': Bundle,
+  'box': GenericBox,
+}
+
+export function ProductModel({ archetype, colorName, params }: { archetype: Archetype } & ModelProps) {
+  const Comp = REGISTRY[archetype] ?? GenericBox
+  return <Comp colorName={colorName} params={params} />
+}

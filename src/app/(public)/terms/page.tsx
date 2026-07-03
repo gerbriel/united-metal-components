@@ -37,7 +37,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-xl font-bold mb-3 text-foreground">1. About Our Business</h2>
           <p className="text-muted-foreground">
-            {COMPANY} is a metal building materials supplier located at {ADDRESS}. We sell sheet metal panels, structural tubing, trusses, carport kits, garage doors, anchors, insulation, and related construction materials to contractors, businesses, and individuals.
+            {COMPANY} is a metal building materials supplier located at {ADDRESS}. We sell sheet metal panels, structural tubing, trusses, carport kits, garage doors, anchors, moisture barrier, and related construction materials to contractors, businesses, and individuals.
           </p>
           <p className="mt-2 text-muted-foreground">
             <strong>All orders are pickup only.</strong> We do not offer delivery or shipping. Orders must be picked up at our Fresno facility during business hours.
