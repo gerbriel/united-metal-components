@@ -24,7 +24,7 @@ export default function CtaBanner() {
           Ready to start your project?
         </h2>
         <p className="text-lg text-white/60 mb-10 max-w-2xl mx-auto leading-relaxed">
-          Create a free account to place orders, track your delivery, and get notified the moment your materials are ready.
+          Create a free account to place orders, track their status, and get notified the moment your materials are ready for pickup.
         </p>
         <div className="flex flex-wrap gap-4 justify-center">
           <ButtonLink
@@ -39,7 +39,7 @@ export default function CtaBanner() {
             href="/products"
             size="lg"
             variant="outline"
-            className="border-white/20 text-white hover:bg-white/10 h-12 px-8 text-base"
+            className="bg-transparent border-white/25 text-white hover:bg-white/10 hover:text-white h-12 px-8 text-base"
           >
             Browse Products
           </ButtonLink>

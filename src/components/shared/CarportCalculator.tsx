@@ -37,10 +37,10 @@ const ROOF_STYLES: { value: CarportInput['roofStyle']; label: string }[] = [
   { value: 'vertical', label: 'A-Frame Vertical' },
 ]
 
-// Delivery / install-access fee policy. Situational (crew judgment), so these ride
+// Install-access fee policy. Situational (crew judgment), so these ride
 // along as a note on the estimate rather than a computed line off the dimensions.
-const DELIVERY_TERMS: string[] = [
-  'If the delivery/installation truck cannot access the site within 40′ of the building, a $250 labor charge is added to the balance due.',
+const INSTALL_TERMS: string[] = [
+  'If the installation truck cannot access the site within 40′ of the building, a $250 labor charge is added to the balance due.',
   'If the truck cannot reach the job site (located an unreasonable distance away), the job may be rescheduled and a $650 return-trip fee applies.',
   'Business or time-restricted installs can affect pricing — notify your sales rep before ordering.',
 ]
@@ -669,16 +669,16 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
             </CardContent>
           </Card>
 
-          {/* Install & delivery access fees */}
+          {/* Install access fees */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Truck className="w-4 h-4" /> Install &amp; Delivery Access
+                <Truck className="w-4 h-4" /> Install Access
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-                {DELIVERY_TERMS.map((t, i) => (
+                {INSTALL_TERMS.map((t, i) => (
                   <li key={i}>{t}</li>
                 ))}
               </ul>

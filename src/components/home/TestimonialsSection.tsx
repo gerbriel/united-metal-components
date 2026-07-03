@@ -10,7 +10,7 @@ const testimonials = [
     role: 'General Contractor',
     company: 'Rodriguez Construction',
     content:
-      "United Metal has been my go-to supplier for three years. Consistent quality, fast delivery, and their online ordering system makes reordering a breeze.",
+      "United Metal has been my go-to supplier for three years. Consistent quality, quick order turnaround, and their online ordering system makes reordering a breeze.",
     rating: 5,
     initial: 'MR',
   },

@@ -40,7 +40,7 @@ export default function TermsPage() {
             {COMPANY} is a metal building materials supplier located at {ADDRESS}. We sell sheet metal panels, structural tubing, trusses, carport kits, garage doors, anchors, moisture barrier, and related construction materials to contractors, businesses, and individuals.
           </p>
           <p className="mt-2 text-muted-foreground">
-            <strong>All orders are pickup only.</strong> We do not offer delivery or shipping. Orders must be picked up at our Fresno facility during business hours.
+            <strong>All orders are pickup only.</strong> Orders must be picked up at our Fresno facility during business hours.
           </p>
         </section>
 

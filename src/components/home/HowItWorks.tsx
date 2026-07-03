@@ -16,8 +16,8 @@ const steps = [
   {
     number: '3',
     Icon: PackageCheck,
-    title: 'Track & Receive',
-    desc: 'Get real-time status updates as your order is processed, ready, and delivered.',
+    title: 'Track & Pick Up',
+    desc: 'Get real-time status updates as your order is processed and ready for pickup at our facility.',
   },
 ]
 

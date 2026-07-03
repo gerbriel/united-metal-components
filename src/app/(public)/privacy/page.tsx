@@ -92,7 +92,7 @@ export default function PrivacyPage() {
           <h2 className="text-xl font-bold mb-3 text-foreground">4. Sharing and Disclosure</h2>
           <p className="mb-3">We do not sell your personal information. We share personal information only in these circumstances:</p>
           <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
-            <li><strong>Service providers:</strong> Supabase (database and authentication hosting), email delivery providers, and other vendors who process data on our behalf under written data processing agreements</li>
+            <li><strong>Service providers:</strong> Supabase (database and authentication hosting), email service providers, and other vendors who process data on our behalf under written data processing agreements</li>
             <li><strong>Legal requirements:</strong> When required by law, court order, or government authority, or to protect our legal rights</li>
             <li><strong>Business transfers:</strong> In connection with a merger, acquisition, or sale of assets, with notice provided to you</li>
             <li><strong>With your consent:</strong> For any other purpose with your explicit consent</li>

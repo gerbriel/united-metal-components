@@ -30,10 +30,16 @@ export type Archetype =
   | 'door-knob'
   | 'hinge'
   | 'door-hardware'
+  | 'door-hardware-lever'
   | 'truss'
   | 'window'
+  | 'window-grid'
   | 'garage-door'
   | 'walkin-door'
+  | 'walkin-door-hd'
+  | 'door-fullview'
+  | 'door-cottage'
+  | 'door-diamond'
   | 'roll'
   | 'moisture-barrier'
   | 'foam-strip'
@@ -73,11 +79,16 @@ const BY_SKU: Record<string, Archetype> = {
   // door reuses the walk-in door model.
   'WALKIN-KNOB': 'door-knob',
   'WALKIN-HW': 'hinge',
-  'WALKIN-DOOR-HD': 'walkin-door',
+  'WALKIN-DOOR-HD': 'walkin-door-hd',
   'DOOR-HW': 'door-hardware',
+  'DOOR-HW-HD': 'door-hardware-lever',
   'WELD-NIPPLE': 'nipple',
   'BUNDLE-PKG': 'bundle',
   'WALKIN-DOOR': 'walkin-door',
+  'WALKIN-DOOR-FV': 'door-fullview',
+  'WALKIN-DOOR-9LITE': 'door-cottage',
+  'WALKIN-DOOR-DIAMOND': 'door-diamond',
+  'WIN-36X36': 'window-grid',
   'TAPE-DBL': 'roll',
   // Inserts are short square-tube nipples that slide inside the tubing.
   'INS-7-2X2': 'square-tube',

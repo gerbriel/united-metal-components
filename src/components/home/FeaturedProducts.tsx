@@ -1,15 +1,17 @@
 import Link from 'next/link'
-import { Package, ArrowRight } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { ButtonLink } from '@/components/ui/button-link'
+import ProductThumb from '@/components/product3d/ProductThumb'
 
 type Product = {
   id: string
+  sku?: string | null
   name: string
   description: string | null
   price: number
   unit: string | null
-  product_categories?: { name: string } | null
+  product_categories?: { name: string; slug?: string } | null
 }
 
 export default function FeaturedProducts({ products }: { products: Product[] }) {
@@ -40,10 +42,10 @@ export default function FeaturedProducts({ products }: { products: Product[] }) 
           {products.map((p) => (
             <Link key={p.id} href={`/products/${p.id}`} className="group block">
               <Card className="h-full border-slate-200 hover:border-primary hover:shadow-xl transition-all duration-300 overflow-hidden">
-                {/* Product image placeholder */}
-                <div className="aspect-[16/9] bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center relative overflow-hidden">
-                  <Package className="w-14 h-14 text-slate-300 group-hover:text-primary/40 transition-colors duration-300" />
-                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/3 transition-colors duration-300" />
+                {/* Rotating 3D preview (icon placeholder until near-viewport) */}
+                <div className="aspect-[16/9] bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
+                  <ProductThumb product={p} />
+                  <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/3 transition-colors duration-300 pointer-events-none" />
                 </div>
 
                 <CardContent className="p-5">

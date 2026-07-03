@@ -1,4 +1,4 @@
-import { ShieldCheck, Truck, Zap, Headphones } from 'lucide-react'
+import { ShieldCheck, PackageCheck, Zap, Headphones } from 'lucide-react'
 
 const features = [
   {
@@ -10,9 +10,9 @@ const features = [
     accent: 'group-hover:border-blue-200',
   },
   {
-    Icon: Truck,
-    title: 'Fast, Reliable Delivery',
-    desc: 'Same-day order processing with tracking updates delivered directly to you — no chasing down status.',
+    Icon: PackageCheck,
+    title: 'Ready for Fast Pickup',
+    desc: 'Orders are processed quickly with real-time status updates — we notify you the moment your materials are ready to pick up.',
     iconBg: 'bg-orange-50',
     iconColor: 'text-orange-600',
     accent: 'group-hover:border-orange-200',

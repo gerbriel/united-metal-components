@@ -220,23 +220,17 @@ function HatChannel({ colorName }: ModelProps) {
 }
 
 // ── L-bracket ───────────────────────────────────────────────────────────────────
-function LBracket({ colorName }: ModelProps) {
-  const leg = 0.5, th = 0.05, wide = 0.42
-  const steel = useSteel(colorName, '#7f8489')
-  const holeMat = { color: '#2b2f33', metalness: 0.3, roughness: 0.8 }
+function LBracket() {
+  const leg = 0.5, th = 0.01, wide = 0.42   // thin galvanized angle bracket, no holes
+  const silver = SCREW_ZINC
   return (
     <group>
       <mesh position={[leg / 2, th / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[leg, th, wide]} /><meshStandardMaterial {...steel} />
+        <boxGeometry args={[leg, th, wide]} /><meshStandardMaterial {...silver} />
       </mesh>
       <mesh position={[th / 2, leg / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[th, leg, wide]} /><meshStandardMaterial {...steel} />
+        <boxGeometry args={[th, leg, wide]} /><meshStandardMaterial {...silver} />
       </mesh>
-      {[-0.12, 0.12].map((z) => (
-        <mesh key={z} position={[leg * 0.6, th / 2 + 0.001, z]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, th + 0.01, 16]} /><meshStandardMaterial {...holeMat} />
-        </mesh>
-      ))}
     </group>
   )
 }
@@ -542,28 +536,31 @@ function Anchor({ colorName }: ModelProps) {
 // Earth auger: long galvanized rod with a single-turn helix PLATE near the pointed
 // tip (screws into the ground) and a slotted strap head at the top.
 function AugerAnchor() {
-  const rodR = 0.045, rodL = 1.9
-  // One wide, thin fin turn of the thread sweep = the auger helix plate.
-  const helix = useMemo(() => screwThreadGeometry(rodR, 0.21, 0.1, 1, 0.012, 96), [])
+  const rodR = 0.038, rodL = 2.2
+  // Black painted steel earth auger: a long rod with a forged eye at the top and TWO
+  // wide auger flights (mid-shaft + near the bottom) — a double-helix mobile-home anchor.
+  const black = { color: '#26282a', metalness: 0.5, roughness: 0.52 }
+  // One ~full turn of the auger flight (a wide, thin helical plate).
+  const flight = useMemo(() => screwThreadGeometry(rodR, 0.22, 0.11, 1, 0.014, 96), [])
   return (
-    <group rotation={[0, 0, Math.PI * 0.38]}>
+    <group rotation={[0, 0.6, 0.06]}>
       {/* rod */}
-      <mesh castShadow><cylinderGeometry args={[rodR, rodR, rodL, 20]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
-      {/* auger helix plate near the tip */}
-      <mesh geometry={helix} position={[0, -rodL / 2 + 0.28, 0]} castShadow>
-        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+      <mesh castShadow><cylinderGeometry args={[rodR, rodR, rodL, 20]} /><meshStandardMaterial {...black} /></mesh>
+      {/* forged round eyelet at the top */}
+      <mesh position={[0, rodL / 2 + 0.1, 0]} castShadow>
+        <torusGeometry args={[0.12, 0.032, 20, 36]} /><meshStandardMaterial {...black} />
       </mesh>
-      {/* pointed tip */}
-      <mesh position={[0, -rodL / 2 - 0.1, 0]} rotation={[Math.PI, 0, 0]} castShadow>
-        <coneGeometry args={[rodR, 0.22, 20]} /><meshStandardMaterial {...SCREW_ZINC} />
+      {/* mid-shaft auger flight */}
+      <mesh geometry={flight} position={[0, -0.2, 0]} castShadow>
+        <meshStandardMaterial {...black} side={THREE.DoubleSide} />
       </mesh>
-      {/* slotted strap head: flattened block with a dark strap slot */}
-      <mesh position={[0, rodL / 2 + 0.09, 0]} castShadow>
-        <boxGeometry args={[0.2, 0.2, 0.07]} /><meshStandardMaterial {...SCREW_ZINC} />
+      {/* lower auger flight near the bottom */}
+      <mesh geometry={flight} position={[0, -rodL / 2 + 0.2, 0]} castShadow>
+        <meshStandardMaterial {...black} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, rodL / 2 + 0.09, 0]}>
-        <boxGeometry args={[0.12, 0.05, 0.075]} />
-        <meshStandardMaterial color="#3a3e42" metalness={0.4} roughness={0.7} />
+      {/* blunt pointed bottom */}
+      <mesh position={[0, -rodL / 2 - 0.03, 0]} rotation={[Math.PI, 0, 0]} castShadow>
+        <coneGeometry args={[rodR, 0.12, 20]} /><meshStandardMaterial {...black} />
       </mesh>
     </group>
   )
@@ -666,36 +663,132 @@ function Hinge() {
   )
 }
 
-// ── Garage-door hardware kit ──────────────────────────────────────────────────────
-// The parts that read "door hardware" at a glance: a torsion SPRING coil, a length
-// of angle track behind it, and a few loose hex bolts in front.
-class CoilCurve extends THREE.Curve<THREE.Vector3> {
-  constructor(private r: number, private turns: number, private len: number) { super() }
-  getPoint(t: number, target = new THREE.Vector3()) {
-    const a = 2 * Math.PI * this.turns * t
-    return target.set(this.len * (t - 0.5), this.r * Math.cos(a), this.r * Math.sin(a))
-  }
-}
-function DoorHardwareKit() {
-  const spring = useMemo(() => new THREE.TubeGeometry(new CoilCurve(0.13, 26, 1.3), 900, 0.024, 10, false), [])
-  const track = useMemo(() => extrudeProfile(ribbonShape([[0.14, 0], [0, 0], [0, 0.14]], 0.02), 1.7), [])
-  const springMat = { color: '#7a4a2a', metalness: 0.6, roughness: 0.5 }   // oil-tempered spring steel
-  return (
-    <group rotation={[0.1, 0.4, 0]}>
-      {/* angle track laid behind */}
-      <mesh geometry={track} position={[0, -0.16, -0.3]} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow>
-        <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
+// ── Walk-in door hardware (knob set + key) ───────────────────────────────────────
+// A full passage lockset: a polished ball knob on BOTH faces of a thin door slab
+// (interior + exterior) with a latch on the door edge, plus a brass key in front —
+// so the product reads as door hardware at a glance.
+function DoorHardware() {
+  const chrome = { color: '#c3c8cd', metalness: 0.9, roughness: 0.3, envMapIntensity: 1.5 }   // silver
+  const brass = { color: '#c8a13a', metalness: 0.85, roughness: 0.3, envMapIntensity: 1.4 }
+  const slab = { color: '#e8e8e6', metalness: 0.2, roughness: 0.6 }
+
+  // One knob assembly (rosette + neck + squashed ball) on a face: sign = ±1 → ±Z.
+  const knob = (sign: number) => (
+    <group>
+      <mesh position={[0, 0, sign * 0.05]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.19, 0.21, 0.05, 32]} /><meshStandardMaterial {...chrome} />
       </mesh>
-      {/* torsion spring on its shaft */}
-      <mesh position={[0, 0.12, 0.1]} rotation={[0, 0, Math.PI / 2]} castShadow><cylinderGeometry args={[0.045, 0.045, 1.7, 16]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
-      <mesh geometry={spring} position={[0, 0.12, 0.1]} castShadow><meshStandardMaterial {...springMat} /></mesh>
-      {/* loose bolts in front */}
-      {[-0.45, 0, 0.45].map((x, i) => (
-        <group key={x} position={[x, -0.34, 0.42]} rotation={[Math.PI / 2.3, 0, i * 0.7]} scale={0.55}>
-          <mesh castShadow><cylinderGeometry args={[0.155, 0.155, 0.13, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading /></mesh>
-          <mesh position={[0, -0.3, 0]} castShadow><cylinderGeometry args={[0.07, 0.07, 0.5, 16]} /><meshStandardMaterial {...SCREW_ZINC} /></mesh>
-        </group>
-      ))}
+      <mesh position={[0, 0, sign * 0.14]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.07, 0.09, 0.16, 24]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+      <mesh position={[0, 0, sign * 0.3]} scale={[1, 1, 0.82]} castShadow>
+        <sphereGeometry args={[0.17, 32, 24]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+    </group>
+  )
+
+  return (
+    <group rotation={[0.2, 0.6, 0]}>
+      {/* thin door slab — the knobs pass through and show on both faces */}
+      <mesh receiveShadow castShadow>
+        <boxGeometry args={[0.9, 0.98, 0.06]} /><meshStandardMaterial {...slab} />
+      </mesh>
+      {/* latch faceplate + bolt on the door edge */}
+      <mesh position={[0.45, 0, 0]} castShadow>
+        <boxGeometry args={[0.03, 0.34, 0.1]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+      <mesh position={[0.51, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.028, 0.028, 0.05, 16]} /><meshStandardMaterial {...chrome} />
+      </mesh>
+      {knob(1)}
+      {knob(-1)}
+
+      {/* brass key, angled in front below the knob */}
+      <group position={[0.02, -0.66, 0.32]} rotation={[0.55, 0, 0.55]}>
+        {/* bow (ring) */}
+        <mesh position={[-0.4, 0, 0]} castShadow>
+          <torusGeometry args={[0.12, 0.035, 16, 28]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        {/* collar between bow and shaft */}
+        <mesh position={[-0.26, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 0.06, 16]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        {/* shaft */}
+        <mesh castShadow>
+          <boxGeometry args={[0.6, 0.05, 0.02]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        {/* teeth (bittings) toward the tip */}
+        {[0.14, 0.21, 0.28].map((x, i) => (
+          <mesh key={x} position={[x, -0.05 - i * 0.004, 0]} castShadow>
+            <boxGeometry args={[0.035, 0.06, 0.02]} /><meshStandardMaterial {...brass} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
+
+// ── Heavy-duty door hardware (lever set + key) ───────────────────────────────────
+// A lever-handle passage set: a silver lever on BOTH faces of a thin door slab with
+// a latch on the edge, plus a key in front — the hardware that ships with the
+// heavy-duty door.
+function DoorHardwareLever() {
+  const silver = { color: '#c3c8cd', metalness: 0.9, roughness: 0.3, envMapIntensity: 1.5 }
+  const brass = { color: '#c8a13a', metalness: 0.85, roughness: 0.3, envMapIntensity: 1.4 }
+  const slab = { color: '#e8e8e6', metalness: 0.2, roughness: 0.6 }
+
+  // One lever assembly (rosette + neck + horizontal handle) on a face: sign = ±1 → ±Z.
+  const lever = (sign: number) => (
+    <group>
+      <mesh position={[0, 0, sign * 0.05]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.17, 0.05, 32]} /><meshStandardMaterial {...silver} />
+      </mesh>
+      <mesh position={[0, 0, sign * 0.14]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.055, 0.07, 0.16, 20]} /><meshStandardMaterial {...silver} />
+      </mesh>
+      {/* horizontal handle + rounded tip */}
+      <mesh position={[-0.18, 0, sign * 0.24]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.045, 0.05, 0.42, 20]} /><meshStandardMaterial {...silver} />
+      </mesh>
+      <mesh position={[-0.39, 0, sign * 0.24]} castShadow>
+        <sphereGeometry args={[0.05, 16, 12]} /><meshStandardMaterial {...silver} />
+      </mesh>
+    </group>
+  )
+
+  return (
+    <group rotation={[0.2, 0.6, 0]}>
+      {/* thin door slab — the levers pass through and show on both faces */}
+      <mesh receiveShadow castShadow>
+        <boxGeometry args={[0.9, 0.98, 0.06]} /><meshStandardMaterial {...slab} />
+      </mesh>
+      {/* latch faceplate + bolt on the door edge */}
+      <mesh position={[0.45, 0, 0]} castShadow>
+        <boxGeometry args={[0.03, 0.34, 0.1]} /><meshStandardMaterial {...silver} />
+      </mesh>
+      <mesh position={[0.51, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.028, 0.028, 0.05, 16]} /><meshStandardMaterial {...silver} />
+      </mesh>
+      {lever(1)}
+      {lever(-1)}
+
+      {/* key, angled in front below the lever */}
+      <group position={[0.02, -0.66, 0.32]} rotation={[0.55, 0, 0.55]}>
+        <mesh position={[-0.4, 0, 0]} castShadow>
+          <torusGeometry args={[0.12, 0.035, 16, 28]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        <mesh position={[-0.26, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 0.06, 16]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        <mesh castShadow>
+          <boxGeometry args={[0.6, 0.05, 0.02]} /><meshStandardMaterial {...brass} />
+        </mesh>
+        {[0.14, 0.21, 0.28].map((x, i) => (
+          <mesh key={x} position={[x, -0.05 - i * 0.004, 0]} castShadow>
+            <boxGeometry args={[0.035, 0.06, 0.02]} /><meshStandardMaterial {...brass} />
+          </mesh>
+        ))}
+      </group>
     </group>
   )
 }
@@ -757,6 +850,39 @@ function Window({ params }: ModelProps) {
         <boxGeometry args={[w - fr, h - fr, 0.04]} />
         <meshStandardMaterial color="#9fd3e0" metalness={0.1} roughness={0.05} transparent opacity={0.4} />
       </mesh>
+    </group>
+  )
+}
+
+// ── Gridded window (colonial grilles) ───────────────────────────────────────────
+// The framed window with a 3×3 muntin grid over the glass — a grille pattern shown
+// on both faces.
+function WindowGrid({ params }: ModelProps) {
+  const wIn = params?.w ?? 36, hIn = params?.h ?? 36
+  const w = wIn / 12, h = hIn / 12, fr = 0.12, d = 0.14
+  const frame = { color: '#f5f5f2', metalness: 0.05, roughness: 0.45 }
+  const glassW = w - fr, glassH = h - fr
+  const bar = 0.035
+  return (
+    <group>
+      {/* outer frame */}
+      {([[0, h / 2 - fr / 2, w, fr], [0, -h / 2 + fr / 2, w, fr], [-w / 2 + fr / 2, 0, fr, h], [w / 2 - fr / 2, 0, fr, h]] as [number, number, number, number][]).map((f, i) => (
+        <mesh key={i} position={[f[0], f[1], 0]} castShadow>
+          <boxGeometry args={[f[2], f[3], d]} /><meshStandardMaterial {...frame} />
+        </mesh>
+      ))}
+      {/* glass */}
+      <mesh>
+        <boxGeometry args={[glassW, glassH, 0.04]} />
+        <meshStandardMaterial color="#9fd3e0" metalness={0.1} roughness={0.05} transparent opacity={0.4} />
+      </mesh>
+      {/* 3×3 grille: 2 vertical + 2 horizontal muntins spanning the glass depth */}
+      {[-glassW / 6, glassW / 6].map((x, i) => (
+        <mesh key={'v' + i} position={[x, 0, 0]}><boxGeometry args={[bar, glassH, d * 0.8]} /><meshStandardMaterial {...frame} /></mesh>
+      ))}
+      {[-glassH / 6, glassH / 6].map((y, i) => (
+        <mesh key={'h' + i} position={[0, y, 0]}><boxGeometry args={[glassW, bar, d * 0.8]} /><meshStandardMaterial {...frame} /></mesh>
+      ))}
     </group>
   )
 }
@@ -866,17 +992,152 @@ function GarageDoor({ colorName, params }: ModelProps) {
   )
 }
 
-// ── Walk-in door (slab + frame + knob) ──────────────────────────────────────────
-function WalkinDoor({ colorName, params }: ModelProps) {
-  const w = (params?.w ?? 36) / 12, h = (params?.h ?? 80) / 12, d = 0.14
-  const steel = useSteel(colorName, '#dcdcdc')
-  const knob = { color: '#b9a24a', metalness: 0.9, roughness: 0.2 }
+// ── Walk-in doors (slab + frame family) ─────────────────────────────────────────
+// A family of standard 36" x 80" walk-in doors that share a slab + jamb frame and
+// differ by frame finish, whether there's a threshold at the sill, and the glazing
+// pattern — so the storefront reads each door apart at a glance.
+const DOOR_W = 3, DOOR_H = 6.7, DOOR_D = 0.12
+const DOOR_BORE_X = DOOR_W / 2 - 0.26, DOOR_BORE_Y = -0.3   // lockset bore hole
+const doorWhite: THREE.MeshStandardMaterialParameters = { color: '#f1f1ee', metalness: 0.04, roughness: 0.62 }
+const doorPanel: THREE.MeshStandardMaterialParameters = { color: '#e6e6e1', metalness: 0.04, roughness: 0.66 }
+const doorMetal: THREE.MeshStandardMaterialParameters = { color: '#c3c9ce', metalness: 0.85, roughness: 0.34, envMapIntensity: 1.8 }
+const doorGrey: THREE.MeshStandardMaterialParameters = { color: '#8b9096', metalness: 0, roughness: 0.95 }
+const doorAlu: THREE.MeshStandardMaterialParameters = { color: '#ced3d8', metalness: 0.9, roughness: 0.26, envMapIntensity: 1.7 }
+const doorGlass: THREE.MeshStandardMaterialParameters = { color: '#bcd8e2', metalness: 0.1, roughness: 0.05, transparent: true, opacity: 0.42 }
+
+// A door slab (or stile) as an extruded rectangle with a real circular through-hole
+// where the lockset bore goes — the door ships without a knob, so the bore reads as
+// an open hole rather than a solid face.
+function useHoledSlab(w: number, h: number, holeX: number, holeY: number, holeR = 0.088, d = DOOR_D) {
+  return useMemo(() => {
+    const shape = new THREE.Shape()
+    shape.moveTo(-w / 2, -h / 2)
+    shape.lineTo(w / 2, -h / 2)
+    shape.lineTo(w / 2, h / 2)
+    shape.lineTo(-w / 2, h / 2)
+    shape.closePath()
+    const hole = new THREE.Path()
+    hole.absarc(holeX, holeY, holeR, 0, Math.PI * 2, true)
+    shape.holes.push(hole)
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false, curveSegments: 24 })
+    geo.translate(0, 0, -d / 2)
+    geo.computeVertexNormals()
+    return geo
+  }, [w, h, holeX, holeY, holeR, d])
+}
+
+// Jamb frame around the slab: left/right/head, with an optional sill threshold.
+function DoorFrame({ mat, threshold, thresholdMat, fw = 0.16, fd = 0.2 }: {
+  mat: THREE.MeshStandardMaterialParameters
+  threshold?: boolean
+  thresholdMat?: THREE.MeshStandardMaterialParameters
+  fw?: number
+  fd?: number
+}) {
+  const w = DOOR_W, h = DOOR_H
   return (
     <group>
-      <mesh castShadow receiveShadow><boxGeometry args={[w, h, d]} /><meshStandardMaterial {...steel} /></mesh>
-      {/* recessed panel */}
-      <mesh position={[0, 0, d / 2 + 0.005]}><boxGeometry args={[w * 0.7, h * 0.8, 0.02]} /><meshStandardMaterial {...steel} /></mesh>
-      <mesh position={[w / 2 - 0.22, 0, d / 2 + 0.02]}><sphereGeometry args={[0.07, 20, 20]} /><meshStandardMaterial {...knob} /></mesh>
+      <mesh position={[-(w / 2 + fw / 2), 0, 0]} castShadow receiveShadow><boxGeometry args={[fw, h + fw * 2, fd]} /><meshStandardMaterial {...mat} /></mesh>
+      <mesh position={[w / 2 + fw / 2, 0, 0]} castShadow receiveShadow><boxGeometry args={[fw, h + fw * 2, fd]} /><meshStandardMaterial {...mat} /></mesh>
+      <mesh position={[0, h / 2 + fw / 2, 0]} castShadow receiveShadow><boxGeometry args={[w + fw * 2, fw, fd]} /><meshStandardMaterial {...mat} /></mesh>
+      {threshold && (
+        <mesh position={[0, -(h / 2 + 0.045), 0]} castShadow receiveShadow><boxGeometry args={[w + fw * 2, 0.09, fd * 1.05]} /><meshStandardMaterial {...(thresholdMat ?? doorMetal)} /></mesh>
+      )}
+    </group>
+  )
+}
+
+// The standard door: white slab, white frame, two recessed panels, sill threshold.
+function WalkinDoor() {
+  const w = DOOR_W, h = DOOR_H, d = DOOR_D
+  const slab = useHoledSlab(w, h, DOOR_BORE_X, DOOR_BORE_Y)
+  return (
+    <group>
+      <DoorFrame mat={doorWhite} threshold thresholdMat={doorMetal} fw={0.18} fd={0.22} />
+      <mesh geometry={slab} castShadow receiveShadow><meshStandardMaterial {...doorWhite} /></mesh>
+      {[h * 0.22, -h * 0.22].map((y, i) => (
+        <mesh key={i} position={[0, y, d / 2 + 0.004]} castShadow><boxGeometry args={[w * 0.64, h * 0.32, 0.02]} /><meshStandardMaterial {...doorPanel} /></mesh>
+      ))}
+    </group>
+  )
+}
+
+// Heavy-duty door: medium-grey metal slab + frame + threshold, kickplate, hinges.
+function WalkinDoorHD() {
+  const w = DOOR_W, h = DOOR_H, d = DOOR_D
+  const slab = useHoledSlab(w, h, DOOR_BORE_X, DOOR_BORE_Y)
+  return (
+    <group>
+      <DoorFrame mat={doorGrey} threshold thresholdMat={doorGrey} fw={0.17} fd={0.22} />
+      <mesh geometry={slab} castShadow receiveShadow><meshStandardMaterial {...doorGrey} /></mesh>
+      {/* kickplate */}
+      <mesh position={[0, -h / 2 + 0.4, d / 2 + 0.006]} castShadow><boxGeometry args={[w * 0.94, 0.7, 0.012]} /><meshStandardMaterial color="#9aa0a6" metalness={0} roughness={0.9} /></mesh>
+      {/* hinges on the hinge stile */}
+      {[h * 0.34, 0, -h * 0.34].map((y, i) => (
+        <mesh key={i} position={[-w / 2 + 0.02, y, 0]} castShadow><boxGeometry args={[0.07, 0.36, d + 0.02]} /><meshStandardMaterial {...doorGrey} /></mesh>
+      ))}
+    </group>
+  )
+}
+
+// Smooth full-view door: flush slab in a slim metal frame, no threshold — just the
+// frame. The base for the diamond-lite variant.
+function DoorFullView() {
+  const w = DOOR_W, h = DOOR_H
+  const slab = useHoledSlab(w, h, DOOR_BORE_X, DOOR_BORE_Y)
+  return (
+    <group>
+      <DoorFrame mat={doorAlu} fw={0.1} fd={0.2} />
+      <mesh geometry={slab} castShadow receiveShadow><meshStandardMaterial {...doorWhite} /></mesh>
+    </group>
+  )
+}
+
+// Cottage door: white slab, solid bottom panel, a 3×3 grid of glass lites divided
+// by white muntins (9 windows), sill threshold. Bore hole through the lock stile.
+function DoorCottage() {
+  const w = DOOR_W, h = DOOR_H, d = DOOR_D
+  const stile = 0.34
+  const botH = h * 0.3
+  const glassTopY = h / 2 - stile
+  const glassBotY = -h / 2 + botH
+  const gh = glassTopY - glassBotY
+  const gcy = (glassTopY + glassBotY) / 2
+  const gw = w - stile * 2
+  const lockStile = useHoledSlab(stile, h, 0, DOOR_BORE_Y)
+  return (
+    <group>
+      <DoorFrame mat={doorWhite} threshold thresholdMat={doorMetal} fw={0.18} fd={0.22} />
+      {/* perimeter stiles (right one has the bore hole) + top rail */}
+      <mesh position={[-(w / 2 - stile / 2), 0, 0]} castShadow receiveShadow><boxGeometry args={[stile, h, d]} /><meshStandardMaterial {...doorWhite} /></mesh>
+      <mesh geometry={lockStile} position={[w / 2 - stile / 2, 0, 0]} castShadow receiveShadow><meshStandardMaterial {...doorWhite} /></mesh>
+      <mesh position={[0, h / 2 - stile / 2, 0]} castShadow receiveShadow><boxGeometry args={[w, stile, d]} /><meshStandardMaterial {...doorWhite} /></mesh>
+      {/* solid bottom panel */}
+      <mesh position={[0, -h / 2 + botH / 2, 0]} castShadow receiveShadow><boxGeometry args={[w, botH, d]} /><meshStandardMaterial {...doorWhite} /></mesh>
+      {/* glass sheet + muntins → 9 lites */}
+      <mesh position={[0, gcy, 0]}><boxGeometry args={[gw, gh, 0.02]} /><meshStandardMaterial {...doorGlass} /></mesh>
+      {[-gw / 6, gw / 6].map((x, i) => (
+        <mesh key={'v' + i} position={[x, gcy, d / 2 - 0.03]}><boxGeometry args={[0.05, gh, 0.05]} /><meshStandardMaterial {...doorWhite} /></mesh>
+      ))}
+      {[gcy - gh / 6, gcy + gh / 6].map((y, i) => (
+        <mesh key={'h' + i} position={[0, y, d / 2 - 0.03]}><boxGeometry args={[gw, 0.05, 0.05]} /><meshStandardMaterial {...doorWhite} /></mesh>
+      ))}
+    </group>
+  )
+}
+
+// Diamond-lite door: the full-view door with a single centered diamond window.
+function DoorDiamond() {
+  const w = DOOR_W, h = DOOR_H, d = DOOR_D
+  const slab = useHoledSlab(w, h, DOOR_BORE_X, DOOR_BORE_Y)
+  return (
+    <group>
+      <DoorFrame mat={doorAlu} fw={0.1} fd={0.2} />
+      <mesh geometry={slab} castShadow receiveShadow><meshStandardMaterial {...doorWhite} /></mesh>
+      <group position={[0, h * 0.12, 0]} rotation={[0, 0, Math.PI / 4]}>
+        <mesh position={[0, 0, d / 2 + 0.004]} castShadow><boxGeometry args={[0.98, 0.98, 0.03]} /><meshStandardMaterial {...doorAlu} /></mesh>
+        <mesh position={[0, 0, d / 2 + 0.006]}><boxGeometry args={[0.8, 0.8, 0.02]} /><meshStandardMaterial {...doorGlass} /></mesh>
+      </group>
     </group>
   )
 }
@@ -1093,11 +1354,17 @@ const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
   'hex-bolt': HexBolt,
   'door-knob': DoorKnob,
   'hinge': Hinge,
-  'door-hardware': DoorHardwareKit,
+  'door-hardware': DoorHardware,
+  'door-hardware-lever': DoorHardwareLever,
   'truss': Truss,
   'window': Window,
+  'window-grid': WindowGrid,
   'garage-door': GarageDoor,
   'walkin-door': WalkinDoor,
+  'walkin-door-hd': WalkinDoorHD,
+  'door-fullview': DoorFullView,
+  'door-cottage': DoorCottage,
+  'door-diamond': DoorDiamond,
   'roll': Roll,
   'moisture-barrier': MoistureBarrier,
   'foam-strip': FoamStrip,

@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { ArrowRight, ShieldCheck, Truck, Award, Star } from 'lucide-react'
+import { ArrowRight, ShieldCheck, Award, Star } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/button-link'
 
 function FadeUp({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
@@ -78,7 +78,7 @@ export default function HeroSection() {
                 href="/contact"
                 size="lg"
                 variant="outline"
-                className="border-white/15 text-white hover:bg-white/8 h-12 px-7 text-base"
+                className="bg-transparent border-white/25 text-white hover:bg-white/10 hover:text-white h-12 px-7 text-base"
               >
                 Get a Quote
               </ButtonLink>
@@ -90,7 +90,6 @@ export default function HeroSection() {
             <div className="flex flex-wrap gap-x-8 gap-y-3 pt-10 border-t border-white/8">
               {[
                 { Icon: ShieldCheck, label: 'Quality Guaranteed' },
-                { Icon: Truck, label: 'Fast Delivery' },
                 { Icon: Award, label: 'Industry Trusted' },
                 { Icon: Star, label: '5-Star Rated' },
               ].map(({ Icon, label }) => (

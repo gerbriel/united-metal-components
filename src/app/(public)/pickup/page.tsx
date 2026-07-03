@@ -34,7 +34,7 @@ export default function PickupPage() {
         </span>
         <h1 className="text-4xl font-bold mb-4">All orders are pickup only</h1>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          We don&apos;t currently offer delivery. All orders must be picked up at our facility in Fresno, CA. We&apos;ll notify you when your order is ready.
+          All orders must be picked up at our facility in Fresno, CA. We&apos;ll notify you when your order is ready.
         </p>
       </div>
 

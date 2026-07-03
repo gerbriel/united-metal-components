@@ -35,6 +35,10 @@ const securityHeaders = [
 const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
 const nextConfig: NextConfig = {
+  // Allow the dev server to be reached through a cloudflared quick tunnel
+  // (random *.trycloudflare.com subdomain) so mobile live previews hydrate.
+  // Dev-only: Next.js ignores this in production builds.
+  allowedDevOrigins: ['*.trycloudflare.com'],
   async headers() {
     return [
       {
