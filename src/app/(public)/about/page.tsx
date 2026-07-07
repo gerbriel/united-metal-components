@@ -98,7 +98,7 @@ export default function AboutPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm mb-0.5">Phone</p>
-                  <a href="tel:+15595555555" className="text-sm text-orange-500 hover:text-orange-600">(559) 555-5555</a>
+                  <a href="tel:+15595679117" className="text-sm text-orange-500 hover:text-orange-600">(559) 567-9117</a>
                 </div>
               </div>
               <div className="flex items-start gap-4">
@@ -107,8 +107,8 @@ export default function AboutPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm mb-0.5">Email</p>
-                  <a href="mailto:info@unitedmetalcomponents.com" className="text-sm text-orange-500 hover:text-orange-600">
-                    info@unitedmetalcomponents.com
+                  <a href="mailto:sales@unitedmetalcomponents.com" className="text-sm text-orange-500 hover:text-orange-600">
+                    sales@unitedmetalcomponents.com
                   </a>
                 </div>
               </div>

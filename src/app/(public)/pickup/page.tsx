@@ -139,7 +139,7 @@ export default function PickupPage() {
             },
             {
               q: 'Can I modify or cancel my order after placing it?',
-              a: 'Contact us as soon as possible at (559) 555-5555 or info@unitedmetalcomponents.com. We can modify or cancel orders that haven\'t been pulled yet.',
+              a: 'Contact us as soon as possible at (559) 567-9117 or sales@unitedmetalcomponents.com. We can modify or cancel orders that haven\'t been pulled yet.',
             },
           ].map(({ q, a }) => (
             <div key={q} className="border border-slate-200 rounded-xl p-5">
@@ -160,7 +160,7 @@ export default function PickupPage() {
           </div>
         </div>
         <div className="flex gap-3 shrink-0">
-          <ButtonLink href="tel:+15595555555" variant="outline" size="sm">Call Us</ButtonLink>
+          <ButtonLink href="tel:+15595679117" variant="outline" size="sm">Call Us</ButtonLink>
           <ButtonLink href="/contact" size="sm" className="bg-orange-500 hover:bg-orange-600 text-white border-0">Email Us</ButtonLink>
         </div>
       </div>

@@ -16,7 +16,7 @@ export default function SuspendedPage() {
         Your account has been temporarily suspended. Please contact us to resolve any outstanding issues.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
-        <Link href="mailto:info@unitedmetalcomponents.com">
+        <Link href="mailto:sales@unitedmetalcomponents.com">
           <Button className="bg-primary text-white">
             <Mail className="w-4 h-4 mr-2" />
             Contact Us

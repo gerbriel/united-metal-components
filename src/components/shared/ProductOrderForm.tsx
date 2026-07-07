@@ -73,11 +73,11 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
           get you exactly what you need.
         </p>
         <a
-          href="tel:+15599400210"
+          href="tel:+15595679117"
           className="inline-flex items-center gap-2 text-primary font-semibold text-sm hover:underline"
         >
           <Phone className="w-4 h-4" />
-          (559) 940-0210
+          (559) 567-9117
         </a>
       </div>
     )

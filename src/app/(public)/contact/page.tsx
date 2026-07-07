@@ -92,8 +92,8 @@ export default function ContactPage() {
             <h2 className="text-lg font-semibold mb-4">Get In Touch</h2>
             <div className="space-y-4">
               {[
-                [Phone, 'Phone', '(555) 555-5555', 'tel:+15555555555'],
-                [Mail, 'Email', 'info@unitedmetalcomponents.com', 'mailto:info@unitedmetalcomponents.com'],
+                [Phone, 'Phone', '(559) 567-9117', 'tel:+15595679117'],
+                [Mail, 'Email', 'sales@unitedmetalcomponents.com', 'mailto:sales@unitedmetalcomponents.com'],
                 [MapPin, 'Location', 'Your City, State ZIP', null],
               ].map(([Icon, label, value, href]: any) => (
                 <div key={label} className="flex items-start gap-3">

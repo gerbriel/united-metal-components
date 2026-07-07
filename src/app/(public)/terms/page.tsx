@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 const EFFECTIVE_DATE = 'January 1, 2025'
 const COMPANY = 'United Metal Components'
 const ADDRESS = '9191 W Whitesbridge Ave, Fresno, CA 93706'
-const EMAIL = 'legal@unitedmetalcomponents.com'
-const PHONE = '(559) 555-5555'
+const EMAIL = 'sales@unitedmetalcomponents.com'
+const PHONE = '(559) 567-9117'
 
 export default function TermsPage() {
   return (
@@ -202,7 +202,7 @@ export default function TermsPage() {
             <p className="font-semibold text-foreground">{COMPANY}</p>
             <p>{ADDRESS}</p>
             <p>Email: <a href={`mailto:${EMAIL}`} className="text-orange-500 hover:text-orange-600">{EMAIL}</a></p>
-            <p>Phone: <a href="tel:+15595555555" className="text-orange-500 hover:text-orange-600">{PHONE}</a></p>
+            <p>Phone: <a href="tel:+15595679117" className="text-orange-500 hover:text-orange-600">{PHONE}</a></p>
             <p className="mt-2 text-xs">Business Hours: Mon–Fri 7am–5pm, Sat 8am–12pm (Pacific Time)</p>
           </div>
         </section>

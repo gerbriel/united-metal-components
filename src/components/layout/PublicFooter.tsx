@@ -93,14 +93,14 @@ export default function PublicFooter() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                <a href="tel:+15595555555" className="text-sm hover:text-orange-400 transition-colors">
-                  (559) 555-5555
+                <a href="tel:+15595679117" className="text-sm hover:text-orange-400 transition-colors">
+                  (559) 567-9117
                 </a>
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-orange-400 shrink-0" />
-                <a href="mailto:info@unitedmetalcomponents.com" className="text-sm hover:text-orange-400 transition-colors">
-                  info@unitedmetalcomponents.com
+                <a href="mailto:sales@unitedmetalcomponents.com" className="text-sm hover:text-orange-400 transition-colors">
+                  sales@unitedmetalcomponents.com
                 </a>
               </li>
             </ul>
