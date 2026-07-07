@@ -7,7 +7,7 @@ import StagingChecklist from '@/components/shared/StagingChecklist'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
-import { formatOrderQty } from '@/lib/orderUnits'
+import { orderQtyParts } from '@/lib/orderUnits'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -110,7 +110,8 @@ export default async function DashboardOrderDetail({ params }: Props) {
                 <thead className="bg-slate-50 text-xs text-muted-foreground">
                   <tr>
                     <th className="text-left p-3">Product</th>
-                    <th className="text-right p-3">Qty</th>
+                    <th className="text-right p-3">Pieces</th>
+                    <th className="text-right p-3">Linear Ft</th>
                     {!isWarehouse && <th className="text-right p-3">Unit Price</th>}
                     {!isWarehouse && <th className="text-right p-3">Total</th>}
                   </tr>
@@ -137,14 +138,20 @@ export default async function DashboardOrderDetail({ params }: Props) {
                           <p className="text-xs text-amber-700 mt-0.5">ETA: {new Date(item.estimated_arrival_date).toLocaleDateString()}</p>
                         )}
                       </td>
-                      <td className="p-3 text-right">
-                        {formatOrderQty({
+                      {(() => {
+                        const { pieces, linearFeet } = orderQtyParts({
                           quantity: item.quantity,
                           unit: item.products?.unit,
                           lengthFeet: item.length_feet,
                           linearFeet: item.linear_feet,
-                        })}
-                      </td>
+                        })
+                        return (
+                          <>
+                            <td className="p-3 text-right">{pieces}</td>
+                            <td className="p-3 text-right">{linearFeet ?? <span className="text-muted-foreground">—</span>}</td>
+                          </>
+                        )
+                      })()}
                       {!isWarehouse && (
                         <td className="p-3 text-right">${item.unit_price.toFixed(2)}</td>
                       )}
@@ -156,9 +163,9 @@ export default async function DashboardOrderDetail({ params }: Props) {
                 </tbody>
                 {!isWarehouse && (
                   <tfoot className="bg-slate-50 text-sm font-medium">
-                    <tr><td colSpan={3} className="p-3 text-right">Subtotal</td><td className="p-3 text-right">${order.subtotal.toFixed(2)}</td></tr>
-                    <tr><td colSpan={3} className="p-3 text-right">Tax</td><td className="p-3 text-right">${order.tax.toFixed(2)}</td></tr>
-                    <tr className="font-bold"><td colSpan={3} className="p-3 text-right">Total</td><td className="p-3 text-right text-primary">${order.total.toFixed(2)}</td></tr>
+                    <tr><td colSpan={4} className="p-3 text-right">Subtotal</td><td className="p-3 text-right">${order.subtotal.toFixed(2)}</td></tr>
+                    <tr><td colSpan={4} className="p-3 text-right">Tax</td><td className="p-3 text-right">${order.tax.toFixed(2)}</td></tr>
+                    <tr className="font-bold"><td colSpan={4} className="p-3 text-right">Total</td><td className="p-3 text-right text-primary">${order.total.toFixed(2)}</td></tr>
                   </tfoot>
                 )}
               </table>
