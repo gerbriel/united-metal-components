@@ -133,6 +133,52 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
       {lengths && (
         <div className="space-y-3">
           <Label className="text-sm font-semibold">Length</Label>
+
+          {/* Contractors: custom cut length is always available, shown above the
+              standard lengths. Typing/focusing it selects custom; clicking a
+              preset switches back. */}
+          {supportsCustomLength && (
+            <div
+              className={[
+                'space-y-2 rounded-lg border p-3 transition-all',
+                useCustom ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white',
+              ].join(' ')}
+            >
+              <p className="text-xs font-medium text-muted-foreground">Custom cut length</p>
+              <div className="flex items-end gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Feet</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={customFt}
+                    onFocus={() => { setUseCustom(true); setSelectedLength(null) }}
+                    onChange={(e) => { setCustomFt(e.target.value); setUseCustom(true); setSelectedLength(null) }}
+                    className="w-20 text-center"
+                    placeholder="20"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Inches</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={11}
+                    value={customIn}
+                    onFocus={() => { setUseCustom(true); setSelectedLength(null) }}
+                    onChange={(e) => { setCustomIn(e.target.value); setUseCustom(true); setSelectedLength(null) }}
+                    className="w-20 text-center"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {supportsCustomLength && (
+            <p className="text-xs text-muted-foreground">Or choose a standard length:</p>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {lengths.map((l) => {
               const label = l <= 3 ? `${l}'` : `${l} ft`
@@ -153,52 +199,7 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
                 </button>
               )
             })}
-
-            {/* Custom length option — contractors only, on panels/hat channel/braces */}
-            {supportsCustomLength && (
-              <button
-                type="button"
-                onClick={() => { setUseCustom(true); setSelectedLength(null) }}
-                className={[
-                  'px-4 py-2.5 rounded-lg border text-sm font-medium transition-all',
-                  useCustom
-                    ? 'bg-primary text-white border-primary shadow-sm'
-                    : 'border-slate-200 hover:border-primary hover:text-primary bg-white',
-                ].join(' ')}
-              >
-                Custom
-              </button>
-            )}
           </div>
-
-          {/* Custom length inputs */}
-          {useCustom && supportsCustomLength && (
-            <div className="flex items-end gap-3 pt-1">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Feet</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={customFt}
-                  onChange={(e) => setCustomFt(e.target.value)}
-                  className="w-20 text-center"
-                  placeholder="20"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Inches</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={11}
-                  value={customIn}
-                  onChange={(e) => setCustomIn(e.target.value)}
-                  className="w-20 text-center"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
