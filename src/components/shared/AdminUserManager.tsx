@@ -164,7 +164,7 @@ export default function AdminUserManager({ initialUsers }: Props) {
                               ? 'bg-orange-100 text-orange-700'
                               : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {u.customer_type === 'contractor' ? 'Contractor' : 'Retail'}
+                            {u.customer_type === 'contractor' ? 'Contractor' : 'One-off Customer'}
                           </span>
                         )}
                         <p className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</p>

@@ -2,28 +2,33 @@ type ColorEntry = {
   name: string
   hex: string
   textDark: boolean
-  // Optional: path to a texture photo in /public for patterned finishes.
-  // Place images at public/images/colors/<filename>.jpg
-  image?: string
+  // Optional CSS background (e.g. a gradient) for the swatch preview ONLY — used
+  // to fake the sheen of a bare metallic finish. The 3D viewer always renders
+  // from `hex` (see product3d/geom.ts), so keep `hex` representative too.
+  gradient?: string
 }
 
+// Hex values are tuned to read true-to-life on the storefront swatches and drive
+// the 3D finish. Galvalume is bare metal, so it also gets a brushed-metal sheen
+// gradient on its swatch.
 export const COLORS: ColorEntry[] = [
-  { name: 'White',         hex: '#F5F5F5', textDark: true  },
-  { name: 'Light Stone',   hex: '#C8B896', textDark: true,  image: '/images/colors/light-stone.jpg'  },
-  { name: 'Pebble Beige',  hex: '#D4BF9A', textDark: true  },
-  { name: 'Mocha Tan',     hex: '#A88660', textDark: true  },
-  { name: 'Taupe',         hex: '#8F7E6E', textDark: true  },
-  { name: 'Clay',          hex: '#B5724A', textDark: true  },
-  { name: 'Brown',         hex: '#5C3A1E', textDark: false },
-  { name: 'Zinc Gray',     hex: '#686868', textDark: false },
-  { name: 'Pewter Gray',   hex: '#969696', textDark: true  },
-  { name: 'Galvalume',     hex: '#C8C8C0', textDark: true,  image: '/images/colors/galvalume.jpg'    },
-  { name: 'Hawaiian Blue', hex: '#3A74C4', textDark: false },
-  { name: 'Forest Green',  hex: '#2A5024', textDark: false },
-  { name: 'Barn Red',      hex: '#7A2020', textDark: false },
-  { name: 'Black',         hex: '#1A1A1A', textDark: false },
-  { name: 'Light Rock',    hex: '#A09080', textDark: false },
-  { name: 'Dark Stone',    hex: '#504540', textDark: false, image: '/images/colors/dark-stone.jpg'   },
+  { name: 'White',         hex: '#F0F0EA', textDark: true  },
+  { name: 'Light Stone',   hex: '#CFC6AF', textDark: true  },
+  { name: 'Pebble Beige',  hex: '#D0BE97', textDark: true  },
+  { name: 'Mocha Tan',     hex: '#A5825A', textDark: true  },
+  { name: 'Taupe',         hex: '#877564', textDark: true  },
+  { name: 'Clay',          hex: '#A96C46', textDark: true  },
+  { name: 'Brown',         hex: '#4A3223', textDark: false },
+  { name: 'Zinc Gray',     hex: '#6C7176', textDark: false },
+  { name: 'Pewter Gray',   hex: '#93938D', textDark: true  },
+  { name: 'Galvalume',     hex: '#C6C8C5', textDark: true,
+    gradient: 'linear-gradient(135deg, #E2E4E0 0%, #BFC2BE 42%, #D6D8D4 52%, #AEB1AD 100%)' },
+  { name: 'Hawaiian Blue', hex: '#3670C0', textDark: false },
+  { name: 'Forest Green',  hex: '#2C4E27', textDark: false },
+  { name: 'Barn Red',      hex: '#7C2A24', textDark: false },
+  { name: 'Black',         hex: '#1C1C1C', textDark: false },
+  { name: 'Light Rock',    hex: '#9E9384', textDark: true  },
+  { name: 'Dark Stone',    hex: '#4E453E', textDark: false },
 ]
 
 export type ColorName = string

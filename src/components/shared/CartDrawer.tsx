@@ -50,8 +50,8 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                         <div
                           className="w-full h-full rounded-md"
                           style={
-                            colorDef.image
-                              ? { backgroundImage: `url(${colorDef.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                            colorDef.gradient
+                              ? { backgroundImage: colorDef.gradient }
                               : { backgroundColor: colorDef.hex }
                           }
                         />
@@ -75,8 +75,8 @@ export default function CartDrawer({ open, onClose }: CartDrawerProps) {
                               <span
                                 className="w-2.5 h-2.5 rounded-full border border-slate-300 inline-block overflow-hidden"
                                 style={
-                                  colorDef.image
-                                    ? { backgroundImage: `url(${colorDef.image})`, backgroundSize: 'cover' }
+                                  colorDef.gradient
+                                    ? { backgroundImage: colorDef.gradient }
                                     : { backgroundColor: colorDef.hex }
                                 }
                               />

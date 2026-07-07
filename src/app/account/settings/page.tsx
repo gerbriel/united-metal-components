@@ -127,7 +127,7 @@ export default function SettingsPage() {
               {isContractor
                 ? 'Contractor / Business'
                 : account.customer_type === 'retail'
-                ? 'Homeowner / Retail'
+                ? 'One-off Customer'
                 : 'Customer'}
             </p>
             <div className="flex items-center gap-2 mt-1">

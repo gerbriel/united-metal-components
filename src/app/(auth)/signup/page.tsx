@@ -193,9 +193,9 @@ export default function SignupPage() {
               <Home className="w-7 h-7 text-blue-600" />
             </div>
             <div>
-              <p className="font-semibold text-base">Homeowner / Retail</p>
+              <p className="font-semibold text-base">One-off Customer</p>
               <p className="text-sm text-muted-foreground mt-1">
-                One-off parts or personal projects. Standard retail pricing.
+                One-off parts or personal projects.
               </p>
             </div>
           </button>

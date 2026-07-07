@@ -49,6 +49,11 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
 
   const hasLengths = lengths !== null
 
+  // Contractors can request a non-standard cut length on the length-based
+  // coil products — panels, hat channel, and braces (C-channel). Prices are
+  // never shown on the storefront; a custom length is simply a quote request.
+  const supportsCustomLength = isContractor && (isPanel || isHatChannel || isBrace)
+
   const [selectedLength, setSelectedLength] = useState<number | null>(null)
   const [useCustom, setUseCustom] = useState(false)
   const [customFt, setCustomFt] = useState('')
@@ -149,8 +154,8 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
               )
             })}
 
-            {/* Custom length option — contractors only, panels only */}
-            {isContractor && isPanel && (
+            {/* Custom length option — contractors only, on panels/hat channel/braces */}
+            {supportsCustomLength && (
               <button
                 type="button"
                 onClick={() => { setUseCustom(true); setSelectedLength(null) }}
@@ -167,7 +172,7 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
           </div>
 
           {/* Custom length inputs */}
-          {useCustom && isContractor && isPanel && (
+          {useCustom && supportsCustomLength && (
             <div className="flex items-end gap-3 pt-1">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Feet</Label>
@@ -215,8 +220,8 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
                     : 'border-white shadow-sm hover:scale-105 hover:border-primary/60',
                 ].join(' ')}
                 style={
-                  c.image
-                    ? { backgroundImage: `url(${c.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  c.gradient
+                    ? { backgroundImage: c.gradient }
                     : { backgroundColor: c.hex }
                 }
               />

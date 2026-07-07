@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import AddCrmNote from '@/components/shared/AddCrmNote'
+import CustomerAccountControls from '@/components/shared/CustomerAccountControls'
 import { isAdminRole } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -22,7 +23,11 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const { data: viewer } = await supabase.from('profiles').select('role').eq('id', user!.id).single()
-  const isAdmin = isAdminRole((viewer as any)?.role ?? '')
+  const viewerRole = (viewer as any)?.role ?? ''
+  const isAdmin = isAdminRole(viewerRole)
+  // Office employees and admins can promote a customer to contractor and set
+  // their pricing tier (warehouse staff cannot reach the CRM at all).
+  const canEditAccount = isAdmin || viewerRole === 'office_employee'
 
   const [{ data: customer }, { data: orders }, { data: notes }] = await Promise.all([
     supabase.from('profiles').select('*, pricing_tier').eq('id', id).single(),
@@ -131,28 +136,38 @@ export default async function CustomerDetailPage({ params }: Props) {
               </div>
             )}
 
-            <div>
-              <dt className="text-xs text-muted-foreground mb-0.5">Account Type</dt>
-              <dd>
-                {c.customer_type === 'contractor' ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-medium">Contractor</span>
-                ) : c.customer_type === 'retail' ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">Retail</span>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
-                )}
-              </dd>
-            </div>
+            {canEditAccount ? (
+              <CustomerAccountControls
+                userId={customer.id}
+                customerType={c.customer_type ?? null}
+                pricingTier={c.pricing_tier ?? null}
+              />
+            ) : (
+              <>
+                <div>
+                  <dt className="text-xs text-muted-foreground mb-0.5">Account Type</dt>
+                  <dd>
+                    {c.customer_type === 'contractor' ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-medium">Contractor</span>
+                    ) : c.customer_type === 'retail' ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">One-off Customer</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </dd>
+                </div>
 
-            <div>
-              <dt className="text-xs text-muted-foreground mb-0.5">Pricing Tier</dt>
-              <dd className="font-medium">
-                {c.pricing_tier
-                  ? PRICING_TIER_LABEL[c.pricing_tier] ?? c.pricing_tier
-                  : <span className="text-muted-foreground font-normal">Unassigned</span>
-                }
-              </dd>
-            </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground mb-0.5">Pricing Tier</dt>
+                  <dd className="font-medium">
+                    {c.pricing_tier
+                      ? PRICING_TIER_LABEL[c.pricing_tier] ?? c.pricing_tier
+                      : <span className="text-muted-foreground font-normal">Unassigned</span>
+                    }
+                  </dd>
+                </div>
+              </>
+            )}
 
             {c.company_name && (
               <div>
