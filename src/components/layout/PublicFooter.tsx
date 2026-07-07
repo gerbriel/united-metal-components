@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
+import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
 
 const productLinks = [
   ['Sheet Metal Panels', '/products?cat=panels'],
@@ -25,14 +25,13 @@ export default function PublicFooter() {
       <div className="border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
-                <Package className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <p className="font-bold text-white text-base leading-tight">United Metal Components</p>
-                <p className="text-sm text-slate-400">Premium metal building materials</p>
-              </div>
+            <div className="flex flex-col gap-2">
+              <img
+                src="/logo/UMC-logo-horizontal-light.svg"
+                alt="United Metal Components"
+                className="h-11 w-auto"
+              />
+              <p className="text-sm text-slate-400">Premium metal building materials</p>
             </div>
             <Link
               href="/products"

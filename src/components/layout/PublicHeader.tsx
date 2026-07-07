@@ -75,14 +75,12 @@ export default function PublicHeader() {
           <div className="flex items-center justify-between h-16">
 
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 shrink-0 group">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-sm group-hover:bg-primary/90 transition-colors">
-                <Package className="w-4 h-4 text-white" />
-              </div>
-              <div className="leading-none">
-                <span className="block font-bold text-[13px] text-foreground">United Metal</span>
-                <span className="block font-bold text-[13px] text-orange-500">Components</span>
-              </div>
+            <Link href="/" className="flex items-center shrink-0">
+              <img
+                src="/logo/UMC-logo-horizontal.svg"
+                alt="United Metal Components"
+                className="h-10 w-auto"
+              />
             </Link>
 
             {/* Desktop nav */}

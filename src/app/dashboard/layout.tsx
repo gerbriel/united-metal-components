@@ -55,13 +55,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <aside className="w-60 bg-sidebar text-sidebar-foreground flex flex-col shrink-0">
         <div className="p-4 border-b border-sidebar-border">
           <Link href={isWarehouse ? '/dashboard/orders' : '/'} className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-sidebar-primary rounded flex items-center justify-center">
-              <Package className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-sidebar-foreground leading-tight">United Metal</p>
-              <p className="text-xs text-sidebar-primary">Dashboard</p>
-            </div>
+            <img
+              src="/logo/UMC-logo-horizontal-light.svg"
+              alt="United Metal Components"
+              className="h-8 w-auto"
+            />
+            <span className="text-xs text-sidebar-primary font-medium">Dashboard</span>
           </Link>
         </div>
 
