@@ -7,6 +7,7 @@ import StagingChecklist from '@/components/shared/StagingChecklist'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
+import { formatOrderQty } from '@/lib/orderUnits'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -75,6 +76,8 @@ export default async function DashboardOrderDetail({ params }: Props) {
     item_color: i.item_color ?? null,
     is_special_order: !!i.is_special_order,
     estimated_arrival_date: i.estimated_arrival_date ?? null,
+    length_feet: i.length_feet ?? null,
+    linear_feet: i.linear_feet ?? null,
   }))
 
   const specialItems = orderItems.filter((i) => i.is_special_order)
@@ -135,7 +138,12 @@ export default async function DashboardOrderDetail({ params }: Props) {
                         )}
                       </td>
                       <td className="p-3 text-right">
-                        {item.quantity}{item.products?.unit ? ` ${item.products.unit}` : ''}
+                        {formatOrderQty({
+                          quantity: item.quantity,
+                          unit: item.products?.unit,
+                          lengthFeet: item.length_feet,
+                          linearFeet: item.linear_feet,
+                        })}
                       </td>
                       {!isWarehouse && (
                         <td className="p-3 text-right">${item.unit_price.toFixed(2)}</td>

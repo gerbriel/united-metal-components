@@ -2,14 +2,14 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { CheckCircle, Circle, Clock } from 'lucide-react'
+import { CheckCircle, Circle, Clock, Phone } from 'lucide-react'
 import type { Metadata } from 'next'
 import OrderRealtimeStatus from '@/components/shared/OrderRealtimeStatus'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import StagingProgress from '@/components/shared/StagingProgress'
 import TbdScreenProtection from '@/components/shared/TbdScreenProtection'
 import { ORDER_STATUS_LABEL, ORDER_STATUS_FLOW } from '@/types/database'
+import { formatOrderQty } from '@/lib/orderUnits'
 
 interface Props { params: Promise<{ id: string }> }
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -70,6 +70,8 @@ export default async function OrderDetailPage({ params }: Props) {
     item_color: i.item_color ?? null,
     is_special_order: !!i.is_special_order,
     estimated_arrival_date: i.estimated_arrival_date ?? null,
+    length_feet: i.length_feet ?? null,
+    linear_feet: i.linear_feet ?? null,
   }))
 
   return (
@@ -167,7 +169,12 @@ export default async function OrderDetailPage({ params }: Props) {
                     <p className="text-xs text-muted-foreground">{item.notes}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Qty: {item.quantity}{item.products?.unit ? ` ${item.products.unit}` : ''}
+                    Qty: {formatOrderQty({
+                      quantity: item.quantity,
+                      unit: item.products?.unit,
+                      lengthFeet: item.length_feet,
+                      linearFeet: item.linear_feet,
+                    })}
                   </p>
                   {item.is_special_order && item.estimated_arrival_date && (
                     <p className="text-xs text-amber-700 font-medium mt-1">
@@ -181,11 +188,20 @@ export default async function OrderDetailPage({ params }: Props) {
               </div>
             ))}
           </div>
-          <div className="p-4 border-t space-y-2 bg-slate-50">
-            <div className="flex justify-between text-sm"><span>Subtotal</span><span>${order.subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between text-sm"><span>Tax</span><span>${order.tax.toFixed(2)}</span></div>
-            <Separator />
-            <div className="flex justify-between font-bold"><span>Total</span><span>${order.total.toFixed(2)}</span></div>
+          {/* Pricing is never shown to customers/contractors online — they call
+              for a quote. Replaces the subtotal/tax/total summary. */}
+          <div className="p-4 border-t bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Pricing available upon request</p>
+              <p className="text-xs text-muted-foreground">Give us a call and we&apos;ll go over pricing for your order.</p>
+            </div>
+            <a
+              href="tel:+15595679117"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 whitespace-nowrap"
+            >
+              <Phone className="w-4 h-4" />
+              (559) 567-9117
+            </a>
           </div>
         </CardContent>
       </Card>

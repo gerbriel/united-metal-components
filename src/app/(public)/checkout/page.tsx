@@ -121,7 +121,7 @@ export default function CheckoutPage() {
       user_id:  user.id,
       type:     'order_update',
       title:    `Order #${(order as any).id} Received`,
-      message:  `Your order has been received and is being prepared for pickup. Total: $${orderTotal.toFixed(2)}`,
+      message:  `Your order has been received and is being prepared for pickup. We'll reach out with pricing.`,
       order_id: (order as any).id,
     })
 

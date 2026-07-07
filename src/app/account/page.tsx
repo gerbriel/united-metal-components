@@ -81,12 +81,9 @@ export default async function AccountDashboard() {
                     <p className="text-sm font-medium">Order #{o.id}</p>
                     <p className="text-xs text-muted-foreground">{new Date(o.created_at).toLocaleDateString()}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold">${o.total.toFixed(2)}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${statusColors[o.status]}`}>
-                      {o.status}
-                    </span>
-                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${statusColors[o.status]}`}>
+                    {o.status}
+                  </span>
                 </Link>
               ))}
             </div>

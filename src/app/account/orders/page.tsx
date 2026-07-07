@@ -55,12 +55,9 @@ export default async function OrdersPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-bold">${o.total.toFixed(2)}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${statusColors[o.status]}`}>
-                        {o.status}
-                      </span>
-                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-medium ${statusColors[o.status]}`}>
+                      {o.status}
+                    </span>
                     <ArrowRight className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </CardContent>
