@@ -140,8 +140,10 @@ export const PANEL_LENGTHS = [16, 21, 26, 31]
 export const HAT_CHANNEL_LENGTHS = [2, 3, 16, 21, 26, 31]
 export const BRACE_LENGTHS = [2, 3]
 
-// SKUs that get a length selector (per-foot products sold by piece)
-export const PANEL_SKUS = new Set(['PANEL-29GA', 'PANEL-29GA-SCRAP', 'PANEL-GALVALUME', 'PANEL-STONE'])
+// SKUs that get a length selector (per-foot products sold by piece).
+// Galvalume and Stone are no longer standalone panels — they're color choices on
+// PANEL-29GA (see migration 022), so they're not listed here.
+export const PANEL_SKUS = new Set(['PANEL-29GA', 'PANEL-29GA-SCRAP'])
 
 // SKUs that support color selection
 export const COLOR_SKUS = new Set([

@@ -31,7 +31,9 @@ export default async function ProductDetailPage({ params }: Props) {
     supabase.auth.getUser(),
   ])
 
-  if (!rawProduct) notFound()
+  // Soft-deleted products (active = false) stay in the DB for historical orders
+  // but must not be reachable on the public storefront, including by direct URL.
+  if (!rawProduct || !rawProduct.active) notFound()
   const product = applyProductOverrides(rawProduct)
 
   let isContractor = false
