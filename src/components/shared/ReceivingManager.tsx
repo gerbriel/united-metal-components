@@ -22,7 +22,20 @@ interface AstmCode {
 }
 
 interface Vendor { id: string; name: string }
-interface OpenPo { id: string; po_number: string | null; vendor_id: string | null; status: string; order_date: string }
+interface OpenPo {
+  id: string
+  po_number: string | null
+  vendor_id: string | null
+  status: string
+  order_date: string
+  purchase_order_items?: { color: string | null }[]
+}
+
+// First finish color ordered on a PO — used to prefill the coil color when
+// receiving against that PO.
+function poColor(po: OpenPo | undefined): string {
+  return po?.purchase_order_items?.map((i) => i.color).find(Boolean) ?? ''
+}
 
 interface Props {
   tubeProducts: TubeProduct[]
@@ -109,6 +122,15 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       const po = pos.find((p) => p.id === poId)
       if (po && po.vendor_id !== id) setPoId('')
     }
+  }
+
+  // Selecting a PO prefills the coil color from what was ordered (panel tab only —
+  // hat channel / brace carries no finish color).
+  const selectPo = (id: string) => {
+    setPoId(id)
+    if (!id) return
+    const c = poColor(pos.find((p) => p.id === id))
+    if (c && tab === 'panel') setCoilForm((f) => ({ ...f, color: c }))
   }
 
   const handleCreatePo = async () => {
@@ -274,7 +296,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
           <div className="space-y-1.5">
             <Label>Purchase Order</Label>
             <div className="flex gap-2">
-              <Select value={poId || '__none__'} onValueChange={(v) => setPoId(v === '__none__' ? '' : (v ?? ''))}>
+              <Select value={poId || '__none__'} onValueChange={(v) => selectPo(v === '__none__' ? '' : (v ?? ''))}>
                 <SelectTrigger><SelectValue placeholder="Select PO…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None</SelectItem>

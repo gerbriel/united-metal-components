@@ -83,6 +83,7 @@ export default async function PODetailPage({ params }: Props) {
                   <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
                     <tr>
                       <th className="text-left p-3">Description</th>
+                      <th className="text-left p-3">Color</th>
                       <th className="text-right p-3">Qty</th>
                       <th className="text-left p-3">Unit</th>
                       <th className="text-right p-3">Unit Cost</th>
@@ -97,6 +98,7 @@ export default async function PODetailPage({ params }: Props) {
                           <p className="font-medium">{item.description ?? '—'}</p>
                           {item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}
                         </td>
+                        <td className="p-3 text-muted-foreground">{item.color ?? '—'}</td>
                         <td className="p-3 text-right">{item.quantity}</td>
                         <td className="p-3 text-muted-foreground">{item.unit ?? '—'}</td>
                         <td className="p-3 text-right">{item.unit_cost != null ? `$${Number(item.unit_cost).toFixed(2)}` : '—'}</td>
@@ -111,7 +113,7 @@ export default async function PODetailPage({ params }: Props) {
                   </tbody>
                   <tfoot className="border-t bg-slate-50 font-medium">
                     <tr>
-                      <td colSpan={4} className="p-3 text-right">Total</td>
+                      <td colSpan={5} className="p-3 text-right">Total</td>
                       <td className="p-3 text-right font-bold">${subtotal.toFixed(2)}</td>
                       <td />
                     </tr>

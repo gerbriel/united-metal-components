@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
+import { COLORS } from '@/lib/product-config'
 import type { Vendor } from './VendorManager'
 
 export interface POItem {
@@ -21,7 +22,21 @@ export interface POItem {
   unit: string
   unit_cost: string
   quantity_received?: number
+  color: string
   notes: string
+}
+
+const NO_COLOR = '__none__'
+const colorHex = (name: string) => COLORS.find((c) => c.name === name)?.hex ?? '#94a3b8'
+
+// Pull a known finish color out of free text (product name / description) so a
+// coil line like "29 GA Sheet Metal Coil — Hawaiian Blue" prefills the Color
+// dropdown. Longest match wins so "Light Stone" beats "Stone".
+function detectColor(text: string): string | null {
+  const t = text.toLowerCase()
+  const hit = COLORS.filter((c) => t.includes(c.name.toLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length)[0]
+  return hit?.name ?? null
 }
 
 export interface PurchaseOrder {
@@ -44,7 +59,7 @@ interface Props {
   existingPO?: PurchaseOrder
 }
 
-const EMPTY_LINE: POItem = { description: '', quantity: '1', unit: '', unit_cost: '', notes: '' }
+const EMPTY_LINE: POItem = { description: '', quantity: '1', unit: '', unit_cost: '', color: '', notes: '' }
 
 // A single autocomplete suggestion drawn from the live inventory catalog.
 // `product` picks fill the row (description + unit + product link); `color` and
@@ -199,6 +214,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
           ...i,
           quantity:  String(i.quantity),
           unit_cost: String(i.unit_cost ?? ''),
+          color:     i.color ?? '',
           notes:     i.notes ?? '',
         }))
       : [EMPTY_LINE]
@@ -245,16 +261,29 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
   const setLine = (i: number, k: keyof POItem) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, [k]: e.target.value } : l))
 
-  // Manual edits to the description break the product link.
+  // Manual edits to the description break the product link. Auto-fill the Color
+  // dropdown when the text mentions a known finish and no color is set yet.
   const setDescription = (i: number, value: string) =>
-    setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, description: value, product_id: null } : l))
+    setLines((ls) => ls.map((l, idx) =>
+      idx === i ? { ...l, description: value, product_id: null, color: l.color || (detectColor(value) ?? '') } : l))
+
+  const setColor = (i: number, value: string) =>
+    setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, color: value } : l))
 
   const pickSuggestion = (i: number, s: Suggestion) =>
     setLines((ls) => ls.map((l, idx) => {
       if (idx !== i) return l
       if (s.kind === 'product') {
-        return { ...l, description: s.label, product_id: s.product_id ?? null, unit: l.unit || s.unit || '' }
+        return {
+          ...l,
+          description: s.label,
+          product_id: s.product_id ?? null,
+          unit: l.unit || s.unit || '',
+          color: l.color || (detectColor(s.label) ?? ''),
+        }
       }
+      // A color pick fills the dedicated Color dropdown; ASTM still appends to the text.
+      if (s.kind === 'color') return { ...l, color: s.label }
       return { ...l, description: appendDescriptor(l.description, s.label) }
     }))
 
@@ -305,6 +334,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
       quantity:    parseFloat(l.quantity) || 1,
       unit:        l.unit || null,
       unit_cost:   parseFloat(l.unit_cost) || null,
+      color:       l.color || null,
       notes:       l.notes || null,
     }))
 
@@ -365,6 +395,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
               <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
                 <tr>
                   <th className="text-left p-3 min-w-[200px]">Description / Material</th>
+                  <th className="text-left p-3 w-40">Color</th>
                   <th className="text-right p-3 w-24">Qty</th>
                   <th className="text-left p-3 w-24">Unit</th>
                   <th className="text-right p-3 w-28">Unit Cost</th>
@@ -391,6 +422,30 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
                           placeholder="Notes (ASTM, coil ID, color, gauge…)"
                           className="border-0 shadow-none px-0 h-7 text-xs text-muted-foreground mt-0.5"
                         />
+                      </td>
+                      <td className="p-2">
+                        <Select
+                          value={line.color || NO_COLOR}
+                          onValueChange={(v: string | null) => setColor(i, v === NO_COLOR ? '' : (v ?? ''))}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder="Color…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_COLOR}>— None —</SelectItem>
+                            {COLORS.map((c) => (
+                              <SelectItem key={c.name} value={c.name}>
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-slate-300 shrink-0"
+                                    style={{ background: c.gradient ?? c.hex }}
+                                  />
+                                  {c.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="p-2">
                         <Input
@@ -438,7 +493,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
               </tbody>
               <tfoot className="border-t bg-slate-50">
                 <tr>
-                  <td colSpan={4} className="p-3 text-right text-sm font-medium">Subtotal</td>
+                  <td colSpan={5} className="p-3 text-right text-sm font-medium">Subtotal</td>
                   <td className="p-3 text-right font-bold">${subtotal.toFixed(2)}</td>
                   <td />
                 </tr>

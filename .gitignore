@@ -44,3 +44,7 @@ next-env.d.ts
 /Engineering/
 Copy of Material Cheat Sheet.xlsx
 *.xlsx
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/

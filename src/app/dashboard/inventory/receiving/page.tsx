@@ -41,7 +41,7 @@ export default async function ReceivingPage() {
     supabase.from('vendors').select('id, name').eq('active', true).order('name'),
     supabase
       .from('purchase_orders')
-      .select('id, po_number, vendor_id, status, order_date')
+      .select('id, po_number, vendor_id, status, order_date, purchase_order_items(color)')
       .in('status', ['draft', 'submitted', 'partial'])
       .order('order_date', { ascending: false }),
   ])

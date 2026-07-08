@@ -14,6 +14,7 @@ export interface POPdfItem {
   unit?: string | null
   unit_cost?: number | null
   total_cost?: number | null
+  color?: string | null
   notes?: string | null
 }
 
@@ -147,8 +148,12 @@ export function generatePoPdf(
   for (const item of items) {
     const descText = item.description ?? '—'
     const descWrapped = doc.splitTextToSize(descText, cols[0].w - 12) as string[]
-    const noteWrapped = item.notes
-      ? (doc.splitTextToSize(item.notes, cols[0].w - 12) as string[])
+    // Fold color + notes into the description column as sub-lines.
+    const subText = [item.color ? `Color: ${item.color}` : null, item.notes || null]
+      .filter(Boolean)
+      .join('  ·  ')
+    const noteWrapped = subText
+      ? (doc.splitTextToSize(subText, cols[0].w - 12) as string[])
       : []
     const rowH = Math.max(22, descWrapped.length * 13 + noteWrapped.length * 11 + 9)
     ensureSpace(rowH)
