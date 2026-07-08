@@ -89,11 +89,21 @@ const BY_SKU: Record<string, Archetype> = {
   'WALKIN-DOOR-9LITE': 'door-cottage',
   'WALKIN-DOOR-DIAMOND': 'door-diamond',
   'WIN-36X36': 'window-grid',
+  // Plain windows → base window model. Pinned by SKU so the merged
+  // 'doors-windows' bucket (doors + windows) can't mis-resolve them.
+  'WIN-24X36': 'window',
+  'WIN-30X30': 'window',
   'TAPE-DBL': 'roll',
   // Inserts are short square-tube nipples that slide inside the tubing.
   'INS-7-2X2': 'square-tube',
   'INS-7-14GA': 'square-tube',
   'INS-1FT': 'square-tube',
+  'INS-1FT-2X2': 'square-tube',
+  // Moisture-barrier rolls (the former Insulation category). Pinned by SKU so
+  // they keep the roll model now that they live in the 'components' bucket.
+  'INS-4FT-ROLL': 'moisture-barrier',
+  'INS-6FT-ROLL': 'moisture-barrier',
+  'INS-4FT-BUBBLE': 'moisture-barrier',
 }
 
 const BY_CATEGORY: Record<string, Archetype> = {
@@ -115,6 +125,15 @@ const BY_CATEGORY: Record<string, Archetype> = {
   'bundles': 'bundle',
   'inserts-fasteners': 'square-tube',
   'trim-components': 'trim-l',
+  // Consolidated storefront buckets (migration 029). Each bucket falls back to
+  // the archetype its category-fallback-dependent members need; every mixed item
+  // is pinned by SKU above, so these only catch the homogeneous remainder.
+  'tubing': 'square-tube',   // all TUBE-* sizes
+  'bracing': 'brace',        // cross braces
+  'trim': 'trim-l',          // generic trim profile
+  'fasteners': 'screw',      // screws (inserts / anchors pinned by SKU)
+  'doors-windows': 'window', // windows (garage via SKU regex, walk-ins by SKU)
+  'components': 'box',       // mixed accessories — members pinned by SKU
 }
 
 interface Resolved {

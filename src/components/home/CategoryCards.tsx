@@ -1,44 +1,5 @@
 import Link from 'next/link'
-import { Layers, DoorOpen, Package, Wrench, Anchor, Droplets } from 'lucide-react'
-
-const categories = [
-  {
-    name: 'Sheet Metal Panels',
-    slug: 'panels',
-    Icon: Layers,
-    desc: '29 GA painted, galvalume & stone',
-  },
-  {
-    name: 'Garage Doors',
-    slug: 'acero-doors',
-    Icon: DoorOpen,
-    desc: 'Acero, Model 2000 / 2500 / 3100 & mini',
-  },
-  {
-    name: 'Square Tubing',
-    slug: 'square-tubing',
-    Icon: Package,
-    desc: '12 & 14 GA structural tubing',
-  },
-  {
-    name: 'Trim & Components',
-    slug: 'trim-components',
-    Icon: Wrench,
-    desc: 'Eve, corner, J/L, ridge cap & more',
-  },
-  {
-    name: 'Anchors',
-    slug: 'anchors',
-    Icon: Anchor,
-    desc: 'Asphalt, concrete & mobile home',
-  },
-  {
-    name: 'Moisture Barrier',
-    slug: 'moisture-barrier',
-    Icon: Droplets,
-    desc: "4' & 6' rolls, foam strips & enclosures",
-  },
-]
+import { NAV_CATEGORIES } from '@/lib/nav-categories'
 
 export default function CategoryCards() {
   return (
@@ -56,8 +17,8 @@ export default function CategoryCards() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {categories.map(({ name, slug, Icon, desc }) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {NAV_CATEGORIES.map(({ label, slug, Icon, desc }) => (
             <Link
               key={slug}
               href={`/products?cat=${slug}`}
@@ -67,7 +28,7 @@ export default function CategoryCards() {
                 <Icon className="w-6 h-6 text-primary group-hover:text-white transition-colors duration-200" />
               </div>
               <h3 className="font-semibold text-sm leading-tight mb-1 group-hover:text-primary transition-colors">
-                {name}
+                {label}
               </h3>
               <p className="text-xs text-muted-foreground leading-tight">{desc}</p>
             </Link>

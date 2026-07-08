@@ -1,14 +1,6 @@
 import Link from 'next/link'
 import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
-
-const productLinks = [
-  ['Sheet Metal Panels', '/products?cat=panels'],
-  ['Doors & Hardware', '/products?cat=doors-hardware'],
-  ['Square Tubing', '/products?cat=square-tubing'],
-  ['Trusses', '/products?cat=trusses'],
-  ['Anchors', '/products?cat=anchors'],
-  ['Moisture Barrier', '/products?cat=moisture-barrier'],
-]
+import { NAV_CATEGORIES } from '@/lib/nav-categories'
 
 const companyLinks = [
   ['About Us', '/about'],
@@ -58,9 +50,9 @@ export default function PublicFooter() {
           <div>
             <h3 className="font-semibold text-white text-sm mb-4 uppercase tracking-wider">Products</h3>
             <ul className="space-y-2.5">
-              {productLinks.map(([label, href]) => (
-                <li key={href}>
-                  <Link href={href} className="text-sm hover:text-orange-400 transition-colors">
+              {NAV_CATEGORIES.map(({ slug, label }) => (
+                <li key={slug}>
+                  <Link href={`/products?cat=${slug}`} className="text-sm hover:text-orange-400 transition-colors">
                     {label}
                   </Link>
                 </li>

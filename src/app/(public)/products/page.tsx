@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import ProductGrid from '@/components/shared/ProductGrid'
 import { applyAllProductOverrides } from '@/lib/product-overrides'
 import { groupCatalog } from '@/lib/catalogGroups'
+import { navCategoryRank } from '@/lib/nav-categories'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Products' }
@@ -22,7 +23,9 @@ export default async function ProductsPage({ searchParams }: Props) {
     .eq('active', true)
   const catIdSet = new Set((activeCatIds ?? []).map((r) => r.category_id).filter(Boolean))
   const { data: allCategories } = await supabase.from('product_categories').select('*').order('name')
-  const categories = (allCategories ?? []).filter((c) => catIdSet.has(c.id))
+  const categories = (allCategories ?? [])
+    .filter((c) => catIdSet.has(c.id))
+    .sort((a, b) => navCategoryRank(a.slug) - navCategoryRank(b.slug))
 
   // Build query. Category filtering happens after display overrides so items
   // re-homed on the front end (see product-overrides) land in the right category.

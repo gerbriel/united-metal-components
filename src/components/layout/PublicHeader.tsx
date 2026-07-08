@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
+import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package, ChevronDown } from 'lucide-react'
+import { NAV_CATEGORIES } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import { Badge } from '@/components/ui/badge'
@@ -15,12 +16,9 @@ import type { Profile } from '@/types/database'
 import CartDrawer from '@/components/shared/CartDrawer'
 import { cn } from '@/lib/utils'
 
+// Product buckets live in a "Products" dropdown (see NAV_CATEGORIES); these are
+// the remaining flat top-level links.
 const navLinks = [
-  { href: '/products', label: 'Products' },
-  { href: '/products?cat=panels', label: 'Sheet Metal' },
-  { href: '/products?cat=acero-doors', label: 'Garage Doors' },
-  { href: '/products?cat=doors-hardware', label: 'Walk-in Doors' },
-  { href: '/products?cat=square-tubing', label: 'Tubing' },
   { href: '/contact', label: 'Contact' },
 ]
 
@@ -85,6 +83,32 @@ export default function PublicHeader() {
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center">
+              {/* Products mega-menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={
+                  <button className="inline-flex items-center gap-1 px-3.5 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md">
+                    Products
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                } />
+                <DropdownMenuContent align="start" className="w-60">
+                  <DropdownMenuItem>
+                    <Link href="/products" className="flex items-center w-full font-medium">
+                      All Products
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
+                    <DropdownMenuItem key={slug}>
+                      <Link href={`/products?cat=${slug}`} className="flex items-center w-full gap-2.5">
+                        <Icon className="w-4 h-4 text-muted-foreground" />
+                        {label}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {navLinks.map((l) => (
                 <Link
                   key={l.href}
@@ -199,6 +223,25 @@ export default function PublicHeader() {
               </Button>
             </div>
             <nav className="flex flex-col gap-1">
+              <Link
+                href="/products"
+                className="text-base font-semibold py-2.5 px-3 rounded-lg hover:bg-slate-50 hover:text-primary transition-colors text-slate-800"
+                onClick={() => setMobileOpen(false)}
+              >
+                All Products
+              </Link>
+              {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
+                <Link
+                  key={slug}
+                  href={`/products?cat=${slug}`}
+                  className="flex items-center gap-2.5 text-sm font-medium py-2 px-3 rounded-lg hover:bg-slate-50 hover:text-primary transition-colors text-slate-600"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </Link>
+              ))}
+              <div className="my-2 border-t border-slate-100" />
               {navLinks.map((l) => (
                 <Link
                   key={l.href}
