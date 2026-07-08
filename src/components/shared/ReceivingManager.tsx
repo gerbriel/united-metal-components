@@ -33,16 +33,21 @@ interface Props {
 
 const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
 
+// Tube coils are not received here — that flow is "Receive Tube Bundles".
+// The coil form serves panels and hat channel / brace; the category comes from
+// the active tab, so it isn't a field on the form.
 const EMPTY_COIL = {
   coil_identifier:     '',
-  coil_category:       'panel' as 'panel' | 'hat_channel_brace' | 'tube',
-  gauge:               '' as '12' | '14' | '',
   color:               '',
   astm_code:           '',
   initial_weight_lbs:  '',
   lbs_per_linear_foot: '',
   notes:               '',
 }
+
+type CoilTab = 'panel' | 'hat_brace'
+type ReceiveTab = CoilTab | 'bundle'
+const coilCategoryFor = (tab: CoilTab) => (tab === 'hat_brace' ? 'hat_channel_brace' : 'panel')
 
 const EMPTY_BUNDLE = {
   product_id:        '',
@@ -77,7 +82,7 @@ function defaultAstmFor(codes: AstmCode[], cat: string): string {
 }
 
 export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos }: Props) {
-  const [tab, setTab]           = useState<'coil' | 'bundle'>('coil')
+  const [tab, setTab]           = useState<ReceiveTab>('panel')
   const [coilForm, setCoilForm] = useState({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
   const [bundleForm, setBundleForm] = useState(EMPTY_BUNDLE)
   const [coilLoading, setCoilLoading]   = useState(false)
@@ -123,18 +128,18 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
   const setC = (k: keyof typeof EMPTY_COIL) => (v: string | null) =>
     setCoilForm((f) => ({ ...f, [k]: v ?? '' }))
 
-  // Category drives which fields apply: only panels/tubes carry a color, only
-  // tubes carry a gauge. Clear inapplicable fields when the category changes.
-  const handleCategoryChange = (v: string | null) => {
-    const cat = (v ?? 'panel') as typeof EMPTY_COIL.coil_category
-    setCoilForm((f) => ({
-      ...f,
-      coil_category: cat,
-      color: cat === 'hat_channel_brace' ? '' : f.color,
-      gauge: cat === 'tube' ? f.gauge : '',
-      // Pull in the favorite ASTM for this category automatically.
-      astm_code: defaultAstmFor(astmCodes, cat),
-    }))
+  // Switching between the panel and hat/brace coil tabs re-pulls the favorite
+  // ASTM for that category and clears color where it doesn't apply.
+  const handleTabChange = (t: ReceiveTab) => {
+    setTab(t)
+    if (t === 'panel' || t === 'hat_brace') {
+      const cat = coilCategoryFor(t)
+      setCoilForm((f) => ({
+        ...f,
+        color: cat === 'hat_channel_brace' ? '' : f.color,
+        astm_code: defaultAstmFor(astmCodes, cat),
+      }))
+    }
   }
 
   const setB = (k: keyof typeof EMPTY_BUNDLE) => (v: string | null) =>
@@ -145,16 +150,13 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       toast.error('Initial weight and lbs/ft are required')
       return
     }
-    if (coilForm.coil_category === 'tube' && !coilForm.gauge) {
-      toast.error('Gauge is required for tube coils')
-      return
-    }
+    const category = coilCategoryFor(tab as CoilTab)
     setCoilLoading(true)
     const { error } = await supabase.from('product_coils').insert({
       coil_identifier:     coilForm.coil_identifier || null,
-      coil_category:       coilForm.coil_category,
-      gauge:               coilForm.coil_category === 'tube' ? coilForm.gauge || null : null,
-      color:               coilForm.color || null,
+      coil_category:       category,
+      gauge:               null,
+      color:               category === 'hat_channel_brace' ? null : coilForm.color || null,
       astm_code:           coilForm.astm_code || null,
       initial_weight_lbs:  parseFloat(coilForm.initial_weight_lbs),
       lbs_per_linear_foot: parseFloat(coilForm.lbs_per_linear_foot),
@@ -165,10 +167,10 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
     if (error) { toast.error(error.message); setCoilLoading(false); return }
     const label = coilForm.coil_identifier
       ? `Coil ${coilForm.coil_identifier}`
-      : `${coilForm.coil_category.replace('_', ' ')} coil`
+      : `${category === 'hat_channel_brace' ? 'hat channel / brace' : 'panel'} coil`
     setLastCoil(`${label} — ${fmtFeet(parseFloat(coilForm.initial_weight_lbs) / parseFloat(coilForm.lbs_per_linear_foot))} est.`)
     toast.success('Coil received')
-    setCoilForm({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
+    setCoilForm({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, category) })
     setCoilLoading(false)
   }
 
@@ -231,17 +233,21 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
 
   return (
     <div className="max-w-2xl space-y-6">
-      {/* Tab switcher */}
-      <div className="flex rounded-lg border overflow-hidden w-fit">
-        {(['coil', 'bundle'] as const).map((t) => (
+      {/* Tab switcher — one flow per material type */}
+      <div className="flex rounded-lg border overflow-hidden w-fit flex-wrap">
+        {([
+          ['panel',     'Receive Panel Coil'],
+          ['bundle',    'Receive Tube Bundles'],
+          ['hat_brace', 'Receive Hat Channel / Brace Coil'],
+        ] as const).map(([t, label]) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => handleTabChange(t)}
             className={`px-5 py-2 text-sm font-medium transition-colors ${
               tab === t ? 'bg-primary text-primary-foreground' : 'bg-white hover:bg-muted text-muted-foreground'
             }`}
           >
-            {t === 'coil' ? 'Receive Coil' : 'Receive Tube Bundles'}
+            {label}
           </button>
         ))}
       </div>
@@ -287,11 +293,14 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
         </div>
       </div>
 
-      {/* ── Coil form ──────────────────────────────────────────── */}
-      {tab === 'coil' && (
+      {/* ── Coil form (panels + hat channel / brace) ───────────── */}
+      {tab !== 'bundle' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Log a new coil from a shipment. Coil ID and ASTM code are optional — add them if available on the delivery slip.
+            {tab === 'panel'
+              ? 'Log a new panel coil from a shipment.'
+              : 'Log a new hat channel / brace coil from a shipment.'}
+            {' '}Coil ID and ASTM code are optional — add them if available on the delivery slip.
           </p>
 
           {lastCoil && (
@@ -302,31 +311,6 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Category *</Label>
-              <Select value={coilForm.coil_category} onValueChange={handleCategoryChange}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="panel">Panel</SelectItem>
-                  <SelectItem value="hat_channel_brace">Hat Channel / Brace</SelectItem>
-                  <SelectItem value="tube">Tube</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {coilForm.coil_category === 'tube' && (
-              <div className="space-y-1.5">
-                <Label>Gauge *</Label>
-                <Select value={coilForm.gauge} onValueChange={setC('gauge')}>
-                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="12">12 Gauge</SelectItem>
-                    <SelectItem value="14">14 Gauge</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <Label>Initial Weight (lbs) *</Label>
               <Input
@@ -354,9 +338,9 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
               </div>
             )}
 
-            {/* Color applies to panels (and tubes) only — hat channel / brace
-                are structural and carry no finish color. */}
-            {coilForm.coil_category !== 'hat_channel_brace' && (
+            {/* Color applies to panels only — hat channel / brace are
+                structural and carry no finish color. */}
+            {tab === 'panel' && (
               <div className="space-y-1.5">
                 <Label>Color</Label>
                 <Select value={coilForm.color} onValueChange={setC('color')}>
@@ -381,9 +365,9 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
 
             <div className="col-span-2 space-y-1.5">
               <Label>ASTM Code <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              {astmForCategory(astmCodes, coilForm.coil_category).length > 0 && (
+              {astmForCategory(astmCodes, coilCategoryFor(tab as CoilTab)).length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                  {astmForCategory(astmCodes, coilForm.coil_category).map((c) => {
+                  {astmForCategory(astmCodes, coilCategoryFor(tab as CoilTab)).map((c) => {
                     const active = coilForm.astm_code === c.code
                     return (
                       <button
