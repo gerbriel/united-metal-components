@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, Loader2, Scale } from 'lucide-react'
+import { COLORS } from '@/lib/product-config'
 
 export interface CoilRow {
   id: number
@@ -102,6 +103,16 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
 
   const setF = (k: keyof typeof EMPTY_FORM) => (v: string | null) =>
     setForm((f) => ({ ...f, [k]: v ?? '' }))
+
+  const handleCategoryChange = (v: string | null) => {
+    const cat = (v ?? 'panel') as typeof EMPTY_FORM.coil_category
+    setForm((f) => ({
+      ...f,
+      coil_category: cat,
+      color: cat === 'hat_channel_brace' ? '' : f.color,
+      gauge: cat === 'tube' ? f.gauge : '',
+    }))
+  }
 
   const handleAdd = async () => {
     if (!form.coil_identifier || !form.initial_weight_lbs || !form.lbs_per_linear_foot) {
@@ -225,7 +236,7 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category *</Label>
-                  <Select value={form.coil_category} onValueChange={setF('coil_category')}>
+                  <Select value={form.coil_category} onValueChange={handleCategoryChange}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="panel">Panel</SelectItem>
@@ -264,14 +275,19 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
                     placeholder="2.5"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Color</Label>
-                  <Input
-                    value={form.color}
-                    onChange={(e) => setF('color')(e.target.value)}
-                    placeholder="e.g. Galvalume, Bright Red"
-                  />
-                </div>
+                {form.coil_category !== 'hat_channel_brace' && (
+                  <div className="space-y-1.5">
+                    <Label>Color</Label>
+                    <Select value={form.color} onValueChange={setF('color')}>
+                      <SelectTrigger><SelectValue placeholder="Select color…" /></SelectTrigger>
+                      <SelectContent>
+                        {COLORS.map((c) => (
+                          <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label>ASTM Code</Label>
                   <Input

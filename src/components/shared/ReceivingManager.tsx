@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle2 } from 'lucide-react'
+import { COLORS } from '@/lib/product-config'
 
 interface TubeProduct { id: number; name: string }
 
@@ -61,6 +62,18 @@ export default function ReceivingManager({ tubeProducts }: Props) {
 
   const setC = (k: keyof typeof EMPTY_COIL) => (v: string | null) =>
     setCoilForm((f) => ({ ...f, [k]: v ?? '' }))
+
+  // Category drives which fields apply: only panels/tubes carry a color, only
+  // tubes carry a gauge. Clear inapplicable fields when the category changes.
+  const handleCategoryChange = (v: string | null) => {
+    const cat = (v ?? 'panel') as typeof EMPTY_COIL.coil_category
+    setCoilForm((f) => ({
+      ...f,
+      coil_category: cat,
+      color: cat === 'hat_channel_brace' ? '' : f.color,
+      gauge: cat === 'tube' ? f.gauge : '',
+    }))
+  }
 
   const setB = (k: keyof typeof EMPTY_BUNDLE) => (v: string | null) =>
     setBundleForm((f) => ({ ...f, [k]: v ?? '' }))
@@ -184,7 +197,7 @@ export default function ReceivingManager({ tubeProducts }: Props) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Category *</Label>
-              <Select value={coilForm.coil_category} onValueChange={setC('coil_category')}>
+              <Select value={coilForm.coil_category} onValueChange={handleCategoryChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="panel">Panel</SelectItem>
@@ -234,14 +247,21 @@ export default function ReceivingManager({ tubeProducts }: Props) {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Color</Label>
-              <Input
-                value={coilForm.color}
-                onChange={(e) => setC('color')(e.target.value)}
-                placeholder="e.g. Galvalume, Bright Red"
-              />
-            </div>
+            {/* Color applies to panels (and tubes) only — hat channel / brace
+                are structural and carry no finish color. */}
+            {coilForm.coil_category !== 'hat_channel_brace' && (
+              <div className="space-y-1.5">
+                <Label>Color</Label>
+                <Select value={coilForm.color} onValueChange={setC('color')}>
+                  <SelectTrigger><SelectValue placeholder="Select color…" /></SelectTrigger>
+                  <SelectContent>
+                    {COLORS.map((c) => (
+                      <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Coil ID <span className="text-muted-foreground font-normal">(delivery slip)</span></Label>
