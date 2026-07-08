@@ -12,8 +12,18 @@ import { COLORS } from '@/lib/product-config'
 
 interface TubeProduct { id: number; name: string }
 
+interface AstmCode {
+  id: number
+  code: string
+  description: string | null
+  category: 'panel' | 'hat_channel_brace' | 'tube' | null
+  is_favorite: boolean
+  sort_order: number
+}
+
 interface Props {
   tubeProducts: TubeProduct[]
+  astmCodes: AstmCode[]
 }
 
 const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
@@ -49,9 +59,21 @@ function fmtFeet(feet: number): string {
   return `${f.toLocaleString()} ft ${inches} in`
 }
 
-export default function ReceivingManager({ tubeProducts }: Props) {
+// Favorited ASTM codes that apply to a coil category (its own category or the
+// category-agnostic ones), ordered so the top favorite is the default.
+function astmForCategory(codes: AstmCode[], cat: string): AstmCode[] {
+  return codes
+    .filter((c) => c.category === cat || c.category === null)
+    .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0) || a.sort_order - b.sort_order)
+}
+
+function defaultAstmFor(codes: AstmCode[], cat: string): string {
+  return astmForCategory(codes, cat).find((c) => c.is_favorite)?.code ?? ''
+}
+
+export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
   const [tab, setTab]           = useState<'coil' | 'bundle'>('coil')
-  const [coilForm, setCoilForm] = useState(EMPTY_COIL)
+  const [coilForm, setCoilForm] = useState({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
   const [bundleForm, setBundleForm] = useState(EMPTY_BUNDLE)
   const [coilLoading, setCoilLoading]   = useState(false)
   const [bundleLoading, setBundleLoading] = useState(false)
@@ -72,6 +94,8 @@ export default function ReceivingManager({ tubeProducts }: Props) {
       coil_category: cat,
       color: cat === 'hat_channel_brace' ? '' : f.color,
       gauge: cat === 'tube' ? f.gauge : '',
+      // Pull in the favorite ASTM for this category automatically.
+      astm_code: defaultAstmFor(astmCodes, cat),
     }))
   }
 
@@ -104,7 +128,7 @@ export default function ReceivingManager({ tubeProducts }: Props) {
       : `${coilForm.coil_category.replace('_', ' ')} coil`
     setLastCoil(`${label} — ${fmtFeet(parseFloat(coilForm.initial_weight_lbs) / parseFloat(coilForm.lbs_per_linear_foot))} est.`)
     toast.success('Coil received')
-    setCoilForm(EMPTY_COIL)
+    setCoilForm({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
     setCoilLoading(false)
   }
 
@@ -274,10 +298,33 @@ export default function ReceivingManager({ tubeProducts }: Props) {
 
             <div className="col-span-2 space-y-1.5">
               <Label>ASTM Code <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              {astmForCategory(astmCodes, coilForm.coil_category).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {astmForCategory(astmCodes, coilForm.coil_category).map((c) => {
+                    const active = coilForm.astm_code === c.code
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        title={c.description ?? undefined}
+                        onClick={() => setC('astm_code')(active ? '' : c.code)}
+                        className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border transition-colors ${
+                          active
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-border hover:bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {c.is_favorite && <span className="text-amber-400">★</span>}
+                        {c.code}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
               <Input
                 value={coilForm.astm_code}
                 onChange={(e) => setC('astm_code')(e.target.value)}
-                placeholder="e.g. A1011 CS Type B"
+                placeholder="e.g. A1011 CS Type B — or pick a favorite above"
               />
             </div>
 
