@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Loader2, Scale } from 'lucide-react'
+import { Plus, Loader2, Scale, Pencil, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { COLORS } from '@/lib/product-config'
+import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 
 export interface CoilRow {
   id: number
@@ -26,11 +27,16 @@ export interface CoilRow {
   notes: string | null
   received_at: string
   last_weighed_at: string | null
+  archived: boolean
+  vendor_id: string | null
+  po_id: string | null
 }
 
 interface Props {
   initialCoils: CoilRow[]
   isAdmin: boolean
+  vendors: Vendor[]
+  openPos: OpenPo[]
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -73,16 +79,19 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function CoilManager({ initialCoils, isAdmin }: Props) {
+export default function CoilManager({ initialCoils, isAdmin, vendors, openPos }: Props) {
   const [coils, setCoils]               = useState<CoilRow[]>(initialCoils)
   const [addOpen, setAddOpen]           = useState(false)
   const [addLoading, setAddLoading]     = useState(false)
+  const [editingId, setEditingId]       = useState<number | null>(null)
   const [form, setForm]                 = useState(EMPTY_FORM)
   const [weightEditing, setWeightEditing] = useState<number | null>(null)
   const [weightInput, setWeightInput]     = useState('')
   const [weightLoading, setWeightLoading] = useState(false)
   const [statusLoading, setStatusLoading] = useState<number | null>(null)
+  const [rowBusy, setRowBusy]           = useState<number | null>(null)
   const [filter, setFilter]             = useState('all')
+  const [showArchived, setShowArchived] = useState(false)
   const supabase = createClient()
 
   const fetchCoils = useCallback(async () => {
@@ -114,7 +123,23 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
     }))
   }
 
-  const handleAdd = async () => {
+  const openAdd = () => { setEditingId(null); setForm(EMPTY_FORM); setAddOpen(true) }
+  const openEdit = (c: CoilRow) => {
+    setEditingId(c.id)
+    setForm({
+      coil_identifier: c.coil_identifier,
+      coil_category: c.coil_category,
+      gauge: c.gauge ?? '',
+      color: c.color ?? '',
+      astm_code: c.astm_code ?? '',
+      initial_weight_lbs: c.initial_weight_lbs.toString(),
+      lbs_per_linear_foot: c.lbs_per_linear_foot.toString(),
+      notes: c.notes ?? '',
+    })
+    setAddOpen(true)
+  }
+
+  const handleSave = async () => {
     if (!form.coil_identifier || !form.initial_weight_lbs || !form.lbs_per_linear_foot) {
       toast.error('Coil ID, initial weight, and lbs/ft are required')
       return
@@ -124,22 +149,43 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
       return
     }
     setAddLoading(true)
-    const { error } = await supabase.from('product_coils').insert({
+    const payload = {
       coil_identifier:     form.coil_identifier,
       coil_category:       form.coil_category,
       gauge:               form.coil_category === 'tube' ? form.gauge || null : null,
-      color:               form.color || null,
+      color:               form.coil_category === 'hat_channel_brace' ? null : form.color || null,
       astm_code:           form.astm_code || null,
       initial_weight_lbs:  parseFloat(form.initial_weight_lbs),
       lbs_per_linear_foot: parseFloat(form.lbs_per_linear_foot),
       notes:               form.notes || null,
-    })
+    }
+    const { error } = editingId
+      ? await supabase.from('product_coils').update(payload).eq('id', editingId)
+      : await supabase.from('product_coils').insert(payload)
     if (error) { toast.error(error.message); setAddLoading(false); return }
-    toast.success('Coil added')
+    toast.success(editingId ? 'Coil updated' : 'Coil added')
     setAddOpen(false)
     setForm(EMPTY_FORM)
+    setEditingId(null)
     await fetchCoils()
     setAddLoading(false)
+  }
+
+  const setArchived = async (coilId: number, archived: boolean) => {
+    setRowBusy(coilId)
+    const { error } = await supabase.from('product_coils').update({ archived }).eq('id', coilId)
+    if (error) toast.error(error.message)
+    else { toast.success(archived ? 'Archived' : 'Restored'); await fetchCoils() }
+    setRowBusy(null)
+  }
+
+  const hardDelete = async (c: CoilRow) => {
+    if (!confirm(`Permanently delete coil "${c.coil_identifier}"? This cannot be undone.`)) return
+    setRowBusy(c.id)
+    const { error } = await supabase.from('product_coils').delete().eq('id', c.id)
+    if (error) toast.error(error.message)
+    else { toast.success('Deleted'); await fetchCoils() }
+    setRowBusy(null)
   }
 
   const handleUpdateWeight = async (coilId: number, currentWeight: number | null) => {
@@ -194,7 +240,9 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
     : null
 
   const FILTERS = ['all', 'panel', 'hat_channel_brace', 'tube']
-  const displayed = filter === 'all' ? coils : coils.filter((c) => c.coil_category === filter)
+  const displayed = coils
+    .filter((c) => showArchived || !c.archived)
+    .filter((c) => filter === 'all' || c.coil_category === filter)
 
   return (
     <div className="space-y-4">
@@ -214,17 +262,24 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
               {f === 'all' ? 'All' : CATEGORY_LABELS[f]}
             </button>
           ))}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Show archived
+          </label>
         </div>
 
         {isAdmin && (
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger render={
-              <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors">
+              <button
+                onClick={openAdd}
+                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
+              >
                 <Plus className="w-4 h-4" />Add Coil
               </button>
             } />
             <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>Add Coil</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editingId ? 'Edit Coil' : 'Add Coil'}</DialogTitle></DialogHeader>
               <div className="grid grid-cols-2 gap-4 py-2">
                 <div className="col-span-2 space-y-1.5">
                   <Label>Coil ID (from delivery slip) *</Label>
@@ -313,8 +368,8 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-                <Button onClick={handleAdd} disabled={addLoading}>
-                  {addLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Add Coil
+                <Button onClick={handleSave} disabled={addLoading}>
+                  {addLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingId ? 'Save' : 'Add Coil'}
                 </Button>
               </div>
             </DialogContent>
@@ -359,7 +414,7 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
                 return (
                   <tr
                     key={coil.id}
-                    className={`${coil.status === 'depleted' ? 'opacity-50' : ''} bg-white hover:bg-slate-50 transition-colors`}
+                    className={`${coil.status === 'depleted' || coil.archived ? 'opacity-50' : ''} bg-white hover:bg-slate-50 transition-colors`}
                   >
                     {/* Coil ID */}
                     <td className="p-3">
@@ -502,6 +557,39 @@ export default function CoilManager({ initialCoils, isAdmin }: Props) {
                               >
                                 {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Reactivate'}
                               </Button>
+                            )}
+                            {isAdmin && (
+                              <>
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(coil)}>
+                                  <Pencil className="w-3 h-3 mr-1" />Edit
+                                </Button>
+                                <LinkPoDialog
+                                  table="product_coils"
+                                  rowId={coil.id}
+                                  vendors={vendors}
+                                  openPos={openPos}
+                                  currentVendorId={coil.vendor_id}
+                                  currentPoId={coil.po_id}
+                                  onLinked={fetchCoils}
+                                />
+                                {coil.archived ? (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, false)} disabled={rowBusy === coil.id}>
+                                    <ArchiveRestore className="w-3 h-3 mr-1" />Restore
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, true)} disabled={rowBusy === coil.id}>
+                                    <Archive className="w-3 h-3 mr-1" />Archive
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm" variant="outline"
+                                  className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                  onClick={() => hardDelete(coil)}
+                                  disabled={rowBusy === coil.id}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" />Delete
+                                </Button>
+                              </>
                             )}
                           </>
                         )}

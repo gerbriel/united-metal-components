@@ -27,6 +27,8 @@ export default async function TubesPage() {
     { data: specs },
     { data: bundles },
     { data: tubeProducts },
+    { data: vendors },
+    { data: openPos },
   ] = await Promise.all([
     supabase
       .from('tube_specs')
@@ -42,6 +44,12 @@ export default async function TubesPage() {
       .eq('product_type', 'tube')
       .eq('active', true)
       .order('name'),
+    supabase.from('vendors').select('id, name').eq('active', true).order('name'),
+    supabase
+      .from('purchase_orders')
+      .select('id, po_number, vendor_id, status')
+      .in('status', ['draft', 'submitted', 'partial'])
+      .order('order_date', { ascending: false }),
   ])
 
   return (
@@ -58,6 +66,8 @@ export default async function TubesPage() {
         initialBundles={(bundles ?? []) as any}
         tubeProducts={(tubeProducts ?? []) as any}
         isAdmin={isAdmin}
+        vendors={(vendors ?? []) as any}
+        openPos={(openPos ?? []) as any}
       />
     </div>
   )

@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Loader2, Settings, Package } from 'lucide-react'
+import { Plus, Loader2, Settings, Package, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 
 interface TubeProduct {
   id: number
@@ -23,6 +24,7 @@ export interface TubeSpec {
   available_lengths_ft: number[]
   default_pieces_per_bundle: number | null
   price_per_linear_foot: number
+  archived?: boolean
   products?: { name: string } | null
 }
 
@@ -41,6 +43,9 @@ export interface TubeBundle {
   status: 'active' | 'depleted'
   notes: string | null
   received_at: string
+  archived: boolean
+  vendor_id: string | null
+  po_id: string | null
   products?: { name: string } | null
   product_coils?: { coil_identifier: string } | null
 }
@@ -50,6 +55,8 @@ interface Props {
   initialBundles: TubeBundle[]
   tubeProducts:   TubeProduct[]
   isAdmin:        boolean
+  vendors:        Vendor[]
+  openPos:        OpenPo[]
 }
 
 const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
@@ -74,7 +81,7 @@ const EMPTY_BUNDLE_FORM = {
   notes:            '',
 }
 
-export default function TubeManager({ initialSpecs, initialBundles, tubeProducts, isAdmin }: Props) {
+export default function TubeManager({ initialSpecs, initialBundles, tubeProducts, isAdmin, vendors, openPos }: Props) {
   const [specs,   setSpecs]   = useState<TubeSpec[]>(initialSpecs)
   const [bundles, setBundles] = useState<TubeBundle[]>(initialBundles)
   const [coilOptions, setCoilOptions] = useState<{ id: number; coil_identifier: string; gauge: string }[]>([])
@@ -92,8 +99,36 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
   const [countLoading, setCountLoading] = useState(false)
 
   const [gaugeFilter, setGaugeFilter] = useState('all')
+  const [showArchived, setShowArchived] = useState(false)
+  const [rowBusy, setRowBusy] = useState<number | null>(null)
 
   const supabase = createClient()
+
+  const setBundleArchived = async (id: number, archived: boolean) => {
+    setRowBusy(id)
+    const { error } = await supabase.from('tube_bundles').update({ archived }).eq('id', id)
+    if (error) toast.error(error.message)
+    else { toast.success(archived ? 'Archived' : 'Restored'); await fetchAll() }
+    setRowBusy(null)
+  }
+
+  const deleteBundle = async (b: TubeBundle) => {
+    if (!confirm(`Permanently delete this bundle batch${b.bundle_identifier ? ` (${b.bundle_identifier})` : ''}? This cannot be undone.`)) return
+    setRowBusy(b.id)
+    const { error } = await supabase.from('tube_bundles').delete().eq('id', b.id)
+    if (error) toast.error(error.message)
+    else { toast.success('Deleted'); await fetchAll() }
+    setRowBusy(null)
+  }
+
+  const deleteSpec = async (s: TubeSpec) => {
+    if (!confirm(`Delete the ${s.gauge} GA spec for ${s.products?.name ?? 'this product'}? This cannot be undone.`)) return
+    setRowBusy(s.id)
+    const { error } = await supabase.from('tube_specs').delete().eq('id', s.id)
+    if (error) toast.error(error.message)
+    else { toast.success('Spec deleted'); await fetchAll() }
+    setRowBusy(null)
+  }
 
   const fetchAll = useCallback(async () => {
     const [{ data: sp }, { data: bn }] = await Promise.all([
@@ -216,9 +251,9 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     setCountLoading(false)
   }
 
-  const displayedBundles = gaugeFilter === 'all'
-    ? bundles
-    : bundles.filter((b) => b.gauge === gaugeFilter)
+  const displayedBundles = bundles
+    .filter((b) => showArchived || !b.archived)
+    .filter((b) => gaugeFilter === 'all' || b.gauge === gaugeFilter)
 
   // Available lengths from spec for the selected bundle product/gauge combo
   const specForBundle = () => {
@@ -331,6 +366,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                   <th className="text-left p-3">Available Lengths</th>
                   <th className="text-right p-3">$/Linear Ft</th>
                   <th className="text-right p-3">Default Pcs/Bundle</th>
+                  {isAdmin && <th className="text-right p-3">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -355,6 +391,18 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                     <td className="p-3 text-right text-muted-foreground">
                       {s.default_pieces_per_bundle ?? '—'}
                     </td>
+                    {isAdmin && (
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm" variant="outline"
+                          className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                          onClick={() => deleteSpec(s)}
+                          disabled={rowBusy === s.id}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />Delete
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -384,6 +432,10 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                 {g === 'all' ? 'All Gauges' : `${g} GA`}
               </button>
             ))}
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              Show archived
+            </label>
             {isAdmin && (
               <Dialog open={bundleOpen} onOpenChange={setBundleOpen}>
                 <DialogTrigger render={
@@ -543,7 +595,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                     return (
                       <tr
                         key={b.id}
-                        className={`${b.status === 'depleted' ? 'opacity-50' : ''} bg-white hover:bg-slate-50 transition-colors`}
+                        className={`${b.status === 'depleted' || b.archived ? 'opacity-50' : ''} bg-white hover:bg-slate-50 transition-colors`}
                       >
                         <td className="p-3">
                           <p className="font-medium">{b.products?.name ?? `Product #${b.product_id}`}</p>
@@ -636,18 +688,50 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                               </button>
                             </div>
                           ) : (
-                            <Button
-                              size="sm" variant="outline" className="h-7 text-xs"
-                              onClick={() => {
-                                setCountEditing(b.id)
-                                setCountForm({
-                                  available_bundles: b.available_bundles.toString(),
-                                  available_pieces:  b.available_pieces.toString(),
-                                })
-                              }}
-                            >
-                              <Package className="w-3 h-3 mr-1" />Update
-                            </Button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Button
+                                size="sm" variant="outline" className="h-7 text-xs"
+                                onClick={() => {
+                                  setCountEditing(b.id)
+                                  setCountForm({
+                                    available_bundles: b.available_bundles.toString(),
+                                    available_pieces:  b.available_pieces.toString(),
+                                  })
+                                }}
+                              >
+                                <Package className="w-3 h-3 mr-1" />Update
+                              </Button>
+                              {isAdmin && (
+                                <>
+                                  <LinkPoDialog
+                                    table="tube_bundles"
+                                    rowId={b.id}
+                                    vendors={vendors}
+                                    openPos={openPos}
+                                    currentVendorId={b.vendor_id}
+                                    currentPoId={b.po_id}
+                                    onLinked={fetchAll}
+                                  />
+                                  {b.archived ? (
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, false)} disabled={rowBusy === b.id}>
+                                      <ArchiveRestore className="w-3 h-3 mr-1" />Restore
+                                    </Button>
+                                  ) : (
+                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, true)} disabled={rowBusy === b.id}>
+                                      <Archive className="w-3 h-3 mr-1" />Archive
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={() => deleteBundle(b)}
+                                    disabled={rowBusy === b.id}
+                                  >
+                                    <Trash2 className="w-3 h-3 mr-1" />Delete
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

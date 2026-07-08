@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Pencil, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Loader2, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import type { Product, ProductCategory } from '@/types/database'
 
 interface Props {
@@ -89,6 +89,36 @@ export default function InventoryActions({ product, categories, mode = 'add', is
     setLoading(false)
   }
 
+  // Archive = soft delete (active=false); keeps the row for historical orders.
+  const handleSetActive = async (active: boolean) => {
+    if (!product) return
+    setLoading(true)
+    const { error } = await supabase.from('products').update({ active }).eq('id', product.id)
+    if (error) { toast.error('Failed to update product'); setLoading(false); return }
+    toast.success(active ? 'Product restored' : 'Product archived')
+    setOpen(false)
+    router.refresh()
+    setLoading(false)
+  }
+
+  const handleDelete = async () => {
+    if (!product) return
+    if (!confirm(`Permanently delete "${product.name}"? This cannot be undone. Products used on past orders should be archived instead.`)) return
+    setLoading(true)
+    const { error } = await supabase.from('products').delete().eq('id', product.id)
+    if (error) {
+      toast.error(/foreign key|violates/i.test(error.message)
+        ? 'This product is referenced by orders — archive it instead'
+        : 'Failed to delete product')
+      setLoading(false)
+      return
+    }
+    toast.success('Product deleted')
+    setOpen(false)
+    router.refresh()
+    setLoading(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {mode === 'add' ? (
@@ -147,12 +177,39 @@ export default function InventoryActions({ product, categories, mode = 'add', is
             <Input value={form.description} onChange={set('description')} placeholder="Brief description" />
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {mode === 'add' ? 'Add Product' : 'Save Changes'}
-          </Button>
+        <div className="flex justify-between gap-2 pt-2">
+          <div className="flex gap-2">
+            {mode === 'edit' && product && (
+              <>
+                {product.active ? (
+                  <Button variant="outline" onClick={() => handleSetActive(false)} disabled={loading}>
+                    <Archive className="w-4 h-4 mr-1" />Archive
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => handleSetActive(true)} disabled={loading}>
+                    <ArchiveRestore className="w-4 h-4 mr-1" />Restore
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button
+                    variant="outline"
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={handleDelete}
+                    disabled={loading}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />Delete
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {mode === 'add' ? 'Add Product' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

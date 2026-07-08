@@ -26,10 +26,15 @@ export default async function CoilsPage() {
   const isAdmin     = isAdminRole(role)
   const isWarehouse = isWarehouseRole(role)
 
-  const { data: coils } = await supabase
-    .from('product_coils')
-    .select('*')
-    .order('received_at', { ascending: false })
+  const [{ data: coils }, { data: vendors }, { data: openPos }] = await Promise.all([
+    supabase.from('product_coils').select('*').order('received_at', { ascending: false }),
+    supabase.from('vendors').select('id, name').eq('active', true).order('name'),
+    supabase
+      .from('purchase_orders')
+      .select('id, po_number, vendor_id, status')
+      .in('status', ['draft', 'submitted', 'partial'])
+      .order('order_date', { ascending: false }),
+  ])
 
   return (
     <div className="space-y-5">
@@ -43,6 +48,8 @@ export default async function CoilsPage() {
       <CoilManager
         initialCoils={(coils ?? []) as any}
         isAdmin={isAdmin}
+        vendors={(vendors ?? []) as any}
+        openPos={(openPos ?? []) as any}
       />
     </div>
   )
