@@ -109,6 +109,14 @@ update public.products
 set active = false
 where sku in ('SCREWS-COLOR', 'SCREWS-BAG-250', 'SCREWS-STITCH-BAG');
 
+-- The washered painted screws are the storefront "Colored Screws" product
+-- (its own card with a Box/Bag package dropdown, see VARIANT_GROUPS). Say
+-- "Colored" instead of "Painted" everywhere they surface.
+update public.products
+set name        = replace(name, 'Painted', 'Colored'),
+    description = replace(description, 'Painted', 'Colored')
+where sku in ('SCREWS-BOX-W-PAINTED', 'SCREWS-BAG-W-PAINTED');
+
 -- ── 4. Prune emptied legacy categories ─────────────────────────────────────
 -- Deletes only categories that no product (active or otherwise) still points at,
 -- so base-rail and trusses (which retain their inactive SKUs) survive, and the

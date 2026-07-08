@@ -95,15 +95,11 @@ export const VARIANT_GROUPS: VariantGroup[] = [
     key: 'screws-washers',
     name: 'Screws w/ Washers',
     selectLabel: 'Package',
-    colors: true, // washered screws are painted to match panel colors
+    colors: false, // bare-zinc washer-head screws — colored is its own product below
     members: [
-      // Plain (bare-zinc washer head) packages
-      { sku: 'SCREWS-BOX-W',         label: 'Box (3,000 ct)' },
-      { sku: 'SCREWS-BOX-125',       label: 'Box (125 ct)' },
-      { sku: 'SCREWS-BAG-W',         label: 'Bag (250 ct)' },
-      // Colored (painted to match panel color) — washered screws only
-      { sku: 'SCREWS-BOX-W-PAINTED', label: 'Box (1½")', section: 'Colored' },
-      { sku: 'SCREWS-BAG-W-PAINTED', label: 'Bag (1½")', section: 'Colored' },
+      { sku: 'SCREWS-BOX-W',   label: 'Box (3,000 ct)' },
+      { sku: 'SCREWS-BOX-125', label: 'Box (125 ct)' },
+      { sku: 'SCREWS-BAG-W',   label: 'Bag (250 ct)' },
     ],
   },
   {
@@ -114,6 +110,16 @@ export const VARIANT_GROUPS: VariantGroup[] = [
     members: [
       { sku: 'SCREWS-BOX-WO', label: 'Box (3,000 ct)' },
       { sku: 'SCREWS-BAG-WO', label: 'Bag (250 ct)' },
+    ],
+  },
+  {
+    key: 'colored-screws',
+    name: 'Colored Screws',
+    selectLabel: 'Package',
+    colors: true, // painted to match panel color (washer-head); pick the color
+    members: [
+      { sku: 'SCREWS-BOX-W-PAINTED', label: 'Box' },
+      { sku: 'SCREWS-BAG-W-PAINTED', label: 'Bag' },
     ],
   },
   {
