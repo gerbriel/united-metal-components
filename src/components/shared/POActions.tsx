@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, Pencil, CheckCircle, XCircle, Package } from 'lucide-react'
+import { Loader2, Pencil, CheckCircle, XCircle, Package, FileText, Mail, Download } from 'lucide-react'
 import type { PurchaseOrder } from './PurchaseOrderForm'
 import type { Vendor } from './VendorManager'
 import PurchaseOrderForm from './PurchaseOrderForm'
+import { generatePoPdf } from '@/lib/po-pdf'
 
 interface Props {
   po: PurchaseOrder & { purchase_order_items: any[] }
@@ -24,17 +25,58 @@ export default function POActions({ po, vendors, isAdmin }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [receiveOpen, setReceiveOpen] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [pdfFilename, setPdfFilename] = useState<string | null>(null)
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
   const router = useRouter()
   const supabase = createClient()
+
+  // Vendor details (from the joined row, falling back to the vendors list)
+  const vendor =
+    (po as any).vendors ?? vendors.find((v) => v.id === po.vendor_id) ?? null
+  const poLabel = po.po_number ?? po.id.slice(0, 8).toUpperCase()
+
+  const downloadPdf = () => {
+    try {
+      const filename = generatePoPdf(
+        po as any,
+        vendor,
+        (po.purchase_order_items ?? []) as any[],
+      )
+      setPdfFilename(filename)
+      return filename
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to generate PDF')
+      return null
+    }
+  }
+
+  const openVendorEmail = () => {
+    const to = vendor?.email ?? ''
+    const subject = `Purchase Order ${poLabel} — United Metal Components`
+    const body =
+      `Hello${vendor?.contact_name ? ' ' + vendor.contact_name : ''},\n\n` +
+      `Please find attached Purchase Order ${poLabel}.\n\n` +
+      `(Attach the downloaded PDF "${pdfFilename ?? `PO-${poLabel}.pdf`}" before sending.)\n\n` +
+      `Thank you,\nUnited Metal Components`
+    window.location.href =
+      `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  }
 
   const setStatus = async (status: string) => {
     setLoading(status)
     const update: Record<string, any> = { status }
     if (status === 'received') update.received_date = receivedDate
     const { error } = await supabase.from('purchase_orders').update(update).eq('id', po.id)
-    if (error) toast.error('Failed to update status')
-    else { toast.success(`PO marked as ${status}`); router.refresh() }
+    if (error) { toast.error('Failed to update status'); setLoading(null); return }
+    toast.success(`PO marked as ${status}`)
+    // On submit: export the PDF and prompt to email it to the vendor
+    if (status === 'submitted') {
+      downloadPdf()
+      setEmailOpen(true)
+    }
+    router.refresh()
     setLoading(null)
     setReceiveOpen(false)
   }
@@ -76,6 +118,61 @@ export default function POActions({ po, vendors, isAdmin }: Props) {
             Submit to Vendor
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2"
+          size="sm"
+          onClick={downloadPdf}
+        >
+          <FileText className="w-4 h-4" />Download PDF
+        </Button>
+
+        {po.status !== 'draft' && po.status !== 'cancelled' && (
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            size="sm"
+            onClick={() => setEmailOpen(true)}
+          >
+            <Mail className="w-4 h-4" />Email to Vendor
+          </Button>
+        )}
+
+        <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Email PO to Vendor</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-1 text-sm">
+              <p className="text-muted-foreground">
+                The PDF for <span className="font-mono font-medium text-foreground">{poLabel}</span>{' '}
+                {pdfFilename ? 'has been downloaded' : 'can be downloaded below'}. Attach it to the
+                email draft before sending.
+              </p>
+              {vendor?.email ? (
+                <p>
+                  To: <span className="font-medium">{vendor.email}</span>
+                </p>
+              ) : (
+                <p className="text-amber-600">
+                  This vendor has no email on file — the draft will open with an empty recipient.
+                </p>
+              )}
+              {!pdfFilename && (
+                <Button variant="outline" size="sm" className="w-full gap-2" onClick={downloadPdf}>
+                  <Download className="w-4 h-4" />Download PDF
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setEmailOpen(false)}>
+                Close
+              </Button>
+              <Button className="flex-1 gap-2" onClick={openVendorEmail}>
+                <Mail className="w-4 h-4" />Open Email Draft
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {canReceive && (
           <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
