@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Plus, Loader2, Scale, Pencil, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import { COLORS } from '@/lib/product-config'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
+import { panelSupplyByColor, type DemandItem } from '@/lib/coilSupply'
 
 export interface CoilRow {
   id: number
@@ -37,7 +38,10 @@ interface Props {
   isAdmin: boolean
   vendors: Vendor[]
   openPos: OpenPo[]
+  demand: DemandItem[]
 }
+
+const colorHex = (name: string) => COLORS.find((c) => c.name === name)?.hex ?? '#94a3b8'
 
 const CATEGORY_LABELS: Record<string, string> = {
   panel:             'Panel',
@@ -79,7 +83,7 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function CoilManager({ initialCoils, isAdmin, vendors, openPos }: Props) {
+export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, demand }: Props) {
   const [coils, setCoils]               = useState<CoilRow[]>(initialCoils)
   const [addOpen, setAddOpen]           = useState(false)
   const [addLoading, setAddLoading]     = useState(false)
@@ -244,8 +248,67 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos }:
     .filter((c) => showArchived || !c.archived)
     .filter((c) => filter === 'all' || c.coil_category === filter)
 
+  // Live per-color supply vs open-order demand for panel coils. Recomputes as
+  // coils are weighed (realtime), so the net figure reflects the latest weights.
+  const supply = panelSupplyByColor(coils, demand)
+
   return (
     <div className="space-y-4">
+      {/* Panel supply vs open-order demand, by color */}
+      {supply.length > 0 && (
+        <div className="border rounded-xl overflow-hidden">
+          <div className="bg-slate-50 border-b px-3 py-2">
+            <p className="text-sm font-semibold">Panel Supply by Color</p>
+            <p className="text-xs text-muted-foreground">
+              Estimated footage on hand (measured where weighed, initial footage where not) vs footage committed to open orders.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
+                <tr>
+                  <th className="text-left p-3">Color</th>
+                  <th className="text-right p-3">Coils</th>
+                  <th className="text-right p-3">Weighed</th>
+                  <th className="text-right p-3">Unweighed (est)</th>
+                  <th className="text-right p-3">Est. on hand</th>
+                  <th className="text-right p-3">Committed</th>
+                  <th className="text-right p-3">Net free</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {supply.map((s) => (
+                  <tr key={s.color} className="bg-white">
+                    <td className="p-3">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: colorHex(s.color) }} />
+                        {s.color}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right font-mono">{s.coilCount}</td>
+                    <td className="p-3 text-right font-mono">{fmtFeet(s.weighedFeet)}</td>
+                    <td className="p-3 text-right font-mono text-muted-foreground">
+                      {s.unweighedEstFeet > 0 ? fmtFeet(s.unweighedEstFeet) : '—'}
+                    </td>
+                    <td className="p-3 text-right font-mono">
+                      {fmtFeet(s.estOnHandFeet)}
+                      {s.hasUnweighed && <span className="text-amber-500 ml-1" title="Includes unweighed estimate">*</span>}
+                    </td>
+                    <td className="p-3 text-right font-mono text-muted-foreground">{fmtFeet(s.committedFeet)}</td>
+                    <td className={`p-3 text-right font-mono font-semibold ${s.netFeet < 0 ? 'text-red-600' : 'text-green-700'}`}>
+                      {s.netFeet < 0 ? `-${fmtFeet(-s.netFeet)}` : fmtFeet(s.netFeet)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground px-3 py-2 border-t">
+            <span className="text-amber-500">*</span> estimate includes coils not yet weighed (uses initial footage). Weigh coils for an exact figure.
+          </p>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
