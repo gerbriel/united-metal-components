@@ -25,7 +25,7 @@ export default async function ReceivingPage() {
 
   if (!canReceive) redirect('/dashboard/inventory')
 
-  const [{ data: tubeProducts }, { data: astmCodes }] = await Promise.all([
+  const [{ data: tubeProducts }, { data: astmCodes }, { data: vendors }, { data: openPos }] = await Promise.all([
     supabase
       .from('products')
       .select('id, name')
@@ -38,6 +38,12 @@ export default async function ReceivingPage() {
       .eq('archived', false)
       .order('sort_order', { ascending: true })
       .order('code', { ascending: true }),
+    supabase.from('vendors').select('id, name').eq('active', true).order('name'),
+    supabase
+      .from('purchase_orders')
+      .select('id, po_number, vendor_id, status, order_date')
+      .in('status', ['draft', 'submitted', 'partial'])
+      .order('order_date', { ascending: false }),
   ])
 
   return (
@@ -49,7 +55,12 @@ export default async function ReceivingPage() {
 
       <InventoryNav active="receiving" />
 
-      <ReceivingManager tubeProducts={(tubeProducts ?? []) as any} astmCodes={(astmCodes ?? []) as any} />
+      <ReceivingManager
+        tubeProducts={(tubeProducts ?? []) as any}
+        astmCodes={(astmCodes ?? []) as any}
+        vendors={(vendors ?? []) as any}
+        openPos={(openPos ?? []) as any}
+      />
     </div>
   )
 }

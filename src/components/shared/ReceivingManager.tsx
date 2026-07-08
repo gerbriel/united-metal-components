@@ -21,9 +21,14 @@ interface AstmCode {
   sort_order: number
 }
 
+interface Vendor { id: string; name: string }
+interface OpenPo { id: string; po_number: string | null; vendor_id: string | null; status: string; order_date: string }
+
 interface Props {
   tubeProducts: TubeProduct[]
   astmCodes: AstmCode[]
+  vendors: Vendor[]
+  openPos: OpenPo[]
 }
 
 const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
@@ -71,7 +76,7 @@ function defaultAstmFor(codes: AstmCode[], cat: string): string {
   return astmForCategory(codes, cat).find((c) => c.is_favorite)?.code ?? ''
 }
 
-export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
+export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos }: Props) {
   const [tab, setTab]           = useState<'coil' | 'bundle'>('coil')
   const [coilForm, setCoilForm] = useState({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
   const [bundleForm, setBundleForm] = useState(EMPTY_BUNDLE)
@@ -80,7 +85,40 @@ export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
   const [lastCoil, setLastCoil]   = useState<string | null>(null)
   const [lastBundle, setLastBundle] = useState<string | null>(null)
 
+  // Shipment source — a vendor + optional PO applied to whatever is received.
+  const [pos, setPos]           = useState<OpenPo[]>(openPos)
+  const [vendorId, setVendorId] = useState('')
+  const [poId, setPoId]         = useState('')
+  const [creatingPo, setCreatingPo] = useState(false)
+
   const supabase = createClient()
+
+  // POs selectable for the chosen vendor (or all open POs if no vendor picked).
+  const vendorPos = pos.filter((p) => !vendorId || p.vendor_id === vendorId)
+
+  const handleVendorChange = (v: string | null) => {
+    const id = v === '__none__' ? '' : (v ?? '')
+    setVendorId(id)
+    // Drop a PO selection that doesn't belong to the newly chosen vendor.
+    if (poId && id) {
+      const po = pos.find((p) => p.id === poId)
+      if (po && po.vendor_id !== id) setPoId('')
+    }
+  }
+
+  const handleCreatePo = async () => {
+    setCreatingPo(true)
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .insert({ vendor_id: vendorId || null, status: 'draft' })
+      .select('id, po_number, vendor_id, status, order_date')
+      .single()
+    if (error || !data) { toast.error(error?.message ?? 'Failed to create PO'); setCreatingPo(false); return }
+    setPos((prev) => [data as OpenPo, ...prev])
+    setPoId((data as OpenPo).id)
+    toast.success('Draft PO created — link items to it as you receive')
+    setCreatingPo(false)
+  }
 
   const setC = (k: keyof typeof EMPTY_COIL) => (v: string | null) =>
     setCoilForm((f) => ({ ...f, [k]: v ?? '' }))
@@ -121,6 +159,8 @@ export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
       initial_weight_lbs:  parseFloat(coilForm.initial_weight_lbs),
       lbs_per_linear_foot: parseFloat(coilForm.lbs_per_linear_foot),
       notes:               coilForm.notes || null,
+      vendor_id:           vendorId || null,
+      po_id:               poId || null,
     })
     if (error) { toast.error(error.message); setCoilLoading(false); return }
     const label = coilForm.coil_identifier
@@ -165,6 +205,8 @@ export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
       available_pieces:  0,
       price_per_bundle:  bundleForm.price_per_bundle ? parseFloat(bundleForm.price_per_bundle) : null,
       notes:             bundleForm.notes || null,
+      vendor_id:         vendorId || null,
+      po_id:             poId || null,
     })
     if (error) { toast.error(error.message); setBundleLoading(false); return }
     const pcs = total * parseInt(bundleForm.pieces_per_bundle)
@@ -202,6 +244,47 @@ export default function ReceivingManager({ tubeProducts, astmCodes }: Props) {
             {t === 'coil' ? 'Receive Coil' : 'Receive Tube Bundles'}
           </button>
         ))}
+      </div>
+
+      {/* ── Shipment source: vendor + PO ───────────────────────── */}
+      <div className="rounded-lg border bg-slate-50/60 p-4 space-y-3">
+        <p className="text-sm font-semibold">Shipment Source <span className="text-muted-foreground font-normal">(optional)</span></p>
+        <p className="text-xs text-muted-foreground">
+          Attach received items to a vendor and purchase order. Pick an open PO, or create a new draft PO to receive against.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label>Vendor</Label>
+            <Select value={vendorId || '__none__'} onValueChange={handleVendorChange}>
+              <SelectTrigger><SelectValue placeholder="Select vendor…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {vendors.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Purchase Order</Label>
+            <div className="flex gap-2">
+              <Select value={poId || '__none__'} onValueChange={(v) => setPoId(v === '__none__' ? '' : (v ?? ''))}>
+                <SelectTrigger><SelectValue placeholder="Select PO…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {vendorPos.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.po_number ?? `PO ${p.id.slice(0, 8)}`} · {p.status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" onClick={handleCreatePo} disabled={creatingPo} className="shrink-0">
+                {creatingPo ? <Loader2 className="w-4 h-4 animate-spin" /> : 'New PO'}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Coil form ──────────────────────────────────────────── */}
