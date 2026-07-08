@@ -1,7 +1,11 @@
 import Link from 'next/link'
-import { NAV_CATEGORIES } from '@/lib/nav-categories'
+import { getNavCategories } from '@/lib/categories'
+import { iconFor } from '@/lib/nav-categories'
 
-export default function CategoryCards() {
+export default async function CategoryCards() {
+  const categories = await getNavCategories()
+  if (categories.length === 0) return null
+
   return (
     <section className="py-20 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -18,21 +22,26 @@ export default function CategoryCards() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {NAV_CATEGORIES.map(({ label, slug, Icon, desc }) => (
-            <Link
-              key={slug}
-              href={`/products?cat=${slug}`}
-              className="group flex flex-col items-center text-center p-5 rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
-            >
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary transition-colors duration-200">
-                <Icon className="w-6 h-6 text-primary group-hover:text-white transition-colors duration-200" />
-              </div>
-              <h3 className="font-semibold text-sm leading-tight mb-1 group-hover:text-primary transition-colors">
-                {label}
-              </h3>
-              <p className="text-xs text-muted-foreground leading-tight">{desc}</p>
-            </Link>
-          ))}
+          {categories.map((c) => {
+            const Icon = iconFor(c.icon)
+            return (
+              <Link
+                key={c.slug}
+                href={`/products?cat=${c.slug}`}
+                className="group flex flex-col items-center text-center p-5 rounded-xl border border-slate-200 bg-white hover:border-primary hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
+              >
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary transition-colors duration-200">
+                  <Icon className="w-6 h-6 text-primary group-hover:text-white transition-colors duration-200" />
+                </div>
+                <h3 className="font-semibold text-sm leading-tight mb-1 group-hover:text-primary transition-colors">
+                  {c.name}
+                </h3>
+                {c.description && (
+                  <p className="text-xs text-muted-foreground leading-tight">{c.description}</p>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
     </section>

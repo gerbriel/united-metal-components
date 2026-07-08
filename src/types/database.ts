@@ -47,8 +47,24 @@ export interface Database {
         Update: Partial<Omit<Database['public']['Tables']['profiles']['Row'], 'id' | 'created_at' | 'updated_at'>>
       }
       product_categories: {
-        Row: { id: number; name: string; slug: string }
-        Insert: Omit<Database['public']['Tables']['product_categories']['Row'], 'id'>
+        Row: {
+          id: number
+          name: string
+          slug: string
+          sort_order: number
+          icon: string | null
+          description: string | null
+          nav_visible: boolean
+        }
+        Insert: {
+          id?: number
+          name: string
+          slug: string
+          sort_order?: number
+          icon?: string | null
+          description?: string | null
+          nav_visible?: boolean
+        }
         Update: Partial<Database['public']['Tables']['product_categories']['Insert']>
       }
       products: {

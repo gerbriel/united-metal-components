@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import ProductGrid from '@/components/shared/ProductGrid'
 import { applyAllProductOverrides } from '@/lib/product-overrides'
 import { groupCatalog } from '@/lib/catalogGroups'
-import { navCategoryRank } from '@/lib/nav-categories'
+import { getNavCategories } from '@/lib/categories'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Products' }
@@ -16,16 +16,9 @@ export default async function ProductsPage({ searchParams }: Props) {
   const { cat, q } = await searchParams
   const supabase = await createClient()
 
-  // Only show categories that have at least one active product
-  const { data: activeCatIds } = await supabase
-    .from('products')
-    .select('category_id')
-    .eq('active', true)
-  const catIdSet = new Set((activeCatIds ?? []).map((r) => r.category_id).filter(Boolean))
-  const { data: allCategories } = await supabase.from('product_categories').select('*').order('name')
-  const categories = (allCategories ?? [])
-    .filter((c) => catIdSet.has(c.id))
-    .sort((a, b) => navCategoryRank(a.slug) - navCategoryRank(b.slug))
+  // Storefront-visible categories, in admin-defined order (shared with the header
+  // bar / home cards / footer via getNavCategories).
+  const categories = await getNavCategories()
 
   // Build query. Category filtering happens after display overrides so items
   // re-homed on the front end (see product-overrides) land in the right category.
@@ -61,7 +54,7 @@ export default async function ProductsPage({ searchParams }: Props) {
             All
           </a>
           {categories?.map((c) => (
-            <a key={c.id} href={`/products?cat=${c.slug}`}
+            <a key={c.slug} href={`/products?cat=${c.slug}`}
               className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${cat === c.slug ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
               {c.name}
             </a>
@@ -80,7 +73,7 @@ export default async function ProductsPage({ searchParams }: Props) {
               </a>
             </li>
             {categories?.map((c) => (
-              <li key={c.id}>
+              <li key={c.slug}>
                 <a href={`/products?cat=${c.slug}`} className={`block px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors ${cat === c.slug ? 'bg-primary text-white' : ''}`}>
                   {c.name}
                 </a>

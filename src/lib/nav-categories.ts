@@ -1,33 +1,40 @@
-import { Layers, Frame, Box, DoorOpen, Component, Bolt, Grid2x2 } from 'lucide-react'
+import {
+  Layers, Frame, Box, DoorOpen, Component, Bolt, Grid2x2,
+  Package, Wrench, Anchor, Droplets, Warehouse, Ruler, Hammer,
+  PanelsTopLeft, Truck, SquareStack, Blinds, Fence, Cuboid,
+} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 // ── Storefront navigation taxonomy ─────────────────────────────────────────
-// Single source of truth for the six/seven customer-facing product buckets.
-// Consumed by the header menu, the homepage category cards, the footer, and the
-// /products sidebar so every surface agrees. The `slug` matches the DB
-// product_categories.slug after migration 029 (re-categorize catalog); the
-// /products page filters on `?cat=<slug>`.
-export interface NavCategory {
-  slug: string
-  label: string
-  desc: string
-  Icon: LucideIcon
+// The customer-facing product buckets now live in the DATABASE
+// (product_categories: slug, name, description, icon, sort_order, nav_visible)
+// and are managed from the dashboard (Categories). The header category bar,
+// homepage cards, footer, and /products sidebar all read from there — no code
+// edit or redeploy to add/rename/reorder/hide a category.
+//
+// Icons can't live in a DB column as React components, so the category stores an
+// icon NAME and we map it to a lucide component here. CATEGORY_ICONS is also the
+// palette the admin icon picker offers.
+
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  Layers, Frame, Box, DoorOpen, Component, Bolt, Grid2x2,
+  Package, Wrench, Anchor, Droplets, Warehouse, Ruler, Hammer,
+  PanelsTopLeft, Truck, SquareStack, Blinds, Fence, Cuboid,
 }
 
-export const NAV_CATEGORIES: NavCategory[] = [
-  { slug: 'panels',        label: 'Panels',          desc: '29 GA painted, galvalume & overstock', Icon: Layers    },
-  { slug: 'trim',          label: 'Trim',            desc: 'Eve, corner, J/L, ridge cap & flashing', Icon: Frame   },
-  { slug: 'tubing',        label: 'Tubing',          desc: '12 & 14 GA square tubing',             Icon: Box       },
-  { slug: 'doors-windows', label: 'Doors & Windows', desc: 'Garage, walk-in doors & windows',      Icon: DoorOpen  },
-  { slug: 'components',    label: 'Components',      desc: 'Hat channel, foam, moisture barrier & more', Icon: Component },
-  { slug: 'fasteners',     label: 'Fasteners',       desc: 'Screws, inserts & anchors',            Icon: Bolt      },
-  { slug: 'bracing',       label: 'Bracing',         desc: 'Structural cross braces',              Icon: Grid2x2   },
-]
+// Icon names offered in the admin picker (stable order).
+export const CATEGORY_ICON_NAMES = Object.keys(CATEGORY_ICONS)
 
-// Rank a category slug by its position in the canonical order above (unknowns
-// sort last). Lets DB-driven surfaces present the buckets in the intended order
-// rather than alphabetically.
-export function navCategoryRank(slug?: string | null): number {
-  const i = NAV_CATEGORIES.findIndex((c) => c.slug === slug)
-  return i === -1 ? NAV_CATEGORIES.length : i
+// Resolve a stored icon name to a component, with a sensible fallback.
+export function iconFor(name?: string | null): LucideIcon {
+  return (name ? CATEGORY_ICONS[name] : undefined) ?? Package
+}
+
+// Shape the storefront nav consumes (a subset of a product_categories row).
+export interface NavCategory {
+  slug: string
+  name: string
+  description: string | null
+  icon: string | null
+  sort_order: number
 }

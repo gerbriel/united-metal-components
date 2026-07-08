@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
-import { NAV_CATEGORIES } from '@/lib/nav-categories'
+import type { NavCategory } from '@/lib/nav-categories'
 
 const companyLinks = [
   ['About Us', '/about'],
@@ -10,7 +10,7 @@ const companyLinks = [
   ['Terms of Service', '/terms'],
 ]
 
-export default function PublicFooter() {
+export default function PublicFooter({ categories }: { categories: NavCategory[] }) {
   return (
     <footer className="bg-slate-950 text-slate-400">
       {/* Top bar */}
@@ -50,10 +50,10 @@ export default function PublicFooter() {
           <div>
             <h3 className="font-semibold text-white text-sm mb-4 uppercase tracking-wider">Products</h3>
             <ul className="space-y-2.5">
-              {NAV_CATEGORIES.map(({ slug, label }) => (
-                <li key={slug}>
-                  <Link href={`/products?cat=${slug}`} className="text-sm hover:text-orange-400 transition-colors">
-                    {label}
+              {categories.map((c) => (
+                <li key={c.slug}>
+                  <Link href={`/products?cat=${c.slug}`} className="text-sm hover:text-orange-400 transition-colors">
+                    {c.name}
                   </Link>
                 </li>
               ))}

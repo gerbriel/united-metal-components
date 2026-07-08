@@ -2,8 +2,10 @@ import Link from 'next/link'
 import { User, Package, Settings } from 'lucide-react'
 import PublicHeader from '@/components/layout/PublicHeader'
 import PublicFooter from '@/components/layout/PublicFooter'
+import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
 import NotificationBell from '@/components/shared/NotificationBell'
 import { createClient } from '@/lib/supabase/server'
+import { getNavCategories } from '@/lib/categories'
 import { STAFF_ROLES } from '@/types/database'
 
 const NAV_CLS = 'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors whitespace-nowrap'
@@ -22,9 +24,11 @@ export default async function AccountLayout({ children }: { children: React.Reac
     isEmployee = !!profile && STAFF_ROLES.includes((profile as any).role)
   }
 
+  const categories = await getNavCategories()
+
   return (
     <>
-      <PublicHeader />
+      <PublicHeader categories={categories} />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
         <div className="flex flex-col md:flex-row gap-6 md:gap-8">
           {/* Mobile: horizontal scrollable nav */}
@@ -52,7 +56,8 @@ export default async function AccountLayout({ children }: { children: React.Reac
           <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
-      <PublicFooter />
+      <PublicFooter categories={categories} />
+      <RealtimeRefresh />
     </>
   )
 }

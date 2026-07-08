@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
-import { NAV_CATEGORIES } from '@/lib/nav-categories'
+import { iconFor, type NavCategory } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
 import { Badge } from '@/components/ui/badge'
@@ -16,13 +16,13 @@ import type { Profile } from '@/types/database'
 import CartDrawer from '@/components/shared/CartDrawer'
 import { cn } from '@/lib/utils'
 
-// Product buckets live in a "Products" dropdown (see NAV_CATEGORIES); these are
-// the remaining flat top-level links.
+// Product buckets render in the DB-driven category bar (see `categories` prop);
+// these are the remaining flat top-level links.
 const navLinks = [
   { href: '/contact', label: 'Contact' },
 ]
 
-export default function PublicHeader() {
+export default function PublicHeader({ categories }: { categories: NavCategory[] }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
@@ -190,16 +190,19 @@ export default function PublicHeader() {
                 All Products
               </Link>
               <span className="shrink-0 w-px h-4 bg-slate-200 mx-1.5" />
-              {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
-                <Link
-                  key={slug}
-                  href={`/products?cat=${slug}`}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </Link>
-              ))}
+              {categories.map((c) => {
+                const Icon = iconFor(c.icon)
+                return (
+                  <Link
+                    key={c.slug}
+                    href={`/products?cat=${c.slug}`}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {c.name}
+                  </Link>
+                )
+              })}
             </nav>
           </div>
         </div>
@@ -224,17 +227,20 @@ export default function PublicHeader() {
               >
                 All Products
               </Link>
-              {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
-                <Link
-                  key={slug}
-                  href={`/products?cat=${slug}`}
-                  className="flex items-center gap-2.5 text-sm font-medium py-2 px-3 rounded-lg hover:bg-slate-50 hover:text-primary transition-colors text-slate-600"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </Link>
-              ))}
+              {categories.map((c) => {
+                const Icon = iconFor(c.icon)
+                return (
+                  <Link
+                    key={c.slug}
+                    href={`/products?cat=${c.slug}`}
+                    className="flex items-center gap-2.5 text-sm font-medium py-2 px-3 rounded-lg hover:bg-slate-50 hover:text-primary transition-colors text-slate-600"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {c.name}
+                  </Link>
+                )
+              })}
               <div className="my-2 border-t border-slate-100" />
               {navLinks.map((l) => (
                 <Link
