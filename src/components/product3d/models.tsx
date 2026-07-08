@@ -219,6 +219,21 @@ function HatChannel({ colorName }: ModelProps) {
   return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
 }
 
+// ── C-channel brace ─────────────────────────────────────────────────────────────
+// Formed C-section (a web with two same-side flanges) — the "c channel" knee brace,
+// NOT a hollow tube. Drawn as a `[` centerline and extruded along its run, then laid
+// along X like the tubing so it reads as a length of channel.
+function Brace({ colorName }: ModelProps) {
+  const web = 3 / 12, flange = 1.5 / 12, th = 0.028, len = 3.0
+  const geo = useMemo(() => {
+    const hw = web / 2
+    // top-flange tip → web top → web bottom → bottom-flange tip
+    return extrudeProfile(ribbonShape([[flange, hw], [0, hw], [0, -hw], [flange, -hw]], th), len)
+  }, [])
+  const steel = useSteel(colorName)
+  return <mesh geometry={geo} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
 // ── L-bracket ───────────────────────────────────────────────────────────────────
 function LBracket() {
   const leg = 0.5, th = 0.01, wide = 0.42   // thin galvanized angle bracket, no holes
@@ -1155,7 +1170,7 @@ function DoorDiamond() {
 
 // ── Roll (tape) ─────────────────────────────────────────────────────────────────
 function Roll() {
-  const r = 0.9, len = 2.6
+  const r = 0.9, len = 0.9
   const outer = { color: '#eef1f4', metalness: 0.0, roughness: 0.95 }
   return (
     <group rotation={[0, 0, Math.PI / 2]}>
@@ -1341,7 +1356,7 @@ function GenericBox({ colorName }: ModelProps) {
 // ── Dispatcher ───────────────────────────────────────────────────────────────────
 const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
   'square-tube': SquareTube,
-  'brace': SquareTube,
+  'brace': Brace,
   'base-rail': BaseRail,
   'panel': Panel,
   'skylight': Skylight,
