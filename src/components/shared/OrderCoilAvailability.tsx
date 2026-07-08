@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CheckCircle, AlertTriangle } from 'lucide-react'
+import { CheckCircle, AlertTriangle, Truck } from 'lucide-react'
 import { COLORS } from '@/lib/product-config'
 import type { OrderColorCheck } from '@/lib/coilSupply'
 
@@ -16,9 +16,12 @@ function fmtFeet(feet: number): string {
 
 // Server component: per-color panel coil availability for a single order, so
 // staff can confirm there's enough material by color before accepting it.
-export default function OrderCoilAvailability({ checks }: { checks: OrderColorCheck[] }) {
+export default function OrderCoilAvailability(
+  { checks, colorsOnOrder = [] }: { checks: OrderColorCheck[]; colorsOnOrder?: string[] },
+) {
   if (checks.length === 0) return null
 
+  const onOrder = new Set(colorsOnOrder)
   const allEnough = checks.every((c) => c.enough)
 
   return (
@@ -56,9 +59,20 @@ export default function OrderCoilAvailability({ checks }: { checks: OrderColorCh
                   {c.hasUnweighed && <span className="text-amber-500 ml-1" title="Includes unweighed estimate">*</span>}
                 </td>
                 <td className="p-3 text-right">
-                  {c.enough
-                    ? <span className="text-xs font-medium text-green-700">Enough</span>
-                    : <span className="text-xs font-medium text-red-600">Short {fmtFeet(c.neededFeet - c.availableFeet)}</span>}
+                  {c.enough ? (
+                    <span className="text-xs font-medium text-green-700">Enough</span>
+                  ) : (
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-medium text-red-600">Short {fmtFeet(c.neededFeet - c.availableFeet)}</span>
+                      {onOrder.has(c.color) ? (
+                        <span className="flex items-center justify-end gap-1 text-xs font-medium text-blue-600">
+                          <Truck className="w-3.5 h-3.5" />On order
+                        </span>
+                      ) : (
+                        <span className="block text-xs font-medium text-amber-600">Needs ordering</span>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
@@ -67,6 +81,8 @@ export default function OrderCoilAvailability({ checks }: { checks: OrderColorCh
         <p className="text-xs text-muted-foreground px-3 py-2 border-t">
           Free footage = estimated on-hand (measured where weighed) minus footage committed to other open orders.
           <span className="text-amber-500"> *</span> includes coils not yet weighed.
+          Short colors show <span className="text-blue-600 font-medium">On order</span> when the color already
+          appears on an open purchase order, or <span className="text-amber-600 font-medium">Needs ordering</span> otherwise.
         </p>
       </CardContent>
     </Card>

@@ -5,7 +5,8 @@ import { useConfigurator } from '@/store/configurator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ShoppingCart, Phone, Minus, Plus } from 'lucide-react'
+import { ShoppingCart, Phone, Minus, Plus, PackageCheck, AlertTriangle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
 import type { Product } from '@/types/database'
@@ -21,12 +22,28 @@ import {
   variantGroupFor,
 } from '@/lib/product-config'
 
+// Live coil availability for one color (panels) or the shared pool (hat/brace).
+// `onOrderFeet` is footage sitting on open purchase orders, not yet received.
+export interface CoilAvailability {
+  netFeet: number        // free on-hand estimate after footage committed to open orders
+  onOrderFeet: number    // footage on open POs not yet received
+  hasUnweighed: boolean  // estimate leans on coils not yet weighed
+}
+
+export type Availability =
+  | { kind: 'panel'; byColor: Record<string, CoilAvailability> }
+  | { kind: 'pool'; pool: CoilAvailability }
+  | { kind: 'static' }
+
+const fmtFt = (n: number) => `${Math.max(0, Math.round(n)).toLocaleString()} ft`
+
 interface Props {
   product: Product
   isContractor: boolean
+  availability?: Availability
 }
 
-export default function ProductOrderForm({ product, isContractor }: Props) {
+export default function ProductOrderForm({ product, isContractor, availability }: Props) {
   const addItem = useCartStore((s) => s.addItem)
   const sku = product.sku ?? ''
 
@@ -117,8 +134,37 @@ export default function ProductOrderForm({ product, isContractor }: Props) {
     }
   }
 
+  // Live coil availability (panels per selected color; hat channel / braces from
+  // the shared pool). Falls back to nothing so the page's static badge shows.
+  const coil: CoilAvailability | null =
+    availability?.kind === 'pool' ? availability.pool
+    : availability?.kind === 'panel' ? (selectedColor ? availability.byColor[selectedColor] ?? { netFeet: 0, onOrderFeet: 0, hasUnweighed: false } : null)
+    : null
+  const needsColorFirst = availability?.kind === 'panel' && !selectedColor
+
   return (
     <div className="space-y-6">
+      {/* Live availability — estimated linear feet free to promise, with what's
+          on order when we're short */}
+      {(coil || needsColorFirst) && (
+        <div className="space-y-1.5">
+          {needsColorFirst ? (
+            <Badge variant="secondary" className="gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />Select a color to see availability
+            </Badge>
+          ) : coil && coil.netFeet > 0 ? (
+            <Badge className="bg-green-100 text-green-800 border-green-200 gap-1.5">
+              <PackageCheck className="w-3.5 h-3.5" />
+              {coil.hasUnweighed ? '~' : ''}{fmtFt(coil.netFeet)} available
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />Out of stock
+            </Badge>
+          )}
+        </div>
+      )}
+
       {/* Out-of-stock notice */}
       {isOutOfStock && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">

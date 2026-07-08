@@ -82,6 +82,127 @@ export function panelSupplyByColor(coils: SupplyCoil[], demand: DemandItem[]): C
   return Array.from(map.values()).sort((a, b) => a.color.localeCompare(b.color))
 }
 
+// ── Purchase-order "on order" flags ──────────────────────────
+// PO line items are free text (no structured color / category / footage), so we
+// can't total incoming footage. Instead we surface a lightweight flag: is this
+// color / pool already sitting on an open PO we're waiting to receive? A line
+// counts when its PO is still open, it isn't fully received, and it looks like
+// the right coil material — matched by its linked product's category or by
+// keywords/color names in the description/notes (the PO form appends the color
+// into the description, so panel colors usually match).
+export const PO_OPEN_STATUSES = ['draft', 'submitted', 'partial'] as const
+
+export interface OpenPoLine {
+  status: string                 // parent PO status
+  description: string | null
+  notes: string | null
+  quantity: number
+  quantity_received: number
+  coil_category: string | null   // from the linked product, when present
+}
+
+export interface PoCoilFlags {
+  panelColorsOnOrder: Set<string> // panel colors that appear on an open PO
+  hatBraceOnOrder: boolean        // hat channel / brace material on an open PO
+}
+
+export function openPoCoilFlags(lines: OpenPoLine[], colorNames: string[]): PoCoilFlags {
+  const panelColorsOnOrder = new Set<string>()
+  let hatBraceOnOrder = false
+
+  for (const l of lines) {
+    if (!(PO_OPEN_STATUSES as readonly string[]).includes(l.status)) continue
+    if (Number(l.quantity_received) >= Number(l.quantity)) continue // already received
+    const text = `${l.description ?? ''} ${l.notes ?? ''}`.toLowerCase()
+
+    if (l.coil_category === 'panel' || text.includes('panel')) {
+      for (const name of colorNames) {
+        if (name && text.includes(name.toLowerCase())) panelColorsOnOrder.add(name)
+      }
+    }
+    if (
+      l.coil_category === 'hat_channel_brace' ||
+      text.includes('hat') || text.includes('brace') ||
+      text.includes('c-channel') || text.includes('c channel')
+    ) {
+      hatBraceOnOrder = true
+    }
+  }
+
+  return { panelColorsOnOrder, hatBraceOnOrder }
+}
+
+// ── Per-order allocation breakdown ───────────────────────────
+// Orders commit panel footage by color (not to a specific coil), so allocation
+// is aggregated per color and then split by the order that reserved it. Lets
+// staff see exactly which open orders are drawing down each color.
+export interface AllocationDemand {
+  order_id: number
+  item_color: string | null
+  linear_feet: number | null
+  status: string
+}
+
+export interface OrderAllocation {
+  orderId: number
+  status: string
+  feet: number
+}
+
+export function allocationsByColor(items: AllocationDemand[]): Record<string, OrderAllocation[]> {
+  const byColor: Record<string, Map<number, OrderAllocation>> = {}
+  for (const it of items) {
+    if (!it.item_color || !it.linear_feet) continue
+    const perOrder = (byColor[it.item_color] ??= new Map())
+    const existing = perOrder.get(it.order_id)
+    if (existing) existing.feet += Number(it.linear_feet)
+    else perOrder.set(it.order_id, { orderId: it.order_id, status: it.status, feet: Number(it.linear_feet) })
+  }
+  const out: Record<string, OrderAllocation[]> = {}
+  for (const [color, perOrder] of Object.entries(byColor)) {
+    out[color] = [...perOrder.values()].sort((a, b) => b.feet - a.feet)
+  }
+  return out
+}
+
+export interface PoolSupply {
+  coilCount: number
+  weighedFeet: number
+  unweighedEstFeet: number
+  estOnHandFeet: number
+  committedFeet: number
+  netFeet: number
+  hasUnweighed: boolean
+}
+
+// Hat channel and braces are cut from a single colorless coil pool (coil_category
+// = 'hat_channel_brace') and share their supply. Aggregate all non-archived coils
+// into one estimate and net out footage committed to open orders. `committedFeet`
+// is the combined hat-channel + brace demand, since both draw from this pool.
+export function pooledSupply(coils: SupplyCoil[], committedFeet: number): PoolSupply {
+  let coilCount = 0
+  let weighedFeet = 0
+  let unweighedEstFeet = 0
+  let hasUnweighed = false
+
+  for (const c of coils) {
+    if (c.archived || c.status === 'depleted') continue
+    coilCount += 1
+    if (c.current_weight_lbs != null) {
+      weighedFeet += feet(c.current_weight_lbs, c.lbs_per_linear_foot)
+    } else {
+      unweighedEstFeet += feet(c.initial_weight_lbs, c.lbs_per_linear_foot)
+      hasUnweighed = true
+    }
+  }
+
+  const estOnHandFeet = weighedFeet + unweighedEstFeet
+  return {
+    coilCount, weighedFeet, unweighedEstFeet, estOnHandFeet,
+    committedFeet, netFeet: estOnHandFeet - committedFeet, hasUnweighed,
+  }
+}
+
 export interface OrderDemandItem extends DemandItem {
   order_id: number
 }

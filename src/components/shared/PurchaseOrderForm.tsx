@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,144 @@ interface Props {
 
 const EMPTY_LINE: POItem = { description: '', quantity: '1', unit: '', unit_cost: '', notes: '' }
 
+// A single autocomplete suggestion drawn from the live inventory catalog.
+// `product` picks fill the row (description + unit + product link); `color` and
+// `astm` picks append a descriptor to whatever the user has already typed.
+type Suggestion = {
+  kind: 'product' | 'color' | 'astm'
+  label: string
+  sublabel?: string
+  unit?: string | null
+  product_id?: number | null
+}
+
+const KIND_LABEL: Record<Suggestion['kind'], string> = {
+  product: 'Product',
+  color: 'Color',
+  astm: 'ASTM',
+}
+
+// Append a color/ASTM descriptor onto an existing description, replacing any
+// trailing partial word the user was typing so "…coil haw" → "…coil — Hawaiian Blue".
+function appendDescriptor(current: string, token: string) {
+  let base = current
+  const lastWord = current.split(/\s+/).pop() ?? ''
+  if (
+    lastWord &&
+    lastWord.toLowerCase() !== token.toLowerCase() &&
+    token.toLowerCase().startsWith(lastWord.toLowerCase())
+  ) {
+    base = current.slice(0, current.length - lastWord.length)
+  }
+  base = base.replace(/[\s—-]+$/, '').trim()
+  if (!base) return token
+  if (base.toLowerCase().includes(token.toLowerCase())) return base
+  return `${base} — ${token}`
+}
+
+interface MaterialInputProps {
+  value: string
+  suggestions: Suggestion[]
+  placeholder?: string
+  onChange: (value: string) => void
+  onPick: (s: Suggestion) => void
+}
+
+// Description field with an inventory-aware suggestion dropdown. Never locks the
+// user in — free text always wins; suggestions are opt-in convenience.
+function MaterialInput({ value, suggestions, placeholder, onChange, onPick }: MaterialInputProps) {
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const matches = useMemo(() => {
+    const q = value.trim().toLowerCase()
+    if (q.length < 1) return []
+    const lastWord = q.split(/\s+/).pop() ?? ''
+    return suggestions
+      .filter((s) => {
+        const l = s.label.toLowerCase()
+        const sub = (s.sublabel ?? '').toLowerCase()
+        return (
+          l.includes(q) ||
+          sub.includes(q) ||
+          (lastWord.length >= 2 && (l.includes(lastWord) || sub.includes(lastWord)))
+        )
+      })
+      .slice(0, 8)
+  }, [value, suggestions])
+
+  // Fixed-position dropdown so it escapes the table's overflow container and the
+  // edit dialog. Track the input's viewport rect while open.
+  useEffect(() => {
+    if (!open) return
+    const update = () => inputRef.current && setRect(inputRef.current.getBoundingClientRect())
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, matches.length, value])
+
+  const showList = open && matches.length > 0 && rect
+
+  const pick = (s: Suggestion) => {
+    onPick(s)
+    setOpen(false)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!showList) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, matches.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); pick(matches[active] ?? matches[0]) }
+    else if (e.key === 'Escape') { setOpen(false) }
+  }
+
+  return (
+    <>
+      <Input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(0) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => { blurTimer.current = setTimeout(() => setOpen(false), 120) }}
+        onKeyDown={onKeyDown}
+        placeholder={placeholder}
+        className="border-0 shadow-none px-0 h-8"
+        autoComplete="off"
+      />
+      {showList && (
+        <div
+          style={{ position: 'fixed', top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 260), zIndex: 60 }}
+          className="rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 p-1 max-h-64 overflow-y-auto"
+          onMouseDown={(e) => { e.preventDefault(); if (blurTimer.current) clearTimeout(blurTimer.current) }}
+        >
+          {matches.map((s, idx) => (
+            <button
+              key={`${s.kind}-${s.label}-${idx}`}
+              type="button"
+              onMouseEnter={() => setActive(idx)}
+              onClick={() => pick(s)}
+              className={`w-full text-left flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${idx === active ? 'bg-accent' : ''}`}
+            >
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {KIND_LABEL[s.kind]}
+              </span>
+              <span className="truncate">{s.label}</span>
+              {s.sublabel && <span className="ml-auto truncate text-xs text-muted-foreground">{s.sublabel}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
   const isEdit = !!existingPO
   const [saving, setSaving] = useState(false)
@@ -68,11 +206,57 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
   const router = useRouter()
   const supabase = createClient()
 
+  // Live inventory catalog for description autocomplete — products (tubing,
+  // panels, trim, screws…), coil colors, and ASTM specs. Suggestions only;
+  // the user can always type something that isn't in inventory.
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const [{ data: prods }, { data: coils }, { data: astm }] = await Promise.all([
+        supabase.from('products').select('id, name, sku, unit, product_type').eq('active', true).order('name'),
+        supabase.from('product_coils').select('color').not('color', 'is', null),
+        supabase.from('astm_codes').select('code, description').eq('archived', false).order('code'),
+      ])
+      if (!active) return
+      const list: Suggestion[] = []
+      for (const p of (prods ?? []) as any[]) {
+        list.push({
+          kind: 'product',
+          label: p.name,
+          sublabel: p.sku ? `SKU ${p.sku}` : (p.product_type ?? undefined),
+          unit: p.unit,
+          product_id: p.id,
+        })
+      }
+      const colors = [...new Set(((coils ?? []) as any[]).map((c) => c.color).filter(Boolean))]
+      for (const c of colors) list.push({ kind: 'color', label: c as string })
+      for (const a of (astm ?? []) as any[]) {
+        list.push({ kind: 'astm', label: a.code, sublabel: a.description ?? undefined })
+      }
+      setSuggestions(list)
+    })()
+    return () => { active = false }
+  }, [supabase])
+
   const setF = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const setLine = (i: number, k: keyof POItem) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, [k]: e.target.value } : l))
+
+  // Manual edits to the description break the product link.
+  const setDescription = (i: number, value: string) =>
+    setLines((ls) => ls.map((l, idx) => idx === i ? { ...l, description: value, product_id: null } : l))
+
+  const pickSuggestion = (i: number, s: Suggestion) =>
+    setLines((ls) => ls.map((l, idx) => {
+      if (idx !== i) return l
+      if (s.kind === 'product') {
+        return { ...l, description: s.label, product_id: s.product_id ?? null, unit: l.unit || s.unit || '' }
+      }
+      return { ...l, description: appendDescriptor(l.description, s.label) }
+    }))
 
   const addLine = () => setLines((ls) => [...ls, EMPTY_LINE])
   const removeLine = (i: number) => setLines((ls) => ls.filter((_, idx) => idx !== i))
@@ -194,11 +378,12 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
                   return (
                     <tr key={i} className="hover:bg-slate-50">
                       <td className="p-2">
-                        <Input
+                        <MaterialInput
                           value={line.description}
-                          onChange={setLine(i, 'description')}
+                          suggestions={suggestions}
                           placeholder="e.g. 29 GA Panel Coil — Hawaiian Blue"
-                          className="border-0 shadow-none px-0 h-8"
+                          onChange={(v) => setDescription(i, v)}
+                          onPick={(s) => pickSuggestion(i, s)}
                         />
                         <Input
                           value={line.notes}

@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import ProductOrderForm from '@/components/shared/ProductOrderForm'
+import ProductOrderForm, { type Availability, type CoilAvailability } from '@/components/shared/ProductOrderForm'
+import { PANEL_SKUS } from '@/lib/product-config'
+import { panelSupplyByColor, pooledSupply, OPEN_ORDER_STATUSES } from '@/lib/coilSupply'
 import ProductViewer from '@/components/product3d/ProductViewer'
 import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
 import VariantSelect, { type VariantOption } from '@/components/shared/VariantSelect'
@@ -98,6 +100,52 @@ export default async function ProductDetailPage({ params }: Props) {
   // group ("14 GA Square Tubing") rather than the member SKU's full name.
   const displayName = variantOptions && vgroup ? vgroup.name : product.name
 
+  // Live coil availability, in linear feet, for the length-based coil products.
+  // Panels (per color) and hat channel / braces (shared colorless pool) draw
+  // their real remaining footage from coil weight minus what's committed to open
+  // orders — replacing the static stock_qty for these SKUs. `onOrderFeet` (PO
+  // material not yet received) is wired separately.
+  const sku = product.sku ?? ''
+  const isPanel = PANEL_SKUS.has(sku)
+  const isHatOrBrace = sku === 'HAT-CHANNEL' || sku === 'BRACE'
+  let availability: Availability = { kind: 'static' }
+
+  if (isPanel) {
+    const [{ data: coils }, { data: demand }] = await Promise.all([
+      supabase
+        .from('product_coils')
+        .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
+        .eq('coil_category', 'panel'),
+      supabase
+        .from('order_items')
+        .select('item_color, linear_feet, orders!inner(status)')
+        .not('item_color', 'is', null)
+        .not('linear_feet', 'is', null)
+        .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
+    ])
+    const byColor: Record<string, CoilAvailability> = {}
+    for (const s of panelSupplyByColor((coils ?? []) as any, (demand ?? []) as any)) {
+      byColor[s.color] = { netFeet: s.netFeet, onOrderFeet: 0, hasUnweighed: s.hasUnweighed }
+    }
+    availability = { kind: 'panel', byColor }
+  } else if (isHatOrBrace) {
+    const [{ data: coils }, { data: demand }] = await Promise.all([
+      supabase
+        .from('product_coils')
+        .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
+        .eq('coil_category', 'hat_channel_brace'),
+      supabase
+        .from('order_items')
+        .select('linear_feet, products!inner(coil_category), orders!inner(status)')
+        .eq('products.coil_category', 'hat_channel_brace')
+        .not('linear_feet', 'is', null)
+        .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
+    ])
+    const committed = ((demand ?? []) as any[]).reduce((sum, d) => sum + Number(d.linear_feet || 0), 0)
+    const pool = pooledSupply((coils ?? []) as any, committed)
+    availability = { kind: 'pool', pool: { netFeet: pool.netFeet, onOrderFeet: 0, hasUnweighed: pool.hasUnweighed } }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Breadcrumb */}
@@ -149,17 +197,21 @@ export default async function ProductDetailPage({ params }: Props) {
             <VariantSelect label={vgroup.selectLabel} options={variantOptions} currentId={product.id} />
           )}
 
-          <div className="flex items-center gap-2 mb-6">
-            {product.stock_qty > 0 ? (
-              <Badge className="bg-green-100 text-green-800 border-green-200">
-                In Stock ({product.stock_qty} available)
-              </Badge>
-            ) : (
-              <Badge variant="secondary">Out of Stock</Badge>
-            )}
-          </div>
+          {/* Coil products show live linear-foot availability inside the form
+              (color-aware for panels); everything else keeps the static badge. */}
+          {availability.kind === 'static' && (
+            <div className="flex items-center gap-2 mb-6">
+              {product.stock_qty > 0 ? (
+                <Badge className="bg-green-100 text-green-800 border-green-200">
+                  In Stock ({product.stock_qty} available)
+                </Badge>
+              ) : (
+                <Badge variant="secondary">Out of Stock</Badge>
+              )}
+            </div>
+          )}
 
-          <ProductOrderForm product={product} isContractor={isContractor} />
+          <ProductOrderForm product={product} isContractor={isContractor} availability={availability} />
         </div>
       </div>
 

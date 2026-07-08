@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,10 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Loader2, Scale, Pencil, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { Plus, Loader2, Scale, Pencil, Archive, ArchiveRestore, Trash2, ChevronRight, ChevronDown } from 'lucide-react'
+import Link from 'next/link'
 import { COLORS } from '@/lib/product-config'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
-import { panelSupplyByColor, type DemandItem } from '@/lib/coilSupply'
+import { panelSupplyByColor, type DemandItem, type OrderAllocation } from '@/lib/coilSupply'
 
 export interface CoilRow {
   id: number
@@ -39,6 +40,16 @@ interface Props {
   vendors: Vendor[]
   openPos: OpenPo[]
   demand: DemandItem[]
+  colorsOnOrder?: string[]
+  allocations?: Record<string, OrderAllocation[]>
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  processing: 'Processing',
+  ready_for_pickup: 'Ready',
+  loading: 'Loading',
 }
 
 const colorHex = (name: string) => COLORS.find((c) => c.name === name)?.hex ?? '#94a3b8'
@@ -83,7 +94,8 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, demand }: Props) {
+export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, demand, colorsOnOrder = [], allocations = {} }: Props) {
+  const [expandedColor, setExpandedColor] = useState<string | null>(null)
   const [coils, setCoils]               = useState<CoilRow[]>(initialCoils)
   const [addOpen, setAddOpen]           = useState(false)
   const [addLoading, setAddLoading]     = useState(false)
@@ -251,6 +263,7 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
   // Live per-color supply vs open-order demand for panel coils. Recomputes as
   // coils are weighed (realtime), so the net figure reflects the latest weights.
   const supply = panelSupplyByColor(coils, demand)
+  const onOrder = new Set(colorsOnOrder)
 
   return (
     <div className="space-y-4">
@@ -277,8 +290,12 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {supply.map((s) => (
-                  <tr key={s.color} className="bg-white">
+                {supply.map((s) => {
+                  const orders = allocations[s.color] ?? []
+                  const isOpen = expandedColor === s.color
+                  return (
+                  <Fragment key={s.color}>
+                  <tr className="bg-white">
                     <td className="p-3">
                       <span className="inline-flex items-center gap-2">
                         <span className="w-3 h-3 rounded-full border border-slate-300" style={{ backgroundColor: colorHex(s.color) }} />
@@ -294,17 +311,62 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
                       {fmtFeet(s.estOnHandFeet)}
                       {s.hasUnweighed && <span className="text-amber-500 ml-1" title="Includes unweighed estimate">*</span>}
                     </td>
-                    <td className="p-3 text-right font-mono text-muted-foreground">{fmtFeet(s.committedFeet)}</td>
+                    <td className="p-3 text-right font-mono text-muted-foreground">
+                      {orders.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedColor(isOpen ? null : s.color)}
+                          className="inline-flex items-center gap-1 hover:text-foreground"
+                          title={`${orders.length} order${orders.length === 1 ? '' : 's'} allocated`}
+                        >
+                          {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          {fmtFeet(s.committedFeet)}
+                          <span className="text-[11px] font-sans">({orders.length})</span>
+                        </button>
+                      ) : (
+                        fmtFeet(s.committedFeet)
+                      )}
+                    </td>
                     <td className={`p-3 text-right font-mono font-semibold ${s.netFeet < 0 ? 'text-red-600' : 'text-green-700'}`}>
                       {s.netFeet < 0 ? `-${fmtFeet(-s.netFeet)}` : fmtFeet(s.netFeet)}
+                      {s.netFeet < 0 && (
+                        <span className={`block text-[11px] font-sans font-medium ${onOrder.has(s.color) ? 'text-blue-600' : 'text-amber-600'}`}>
+                          {onOrder.has(s.color) ? 'On order' : 'Needs ordering'}
+                        </span>
+                      )}
                     </td>
                   </tr>
-                ))}
+                  {isOpen && orders.length > 0 && (
+                    <tr className="bg-slate-50/60">
+                      <td colSpan={7} className="px-3 py-2">
+                        <p className="text-xs text-muted-foreground mb-1.5">Allocated to open orders</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {orders.map((o) => (
+                            <Link
+                              key={o.orderId}
+                              href={`/dashboard/orders/${o.orderId}`}
+                              className="inline-flex items-center gap-1.5 rounded-md border bg-white px-2 py-1 text-xs hover:border-primary hover:text-primary"
+                            >
+                              <span className="font-medium">Order #{o.orderId}</span>
+                              <span className="text-muted-foreground">{STATUS_LABELS[o.status] ?? o.status}</span>
+                              <span className="font-mono">{fmtFeet(o.feet)}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-muted-foreground px-3 py-2 border-t">
             <span className="text-amber-500">*</span> estimate includes coils not yet weighed (uses initial footage). Weigh coils for an exact figure.
+            Expand a <span className="font-medium">Committed</span> figure to see which open orders it's allocated to.
+            Colors in the red show <span className="text-blue-600 font-medium">On order</span> when they already appear on an open
+            purchase order, or <span className="text-amber-600 font-medium">Needs ordering</span> otherwise.
           </p>
         </div>
       )}

@@ -9,7 +9,8 @@ import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
-import { orderColorAvailability, OPEN_ORDER_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
+import { orderColorAvailability, openPoCoilFlags, OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
+import { COLORS } from '@/lib/product-config'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -54,8 +55,9 @@ export default async function DashboardOrderDetail({ params }: Props) {
   // Panel coil availability by color — only for open orders, and hidden from
   // warehouse staff (purchasing/material-planning concern).
   let coilChecks: OrderColorCheck[] = []
+  let colorsOnOrder: string[] = []
   if (!isWarehouse && (OPEN_ORDER_STATUSES as readonly string[]).includes(order.status)) {
-    const [{ data: panelCoils }, { data: openDemand }] = await Promise.all([
+    const [{ data: panelCoils }, { data: openDemand }, { data: poLines }] = await Promise.all([
       supabase
         .from('product_coils')
         .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
@@ -66,8 +68,25 @@ export default async function DashboardOrderDetail({ params }: Props) {
         .not('item_color', 'is', null)
         .not('linear_feet', 'is', null)
         .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
+      // Open PO lines still awaiting receipt, for the "already on order" flag.
+      supabase
+        .from('purchase_order_items')
+        .select('description, notes, quantity, quantity_received, products(coil_category), purchase_orders!inner(status)')
+        .in('purchase_orders.status', PO_OPEN_STATUSES as unknown as string[]),
     ])
     coilChecks = orderColorAvailability((panelCoils ?? []) as any, (openDemand ?? []) as any, order.id)
+    const flags = openPoCoilFlags(
+      ((poLines ?? []) as any[]).map((l) => ({
+        status: l.purchase_orders?.status ?? '',
+        description: l.description,
+        notes: l.notes,
+        quantity: l.quantity,
+        quantity_received: l.quantity_received,
+        coil_category: l.products?.coil_category ?? null,
+      })),
+      COLORS.map((c) => c.name),
+    )
+    colorsOnOrder = [...flags.panelColorsOnOrder]
   }
 
   const { data: history } = await supabase
@@ -123,7 +142,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
 
-          {coilChecks.length > 0 && <OrderCoilAvailability checks={coilChecks} />}
+          {coilChecks.length > 0 && <OrderCoilAvailability checks={coilChecks} colorsOnOrder={colorsOnOrder} />}
 
           {/* Order Items */}
           <Card>
