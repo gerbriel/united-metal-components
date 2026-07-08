@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import ProductOrderForm, { type Availability, type CoilAvailability } from '@/components/shared/ProductOrderForm'
 import { PANEL_SKUS } from '@/lib/product-config'
-import { panelSupplyByColor, pooledSupply, OPEN_ORDER_STATUSES } from '@/lib/coilSupply'
 import ProductViewer from '@/components/product3d/ProductViewer'
 import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
 import VariantSelect, { type VariantOption } from '@/components/shared/VariantSelect'
@@ -103,47 +102,35 @@ export default async function ProductDetailPage({ params }: Props) {
   // Live coil availability, in linear feet, for the length-based coil products.
   // Panels (per color) and hat channel / braces (shared colorless pool) draw
   // their real remaining footage from coil weight minus what's committed to open
-  // orders — replacing the static stock_qty for these SKUs. `onOrderFeet` (PO
-  // material not yet received) is wired separately.
+  // orders — replacing the static stock_qty for these SKUs.
+  //
+  // product_coils and order_items are staff-only under RLS, so the public page
+  // (anonymous) can't read them directly — it goes through the SECURITY DEFINER
+  // `public_coil_availability` RPC (migration 025), which returns only the
+  // aggregated net footage, never raw coil/order rows.
   const sku = product.sku ?? ''
   const isPanel = PANEL_SKUS.has(sku)
   const isHatOrBrace = sku === 'HAT-CHANNEL' || sku === 'BRACE'
   let availability: Availability = { kind: 'static' }
 
-  if (isPanel) {
-    const [{ data: coils }, { data: demand }] = await Promise.all([
-      supabase
-        .from('product_coils')
-        .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
-        .eq('coil_category', 'panel'),
-      supabase
-        .from('order_items')
-        .select('item_color, linear_feet, orders!inner(status)')
-        .not('item_color', 'is', null)
-        .not('linear_feet', 'is', null)
-        .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
-    ])
-    const byColor: Record<string, CoilAvailability> = {}
-    for (const s of panelSupplyByColor((coils ?? []) as any, (demand ?? []) as any)) {
-      byColor[s.color] = { netFeet: s.netFeet, onOrderFeet: 0, hasUnweighed: s.hasUnweighed }
+  if (isPanel || isHatOrBrace) {
+    const { data: rows } = await (supabase.rpc as any)('public_coil_availability')
+    const list = (rows ?? []) as { category: string; color: string | null; net_feet: number; has_unweighed: boolean }[]
+    if (isPanel) {
+      const byColor: Record<string, CoilAvailability> = {}
+      for (const r of list) {
+        if (r.category === 'panel' && r.color) {
+          byColor[r.color] = { netFeet: Number(r.net_feet), onOrderFeet: 0, hasUnweighed: r.has_unweighed }
+        }
+      }
+      availability = { kind: 'panel', byColor }
+    } else {
+      const poolRow = list.find((r) => r.category === 'pool')
+      availability = {
+        kind: 'pool',
+        pool: { netFeet: Number(poolRow?.net_feet ?? 0), onOrderFeet: 0, hasUnweighed: poolRow?.has_unweighed ?? false },
+      }
     }
-    availability = { kind: 'panel', byColor }
-  } else if (isHatOrBrace) {
-    const [{ data: coils }, { data: demand }] = await Promise.all([
-      supabase
-        .from('product_coils')
-        .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
-        .eq('coil_category', 'hat_channel_brace'),
-      supabase
-        .from('order_items')
-        .select('linear_feet, products!inner(coil_category), orders!inner(status)')
-        .eq('products.coil_category', 'hat_channel_brace')
-        .not('linear_feet', 'is', null)
-        .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
-    ])
-    const committed = ((demand ?? []) as any[]).reduce((sum, d) => sum + Number(d.linear_feet || 0), 0)
-    const pool = pooledSupply((coils ?? []) as any, committed)
-    availability = { kind: 'pool', pool: { netFeet: pool.netFeet, onOrderFeet: 0, hasUnweighed: pool.hasUnweighed } }
   }
 
   return (
