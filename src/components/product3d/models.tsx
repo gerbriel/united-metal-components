@@ -567,33 +567,44 @@ function AugerAnchor() {
 }
 
 // ── Hex bolt (MHA bolts) ─────────────────────────────────────────────────────────
-// Plain zinc hex bolt: hex head with washer face, smooth shank, threaded lower
-// half, chamfered flat end (no drill point — it's a bolt, not a screw).
+// Plain zinc hex bolt kitted the way mobile-home anchor bolts ship: hex head,
+// smooth shank, threaded lower half, and TWO flat washers plus a hex nut run onto
+// the threads. Chamfered flat end (no drill point — it's a bolt, not a screw).
 function HexBolt() {
   const r = 0.07, shankL = 0.55, threadL = 0.38
   const thread = useMemo(() => screwThreadGeometry(r, 0.096, threadL, 8, 0.019), [])
   const top = 0.5
+  const shankBottom = top - shankL           // y where the threaded section begins
   return (
     <group rotation={[0, 0, Math.PI * 0.3]}>
-      {/* hex head + washer face */}
+      {/* hex head */}
       <mesh position={[0, top + 0.075, 0]} castShadow>
         <cylinderGeometry args={[0.155, 0.155, 0.13, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading />
       </mesh>
-      <mesh position={[0, top + 0.006, 0]} castShadow>
-        <cylinderGeometry args={[0.165, 0.165, 0.016, 28]} /><meshStandardMaterial {...SCREW_ZINC} />
+      {/* washer #1 — seated under the head */}
+      <mesh position={[0, top - 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.1, 0.026, 16, 32]} /><meshStandardMaterial {...SCREW_ZINC} />
       </mesh>
       {/* smooth shank, then threads */}
       <mesh position={[0, top - shankL / 2, 0]} castShadow>
         <cylinderGeometry args={[r, r, shankL, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
       </mesh>
-      <mesh geometry={thread} position={[0, top - shankL - threadL / 2 + 0.02, 0]} castShadow>
+      <mesh geometry={thread} position={[0, shankBottom - threadL / 2 + 0.02, 0]} castShadow>
         <meshStandardMaterial {...SCREW_ZINC} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={[0, top - shankL - threadL / 2 + 0.02, 0]} castShadow>
+      <mesh position={[0, shankBottom - threadL / 2 + 0.02, 0]} castShadow>
         <cylinderGeometry args={[r, r, threadL, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
       </mesh>
+      {/* washer #2 — sits on the threads above the nut */}
+      <mesh position={[0, shankBottom - 0.03, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <torusGeometry args={[0.1, 0.026, 16, 32]} /><meshStandardMaterial {...SCREW_ZINC} />
+      </mesh>
+      {/* hex nut run onto the threads */}
+      <mesh position={[0, shankBottom - 0.14, 0]} castShadow>
+        <cylinderGeometry args={[0.135, 0.135, 0.12, 6]} /><meshStandardMaterial {...SCREW_ZINC} flatShading />
+      </mesh>
       {/* chamfered flat end */}
-      <mesh position={[0, top - shankL - threadL + 0.006, 0]} castShadow>
+      <mesh position={[0, shankBottom - threadL + 0.006, 0]} castShadow>
         <cylinderGeometry args={[r, r * 0.72, 0.028, 24]} /><meshStandardMaterial {...SCREW_ZINC} />
       </mesh>
     </group>

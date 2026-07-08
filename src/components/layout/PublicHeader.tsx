@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package, ChevronDown } from 'lucide-react'
+import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
 import { NAV_CATEGORIES } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
@@ -81,48 +81,17 @@ export default function PublicHeader() {
               />
             </Link>
 
-            {/* Desktop nav */}
-            <nav className="hidden md:flex items-center">
-              {/* Products mega-menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger render={
-                  <button className="inline-flex items-center gap-1 px-3.5 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-md">
-                    Products
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </button>
-                } />
-                <DropdownMenuContent align="start" className="w-60">
-                  <DropdownMenuItem>
-                    <Link href="/products" className="flex items-center w-full font-medium">
-                      All Products
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
-                    <DropdownMenuItem key={slug}>
-                      <Link href={`/products?cat=${slug}`} className="flex items-center w-full gap-2.5">
-                        <Icon className="w-4 h-4 text-muted-foreground" />
-                        {label}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
+            {/* Actions */}
+            <div className="flex items-center gap-1.5">
               {navLinks.map((l) => (
                 <Link
                   key={l.href}
                   href={l.href}
-                  className="relative px-3.5 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors group"
+                  className="hidden md:inline-flex px-3 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
                 >
                   {l.label}
-                  <span className="absolute bottom-0.5 left-3.5 right-3.5 h-0.5 bg-orange-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left rounded-full" />
                 </Link>
               ))}
-            </nav>
-
-            {/* Actions */}
-            <div className="flex items-center gap-1.5">
               {/* Cart */}
               <Button variant="ghost" size="icon" className="relative" onClick={() => setCartOpen(true)}>
                 <ShoppingCart className="w-5 h-5" />
@@ -207,6 +176,31 @@ export default function PublicHeader() {
                 <Menu className="w-5 h-5" />
               </Button>
             </div>
+          </div>
+        </div>
+
+        {/* Category bar — mirrors the /products sidebar options */}
+        <div className="hidden md:block border-t border-slate-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex items-center gap-0.5 h-11 overflow-x-auto no-scrollbar">
+              <Link
+                href="/products"
+                className="shrink-0 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:text-primary transition-colors"
+              >
+                All Products
+              </Link>
+              <span className="shrink-0 w-px h-4 bg-slate-200 mx-1.5" />
+              {NAV_CATEGORIES.map(({ slug, label, Icon }) => (
+                <Link
+                  key={slug}
+                  href={`/products?cat=${slug}`}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </Link>
+              ))}
+            </nav>
           </div>
         </div>
       </header>

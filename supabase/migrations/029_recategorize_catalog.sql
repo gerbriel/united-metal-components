@@ -33,21 +33,23 @@ on conflict (slug) do nothing;
 
 -- ── 2. Re-home products by source category ─────────────────────────────────
 
--- Tubing  ← Square Tubing
+-- Tubing  ← Square Tubing + Inserts (inserts are short square-tube nipples)
 update public.products
 set category_id = (select id from public.product_categories where slug = 'tubing')
-where category_id = (select id from public.product_categories where slug = 'square-tubing');
+where category_id in (
+  select id from public.product_categories where slug in ('square-tubing', 'inserts-fasteners')
+);
 
 -- Bracing ← Braces
 update public.products
 set category_id = (select id from public.product_categories where slug = 'bracing')
 where category_id = (select id from public.product_categories where slug = 'braces');
 
--- Fasteners ← Screws + Inserts & Fasteners + Anchors
+-- Fasteners ← Screws + Anchors + Rebar (rebar is treated as an anchor)
 update public.products
 set category_id = (select id from public.product_categories where slug = 'fasteners')
 where category_id in (
-  select id from public.product_categories where slug in ('screws', 'inserts-fasteners', 'anchors')
+  select id from public.product_categories where slug in ('screws', 'anchors', 'rebar')
 );
 
 -- Doors & Windows ← Doors & Hardware + Windows + every garage-door model line
@@ -60,12 +62,17 @@ where category_id in (
   )
 );
 
--- Components ← Bundles + Foam + Moisture Barrier + Rebar + Tape + Welding
+-- Panels  ← Foam closure strips (die-cut to the panel profile, sold with panels)
+update public.products
+set category_id = (select id from public.product_categories where slug = 'panels')
+where category_id = (select id from public.product_categories where slug = 'foam');
+
+-- Components ← Bundles + Moisture Barrier + Tape + Welding
 update public.products
 set category_id = (select id from public.product_categories where slug = 'components')
 where category_id in (
   select id from public.product_categories where slug in (
-    'bundles', 'foam', 'moisture-barrier', 'rebar', 'tape', 'welding'
+    'bundles', 'moisture-barrier', 'tape', 'welding'
   )
 );
 
@@ -74,14 +81,35 @@ update public.products
 set category_id = (select id from public.product_categories where slug = 'trim')
 where category_id = (select id from public.product_categories where slug = 'trim-components');
 
--- ... then pull the non-trim members of that old category into Components.
--- (Hat channel, L-bracket, and the legacy combined foam strip are structural /
---  accessory items, not trim.)
+-- ... then redistribute the non-trim members of that old category:
+--   hat channel + L-bracket are structural accessories → Components
 update public.products
 set category_id = (select id from public.product_categories where slug = 'components')
-where sku in ('HAT-CHANNEL', 'L-BRACKET', 'FOAM-STRIP');
+where sku in ('HAT-CHANNEL', 'L-BRACKET');
+--   the legacy combined foam closure strip joins the panel section
+update public.products
+set category_id = (select id from public.product_categories where slug = 'panels')
+where sku = 'FOAM-STRIP';
 
--- ── 3. Prune emptied legacy categories ─────────────────────────────────────
+-- ── 3. Product cleanup & labeling ──────────────────────────────────────────
+-- Asphalt anchors are also sold as "rock" anchors; reflect both names on the one
+-- product (it stays a standalone card — concrete and mobile-home anchors are the
+-- ones grouped with a size/option dropdown, see VARIANT_GROUPS).
+update public.products
+set name = 'Asphalt / Rock Anchors'
+where sku = 'ASPHALT-ANCHOR';
+
+-- Retire stray screw SKUs so Fasteners shows just the two screw products (with /
+-- without washers, each with box/bag + colored options). Soft-delete (active =
+-- false) to preserve order history:
+--   SCREWS-COLOR      — legacy $0 price-modifier, superseded by the color picker
+--   SCREWS-BAG-250    — duplicates SCREWS-BAG-W (250 ct washered bag)
+--   SCREWS-STITCH-BAG — stitch screws, not sold online
+update public.products
+set active = false
+where sku in ('SCREWS-COLOR', 'SCREWS-BAG-250', 'SCREWS-STITCH-BAG');
+
+-- ── 4. Prune emptied legacy categories ─────────────────────────────────────
 -- Deletes only categories that no product (active or otherwise) still points at,
 -- so base-rail and trusses (which retain their inactive SKUs) survive, and the
 -- reused 'panels' bucket is untouched.

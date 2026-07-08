@@ -125,14 +125,13 @@ const BY_CATEGORY: Record<string, Archetype> = {
   'bundles': 'bundle',
   'inserts-fasteners': 'square-tube',
   'trim-components': 'trim-l',
-  // Consolidated storefront buckets (migration 029). Each bucket falls back to
-  // the archetype its category-fallback-dependent members need; every mixed item
-  // is pinned by SKU above, so these only catch the homogeneous remainder.
-  'tubing': 'square-tube',   // all TUBE-* sizes
+  // Consolidated storefront buckets (migration 029). Only the homogeneous
+  // buckets get a category fallback; mixed buckets (fasteners = screw/anchor/
+  // rebar, doors-windows = door/window) resolve by SKU or SKU pattern instead,
+  // so they are intentionally absent here.
+  'tubing': 'square-tube',   // all TUBE-* sizes + inserts
   'bracing': 'brace',        // cross braces
   'trim': 'trim-l',          // generic trim profile
-  'fasteners': 'screw',      // screws (inserts / anchors pinned by SKU)
-  'doors-windows': 'window', // windows (garage via SKU regex, walk-ins by SKU)
   'components': 'box',       // mixed accessories — members pinned by SKU
 }
 
@@ -165,6 +164,11 @@ export function resolveModel(product: {
     (/^(GARAGE|MINI650|ACERO|M2000|M2500|M3100)/.test(sku) ? 'garage-door' : undefined) ??
     // Skylights live in the panels category but are white translucent plastic.
     (sku.startsWith('SKYLIGHT') ? 'skylight' : undefined) ??
+    // SKU-pattern nets for the mixed buckets, where a single category fallback
+    // can't be right for every member: screws (SCREWS-*) and windows (WIN-*).
+    // Specific SKUs (e.g. WIN-36X36 → window-grid) are already caught by BY_SKU.
+    (sku.startsWith('SCREWS') ? 'screw' : undefined) ??
+    (sku.startsWith('WIN') ? 'window' : undefined) ??
     BY_CATEGORY[slug] ??
     // Door category slugs: mini-650-doors, acero-doors, model-2000-doors, …
     (slug.endsWith('-doors') ? 'garage-door' : undefined) ??

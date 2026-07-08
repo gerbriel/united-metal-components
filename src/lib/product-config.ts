@@ -97,11 +97,13 @@ export const VARIANT_GROUPS: VariantGroup[] = [
     selectLabel: 'Package',
     colors: true, // washered screws are painted to match panel colors
     members: [
+      // Plain (bare-zinc washer head) packages
       { sku: 'SCREWS-BOX-W',         label: 'Box (3,000 ct)' },
-      { sku: 'SCREWS-BAG-W',         label: 'Bag (250 ct)' },
       { sku: 'SCREWS-BOX-125',       label: 'Box (125 ct)' },
-      { sku: 'SCREWS-BOX-W-PAINTED', label: '1½" Painted — Box' },
-      { sku: 'SCREWS-BAG-W-PAINTED', label: '1½" Painted — Bag' },
+      { sku: 'SCREWS-BAG-W',         label: 'Bag (250 ct)' },
+      // Colored (painted to match panel color) — washered screws only
+      { sku: 'SCREWS-BOX-W-PAINTED', label: 'Box (1½")', section: 'Colored' },
+      { sku: 'SCREWS-BAG-W-PAINTED', label: 'Bag (1½")', section: 'Colored' },
     ],
   },
   {
@@ -112,6 +114,24 @@ export const VARIANT_GROUPS: VariantGroup[] = [
     members: [
       { sku: 'SCREWS-BOX-WO', label: 'Box (3,000 ct)' },
       { sku: 'SCREWS-BAG-WO', label: 'Bag (250 ct)' },
+    ],
+  },
+  {
+    key: 'concrete-anchors',
+    name: 'Concrete Anchors',
+    selectLabel: 'Size',
+    members: [
+      { sku: 'CONC-5-SHORT', label: '5" Short' },
+      { sku: 'CONC-7-LONG',  label: '7" Long' },
+    ],
+  },
+  {
+    key: 'mobile-home-anchors',
+    name: 'Mobile Home Anchors',
+    selectLabel: 'Option',
+    members: [
+      { sku: 'MHA',       label: 'Anchor' },
+      { sku: 'MHA-BOLTS', label: 'Bolts' },
     ],
   },
 ]
