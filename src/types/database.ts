@@ -13,7 +13,6 @@ export type OrderStatus =
 export type NotificationType = 'order_update' | 'newsletter' | 'system'
 export type SubscriberStatus = 'active' | 'unsubscribed'
 export type CampaignStatus = 'draft' | 'scheduled' | 'sent'
-export type PostStatus = 'draft' | 'scheduled' | 'published' | 'failed'
 
 export interface Database {
   public: {
@@ -205,21 +204,6 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['crm_notes']['Row'], 'id' | 'created_at'>
         Update: never
       }
-      social_posts: {
-        Row: {
-          id: number
-          content: string
-          image_url: string | null
-          platforms: string[]
-          status: PostStatus
-          scheduled_at: string | null
-          published_at: string | null
-          created_by: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['social_posts']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['social_posts']['Insert']>
-      }
       newsletter_campaign_recipients: {
         Row: {
           id: number
@@ -256,7 +240,6 @@ export interface Database {
       notification_type: NotificationType
       subscriber_status: SubscriberStatus
       campaign_status: CampaignStatus
-      post_status: PostStatus
     }
   }
 }
@@ -274,7 +257,6 @@ export type OrderItemLoading = Database['public']['Tables']['order_item_loading'
 export type NewsletterSubscriber = Database['public']['Tables']['newsletter_subscribers']['Row']
 export type NewsletterCampaign = Database['public']['Tables']['newsletter_campaigns']['Row']
 export type CrmNote = Database['public']['Tables']['crm_notes']['Row']
-export type SocialPost = Database['public']['Tables']['social_posts']['Row']
 export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row']
 
 export type NewsletterCampaignRecipient = Database['public']['Tables']['newsletter_campaign_recipients']['Row']

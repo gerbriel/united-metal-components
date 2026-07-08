@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, Pencil, CheckCircle, XCircle, Package, FileText, Mail, Download } from 'lucide-react'
+import { Loader2, Pencil, CheckCircle, XCircle, Package, FileText, Mail, Download, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import type { PurchaseOrder } from './PurchaseOrderForm'
 import type { Vendor } from './VendorManager'
 import PurchaseOrderForm from './PurchaseOrderForm'
@@ -27,6 +27,7 @@ export default function POActions({ po, vendors, isAdmin }: Props) {
   const [receiveOpen, setReceiveOpen] = useState(false)
   const [emailOpen, setEmailOpen] = useState(false)
   const [pdfFilename, setPdfFilename] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().slice(0, 10))
   const router = useRouter()
   const supabase = createClient()
@@ -81,6 +82,26 @@ export default function POActions({ po, vendors, isAdmin }: Props) {
     setReceiveOpen(false)
   }
 
+  const setArchived = async (value: boolean) => {
+    setLoading(value ? 'archive' : 'unarchive')
+    const { error } = await supabase.from('purchase_orders').update({ archived: value }).eq('id', po.id)
+    if (error) { toast.error('Failed to update PO'); setLoading(null); return }
+    toast.success(value ? 'PO archived' : 'PO restored')
+    router.refresh()
+    if (value) router.push('/dashboard/purchase-orders')
+    setLoading(null)
+  }
+
+  const hardDelete = async () => {
+    setLoading('delete')
+    const { error } = await supabase.from('purchase_orders').delete().eq('id', po.id)
+    if (error) { toast.error('Failed to delete PO'); setLoading(null); return }
+    toast.success('PO permanently deleted')
+    router.push('/dashboard/purchase-orders')
+    router.refresh()
+  }
+
+  const isArchived = !!(po as any).archived
   const canSubmit  = po.status === 'draft'
   const canReceive = po.status === 'submitted' || po.status === 'partial'
   const canCancel  = po.status === 'draft' || po.status === 'submitted'
@@ -225,6 +246,50 @@ export default function POActions({ po, vendors, isAdmin }: Props) {
             <CheckCircle className="w-3.5 h-3.5" />
             Order fully received
           </p>
+        )}
+
+        {isAdmin && (
+          <div className="pt-2 mt-2 border-t space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              size="sm"
+              onClick={() => setArchived(!isArchived)}
+              disabled={!!loading}
+            >
+              {loading === 'archive' || loading === 'unarchive'
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : isArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+              {isArchived ? 'Restore PO' : 'Archive PO'}
+            </Button>
+
+            {confirmDelete ? (
+              <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-xs text-red-700">
+                  Permanently delete this PO and its line items? This cannot be undone and unlinks any received coils.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="destructive" size="sm" className="flex-1 gap-2" onClick={hardDelete} disabled={!!loading}>
+                    {loading === 'delete' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Delete
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => setConfirmDelete(false)} disabled={!!loading}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                size="sm"
+                onClick={() => setConfirmDelete(true)}
+                disabled={!!loading}
+              >
+                <Trash2 className="w-4 h-4" />Delete permanently
+              </Button>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

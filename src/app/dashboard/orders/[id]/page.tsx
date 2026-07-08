@@ -6,7 +6,8 @@ import UpdateOrderStatus from '@/components/shared/UpdateOrderStatus'
 import StagingChecklist from '@/components/shared/StagingChecklist'
 import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
-import { ORDER_STATUS_LABEL, isWarehouseRole } from '@/types/database'
+import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
+import OrderAdminActions from '@/components/shared/OrderAdminActions'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
 import { orderColorAvailability, openPoCoilFlags, OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
@@ -43,6 +44,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
     .single()
 
   const isWarehouse = isWarehouseRole((viewer as any)?.role)
+  const isAdmin     = isAdminRole((viewer as any)?.role ?? '')
 
   const { data: order } = await supabase
     .from('orders')
@@ -298,6 +300,10 @@ export default async function DashboardOrderDetail({ params }: Props) {
             customerNoDefectsAt={order.customer_no_defects_at ?? null}
             warehouseMode={isWarehouse}
           />
+
+          {isAdmin && (
+            <OrderAdminActions orderId={order.id} archived={order.archived ?? false} />
+          )}
 
           {/* Customer info */}
           <Card>

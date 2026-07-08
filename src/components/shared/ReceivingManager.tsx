@@ -95,9 +95,13 @@ function defaultAstmFor(codes: AstmCode[], cat: string): string {
 }
 
 export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos }: Props) {
+  // All tubing is a single product — no product picker; bundles auto-link to it.
+  const tubeProductId = tubeProducts[0]?.id ?? null
+  const bundleDefaults = { ...EMPTY_BUNDLE, product_id: tubeProductId != null ? String(tubeProductId) : '' }
+
   const [tab, setTab]           = useState<ReceiveTab>('panel')
   const [coilForm, setCoilForm] = useState({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
-  const [bundleForm, setBundleForm] = useState(EMPTY_BUNDLE)
+  const [bundleForm, setBundleForm] = useState(bundleDefaults)
   const [coilLoading, setCoilLoading]   = useState(false)
   const [bundleLoading, setBundleLoading] = useState(false)
   const [lastCoil, setLastCoil]   = useState<string | null>(null)
@@ -197,8 +201,9 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
   }
 
   const handleReceiveBundle = async () => {
-    if (!bundleForm.product_id || !bundleForm.gauge || !bundleForm.length_feet || !bundleForm.pieces_per_bundle || !bundleForm.total_bundles) {
-      toast.error('Product, gauge, length, pieces/bundle, and total bundles are required')
+    if (!bundleForm.product_id) { toast.error('No tube product configured'); return }
+    if (!bundleForm.gauge || !bundleForm.length_feet || !bundleForm.pieces_per_bundle || !bundleForm.total_bundles) {
+      toast.error('Gauge, length, pieces/bundle, and total bundles are required')
       return
     }
     setBundleLoading(true)
@@ -238,7 +243,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       `${total} bundles · ${pcs} pieces · ${bundleForm.length_feet} ft · ${bundleForm.gauge} GA`
     )
     toast.success('Bundle batch received')
-    setBundleForm(EMPTY_BUNDLE)
+    setBundleForm(bundleDefaults)
     setBundleLoading(false)
   }
 
@@ -449,18 +454,6 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Product *</Label>
-              <Select value={bundleForm.product_id} onValueChange={setB('product_id')}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  {tubeProducts.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-1.5">
               <Label>Gauge *</Label>
               <Select value={bundleForm.gauge} onValueChange={setB('gauge')}>

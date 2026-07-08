@@ -50,6 +50,7 @@ export interface PurchaseOrder {
   notes: string | null
   subtotal: number | null
   total: number | null
+  archived?: boolean
   vendors?: { name: string } | null
   purchase_order_items?: POItem[]
 }

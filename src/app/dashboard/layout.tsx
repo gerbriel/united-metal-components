@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, Share2, ShieldCheck, ShoppingBag, Building2, CheckSquare, Calculator } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, ShieldCheck, ShoppingBag, Building2, CheckSquare, Calculator } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
@@ -16,7 +16,6 @@ const ALL_NAV = [
   { href: '/dashboard/crm',               label: 'CRM',             icon: Users,           warehouseOk: false },
   { href: '/dashboard/analytics',          label: 'Analytics',       icon: BarChart3,       warehouseOk: false },
   { href: '/dashboard/newsletter',         label: 'Newsletter',      icon: Mail,            warehouseOk: false },
-  { href: '/dashboard/social',             label: 'Social Posts',    icon: Share2,          warehouseOk: false },
 ]
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

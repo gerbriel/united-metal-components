@@ -31,12 +31,16 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
 
   const isWarehouse = isWarehouseRole((profile as any)?.role)
   const isAdmin     = isAdminRole((profile as any)?.role ?? '')
-  const effectiveStatus = status ?? (isWarehouse ? 'confirmed' : 'pending')
+  const showArchived = isAdmin && status === 'archived'
+  const effectiveStatus = showArchived ? 'all' : (status ?? (isWarehouse ? 'confirmed' : 'pending'))
 
   let query = supabase
     .from('orders')
     .select('id, status, total, created_at, profiles(first_name, last_name, full_name, phone, pricing_tier), order_items(id)')
     .order('created_at', { ascending: false })
+
+  // Archived orders are hidden everywhere except the admin-only Archived view.
+  query = showArchived ? query.eq('archived', true) : query.eq('archived', false)
 
   if (isWarehouse) {
     if (effectiveStatus && WAREHOUSE_STATUSES_IN.includes(effectiveStatus)) {
@@ -88,6 +92,16 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
             {s === 'all' ? 'All' : (ORDER_STATUS_LABEL[s] ?? s)}
           </Link>
         ))}
+        {isAdmin && (
+          <Link
+            href={tabHref('archived')}
+            className={`px-3 py-1.5 rounded-md text-xs whitespace-nowrap font-medium transition-colors ${
+              showArchived ? 'bg-primary text-white' : 'bg-white border hover:bg-slate-50'
+            }`}
+          >
+            Archived
+          </Link>
+        )}
       </div>
 
       <OrdersClientShell

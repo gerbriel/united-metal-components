@@ -113,6 +113,7 @@ export default function TVModePage() {
         order_items(id, item_color, products(name, product_type, coil_category))
       `)
       .in('status', TV_STATUSES as unknown as string[])
+      .eq('archived', false)
       // For completed: only last 24h. For active: all.
       // Filter applied in JS below — simpler than a complex OR query.
       .order('created_at', { ascending: true })

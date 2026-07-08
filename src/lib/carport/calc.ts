@@ -271,8 +271,9 @@ export function calculateBom(
   if (hasRidge && length > 0) {
     const capLen = rules.ridgeCapPieceLength > 0 ? rules.ridgeCapPieceLength : 11
     lines.push({
+      // Ridge cap always matches the roof panel color, not the trim color.
       category: 'Roof', item: 'Ridge cap', qty: Math.ceil(length / capLen), unit: 'pieces',
-      detail: trimColor, sku: 'RIDGE-CAP',
+      detail: roofColor, sku: 'RIDGE-CAP',
     })
   }
 

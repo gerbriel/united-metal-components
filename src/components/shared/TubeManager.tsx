@@ -86,13 +86,21 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
   const [bundles, setBundles] = useState<TubeBundle[]>(initialBundles)
   const [coilOptions, setCoilOptions] = useState<{ id: number; coil_identifier: string; gauge: string }[]>([])
 
+  // All tubing is a single product, so there's no product picker — the forms
+  // auto-link to that one tube product and are keyed by gauge + length instead.
+  const tubeProductId = tubeProducts[0]?.id ?? null
+  const withProduct = <T extends { product_id: string }>(base: T): T => ({
+    ...base,
+    product_id: tubeProductId != null ? String(tubeProductId) : '',
+  })
+
   const [specOpen,   setSpecOpen]   = useState(false)
   const [bundleOpen, setBundleOpen] = useState(false)
   const [specLoading,   setSpecLoading]   = useState(false)
   const [bundleLoading, setBundleLoading] = useState(false)
 
-  const [specForm,   setSpecForm]   = useState(EMPTY_SPEC_FORM)
-  const [bundleForm, setBundleForm] = useState(EMPTY_BUNDLE_FORM)
+  const [specForm,   setSpecForm]   = useState(() => withProduct(EMPTY_SPEC_FORM))
+  const [bundleForm, setBundleForm] = useState(() => withProduct(EMPTY_BUNDLE_FORM))
 
   const [countEditing, setCountEditing] = useState<number | null>(null)
   const [countForm, setCountForm] = useState({ available_bundles: '', available_pieces: '' })
@@ -179,8 +187,9 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     }))
 
   const handleAddSpec = async () => {
-    if (!specForm.product_id || !specForm.gauge || !specForm.price_per_linear_foot) {
-      toast.error('Product, gauge, and price/ft are required')
+    if (!specForm.product_id) { toast.error('No tube product configured'); return }
+    if (!specForm.gauge || !specForm.price_per_linear_foot) {
+      toast.error('Gauge and price/ft are required')
       return
     }
     if (specForm.available_lengths_ft.length === 0) {
@@ -198,14 +207,15 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     if (error) { toast.error(error.message); setSpecLoading(false); return }
     toast.success('Tube spec added')
     setSpecOpen(false)
-    setSpecForm(EMPTY_SPEC_FORM)
+    setSpecForm(withProduct(EMPTY_SPEC_FORM))
     await fetchAll()
     setSpecLoading(false)
   }
 
   const handleAddBundle = async () => {
-    if (!bundleForm.product_id || !bundleForm.gauge || !bundleForm.length_feet || !bundleForm.pieces_per_bundle || !bundleForm.total_bundles) {
-      toast.error('Product, gauge, length, pieces/bundle, and total bundles are required')
+    if (!bundleForm.product_id) { toast.error('No tube product configured'); return }
+    if (!bundleForm.gauge || !bundleForm.length_feet || !bundleForm.pieces_per_bundle || !bundleForm.total_bundles) {
+      toast.error('Gauge, length, pieces/bundle, and total bundles are required')
       return
     }
     setBundleLoading(true)
@@ -226,7 +236,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     if (error) { toast.error(error.message); setBundleLoading(false); return }
     toast.success('Bundle batch added')
     setBundleOpen(false)
-    setBundleForm(EMPTY_BUNDLE_FORM)
+    setBundleForm(withProduct(EMPTY_BUNDLE_FORM))
     await fetchAll()
     setBundleLoading(false)
   }
@@ -283,17 +293,6 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                 <DialogHeader><DialogTitle>Add Tube Spec</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-2">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Product *</Label>
-                      <Select value={specForm.product_id} onValueChange={setS('product_id')}>
-                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                        <SelectContent>
-                          {tubeProducts.map((p) => (
-                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div className="space-y-1.5">
                       <Label>Gauge *</Label>
                       <Select value={specForm.gauge} onValueChange={setS('gauge')}>
@@ -446,17 +445,6 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                 <DialogContent className="max-w-lg">
                   <DialogHeader><DialogTitle>Add Bundle Batch</DialogTitle></DialogHeader>
                   <div className="grid grid-cols-2 gap-4 py-2">
-                    <div className="space-y-1.5">
-                      <Label>Product *</Label>
-                      <Select value={bundleForm.product_id} onValueChange={setB('product_id')}>
-                        <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                        <SelectContent>
-                          {tubeProducts.map((p) => (
-                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div className="space-y-1.5">
                       <Label>Gauge *</Label>
                       <Select value={bundleForm.gauge} onValueChange={setB('gauge')}>

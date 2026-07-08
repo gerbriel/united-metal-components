@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { STAFF_ROLES } from '@/types/database'
+import { STAFF_ROLES, isAdminRole } from '@/types/database'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
@@ -36,13 +36,19 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
   const role = (profile as any)?.role ?? ''
   if (!STAFF_ROLES.includes(role) || role === 'warehouse_employee') redirect('/dashboard')
 
+  const isAdmin = isAdminRole(role)
+  const showArchived = isAdmin && status === 'archived'
+
   let query = supabase
     .from('purchase_orders')
     .select('*, vendors(name), purchase_order_items(id)')
     .order('created_at', { ascending: false })
 
+  // Archived POs are hidden except in the admin-only Archived view.
+  query = showArchived ? query.eq('archived', true) : query.eq('archived', false)
+
   if (vendor) query = query.eq('vendor_id', vendor)
-  if (status) query = query.eq('status', status)
+  if (status && !showArchived) query = query.eq('status', status)
 
   const { data: orders } = await query
 
@@ -76,6 +82,18 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
             {s === 'all' ? 'All' : STATUS_LABEL[s]}
           </Link>
         ))}
+        {isAdmin && (
+          <Link
+            href="/dashboard/purchase-orders?status=archived"
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              showArchived
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-border hover:bg-muted text-muted-foreground'
+            }`}
+          >
+            Archived
+          </Link>
+        )}
       </div>
 
       <Card>
