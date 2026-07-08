@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import ProductGrid from '@/components/shared/ProductGrid'
+import ProductBrowser from '@/components/shared/ProductBrowser'
 import { applyAllProductOverrides } from '@/lib/product-overrides'
-import { groupCatalog } from '@/lib/catalogGroups'
 import { getNavCategories } from '@/lib/categories'
 import type { Metadata } from 'next'
 
@@ -20,44 +20,33 @@ export default async function ProductsPage({ searchParams }: Props) {
   // bar / home cards / footer via getNavCategories).
   const categories = await getNavCategories()
 
-  // Build query. Category filtering happens after display overrides so items
-  // re-homed on the front end (see product-overrides) land in the right category.
-  let query = supabase
+  // Fetch the whole active catalog once; search / sort / stock filtering happens
+  // client-side in ProductBrowser (category scoping stays URL-driven for the
+  // sidebar + shareable links). Overrides run first so re-homed items land in the
+  // right category.
+  const { data: rawProducts } = await supabase
     .from('products')
     .select('*, product_categories(name, slug)')
     .eq('active', true)
     .order('name')
-
-  if (q) query = query.ilike('name', `%${q}%`)
-
-  const { data: rawProducts } = await query
-  let products = applyAllProductOverrides(rawProducts ?? [])
-  if (cat) products = products.filter((p) => p.product_categories?.slug === cat)
+  const products = applyAllProductOverrides(rawProducts ?? [])
 
   const activeCategory = categories?.find((c) => c.slug === cat)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">
-          {activeCategory ? activeCategory.name : q ? `Search: "${q}"` : 'All Products'}
-        </h1>
-        {/* Count what the grid actually shows: door lines and variant groups are one product each */}
-        <p className="text-muted-foreground mt-1">{groupCatalog(products).length} products</p>
-      </div>
-
-      {/* Mobile: horizontal scrollable filter pills */}
+      {/* Mobile: horizontal scrollable category pills */}
       <div className="lg:hidden mb-6 -mx-4 px-4">
         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-          <a href="/products"
+          <Link href="/products"
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${!cat ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
             All
-          </a>
+          </Link>
           {categories?.map((c) => (
-            <a key={c.slug} href={`/products?cat=${c.slug}`}
+            <Link key={c.slug} href={`/products?cat=${c.slug}`}
               className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${cat === c.slug ? 'bg-primary text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
               {c.name}
-            </a>
+            </Link>
           ))}
         </div>
       </div>
@@ -68,23 +57,23 @@ export default async function ProductsPage({ searchParams }: Props) {
           <h2 className="font-semibold mb-3 text-sm uppercase tracking-wide text-muted-foreground">Categories</h2>
           <ul className="space-y-1">
             <li>
-              <a href="/products" className={`block px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors ${!cat ? 'bg-primary text-white' : ''}`}>
+              <Link href="/products" className={`block px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors ${!cat ? 'bg-primary text-white' : ''}`}>
                 All Products
-              </a>
+              </Link>
             </li>
             {categories?.map((c) => (
               <li key={c.slug}>
-                <a href={`/products?cat=${c.slug}`} className={`block px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors ${cat === c.slug ? 'bg-primary text-white' : ''}`}>
+                <Link href={`/products?cat=${c.slug}`} className={`block px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors ${cat === c.slug ? 'bg-primary text-white' : ''}`}>
                   {c.name}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
         </aside>
 
-        {/* Product grid */}
-        <div className="flex-1">
-          <ProductGrid products={products} />
+        {/* Search / sort / filter + grid */}
+        <div className="flex-1 min-w-0">
+          <ProductBrowser products={products} cat={cat} categoryName={activeCategory?.name} initialQuery={q} />
         </div>
       </div>
     </div>
