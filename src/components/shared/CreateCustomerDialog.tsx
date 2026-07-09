@@ -31,6 +31,14 @@ export default function CreateCustomerDialog({
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((s) => ({ ...s, [k]: e.target.value }))
 
+  // Filling in an email implies they can have a login — default to creating the
+  // account (and emailing a set-password link). Staff can still uncheck it.
+  const setEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value
+    setF((s) => ({ ...s, email }))
+    if (email.trim()) setMakeAccount(true)
+  }
+
   const displayName =
     [f.first_name, f.last_name].filter(Boolean).join(' ') || f.company_name || f.email || 'Customer'
 
@@ -52,6 +60,11 @@ export default function CreateCustomerDialog({
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error(json.error ?? 'Failed to create account'); setSaving(false); return }
       newId = json.id ?? null
+      toast[json.emailed ? 'success' : 'warning'](
+        json.emailed
+          ? `Account created — a set-password link was emailed to ${f.email}`
+          : 'Account created, but the set-password email could not be sent. The customer can use “forgot password.”',
+      )
     } else {
       const { data, error } = await supabase.rpc('staff_create_customer', {
         p_first: f.first_name,
@@ -64,7 +77,7 @@ export default function CreateCustomerDialog({
       newId = (data as string) ?? null
     }
 
-    toast.success(makeAccount ? 'Customer account created' : 'Customer created')
+    if (!makeAccount) toast.success('Customer created')
     setOpen(false)
     setF({ first_name: '', last_name: '', email: '', phone: '', company_name: '' })
     setMakeAccount(false)
@@ -97,7 +110,7 @@ export default function CreateCustomerDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Email{makeAccount ? ' *' : ''}</Label>
-            <Input type="email" value={f.email} onChange={set('email')} placeholder="Optional" />
+            <Input type="email" value={f.email} onChange={setEmail} placeholder="Optional" />
           </div>
           <div className="space-y-1.5">
             <Label>Phone</Label>
@@ -105,11 +118,12 @@ export default function CreateCustomerDialog({
           </div>
           <label className="col-span-2 flex items-center gap-2 text-sm mt-1">
             <input type="checkbox" checked={makeAccount} onChange={(e) => setMakeAccount(e.target.checked)} />
-            Create a login account (customer can sign in and see their orders)
+            Create a login account &amp; email a set-password link
           </label>
           {makeAccount && (
             <p className="col-span-2 text-xs text-muted-foreground">
-              The customer sets their password later via &ldquo;forgot password.&rdquo;
+              We&apos;ll email {f.email || 'the customer'} a link to set their own password. You can add
+              orders to this customer right away — they don&apos;t need to set it first.
             </p>
           )}
         </div>

@@ -30,7 +30,9 @@ export async function POST(req: Request) {
   const full_name = [first_name, last_name].filter(Boolean).join(' ') || null
   const { data, error } = await admin.auth.admin.createUser({
     email,
-    email_confirm: true, // no verification email; customer sets a password via "forgot password"
+    // Pre-confirm the email so the account is immediately usable — staff can
+    // attach orders right away, before the customer has set a password.
+    email_confirm: true,
     user_metadata: {
       first_name: first_name || null,
       last_name: last_name || null,
@@ -40,5 +42,14 @@ export async function POST(req: Request) {
     },
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ id: data.user?.id, name: full_name })
+
+  // Email the customer a link to set their own password (Supabase recovery flow;
+  // lands on /reset-password). Best-effort — the account already exists and is
+  // order-ready, so a mail hiccup (rate limit, etc.) must not fail creation.
+  const origin = req.headers.get('origin') ?? new URL(req.url).origin
+  const { error: mailError } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/reset-password`,
+  })
+
+  return NextResponse.json({ id: data.user?.id, name: full_name, emailed: !mailError })
 }
