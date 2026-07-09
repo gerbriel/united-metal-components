@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isAdminRole, isStaffRole } from '@/types/database'
 import PricingTierManager, { type PricingTierRow } from '@/components/shared/PricingTierManager'
+import TierPriceMatrix, { type MatrixProduct, type TierPriceMap } from '@/components/shared/TierPriceMatrix'
+import { getPricingTiers } from '@/lib/pricing-tiers.server'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Pricing Tiers — Dashboard' }
@@ -17,9 +19,12 @@ export default async function PricingTiersPage() {
   if (!isStaffRole(role)) redirect('/')
   if (!isAdminRole(role)) redirect('/dashboard')
 
-  const [{ data: tiers }, { data: profiles }] = await Promise.all([
+  const [{ data: tiers }, { data: profiles }, { data: products }, { data: overrides }, activeTiers] = await Promise.all([
     supabase.from('pricing_tiers').select('*').order('sort_order').order('label'),
     supabase.from('profiles').select('pricing_tier'),
+    supabase.from('products').select('id, name, sku, price, unit').eq('active', true).order('name'),
+    supabase.from('product_tier_prices').select('product_id, tier_key, price'),
+    getPricingTiers({ activeOnly: true }),
   ])
 
   // How many customers are on each tier — drives the "reassign first" delete guard.
@@ -32,6 +37,14 @@ export default async function PricingTiersPage() {
     (t: Omit<PricingTierRow, 'usageCount'>) => ({ ...t, usageCount: counts.get(t.key) ?? 0 }),
   )
 
+  // Per-item tier prices, keyed `${productId}:${tierKey}` for the matrix editor.
+  const priceMap: TierPriceMap = {}
+  for (const o of overrides ?? []) {
+    const row = o as { product_id: number; tier_key: string; price: number | string }
+    priceMap[`${row.product_id}:${row.tier_key}`] = Number(row.price)
+  }
+  const matrixProducts = (products ?? []) as MatrixProduct[]
+
   return (
     <div className="space-y-5">
       <div>
@@ -42,6 +55,14 @@ export default async function PricingTiersPage() {
         </p>
       </div>
       <PricingTierManager initial={rows} />
+
+      <div className="pt-4 border-t">
+        <h2 className="text-lg font-bold">Item Prices by Tier</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Set a per-tier price for any product. Blank cells charge the product&apos;s base price.
+        </p>
+        <TierPriceMatrix products={matrixProducts} tiers={activeTiers} initialPrices={priceMap} />
+      </div>
     </div>
   )
 }
