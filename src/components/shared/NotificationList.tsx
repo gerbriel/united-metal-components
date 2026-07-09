@@ -5,6 +5,7 @@ import { Bell, Package, X } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 interface Notification {
   id: number
@@ -46,13 +47,17 @@ export default function NotificationList({ userId, initialNotifications }: Props
   }, [userId])
 
   const dismiss = async (id: number) => {
+    const snapshot = items
     setItems((prev) => prev.filter((n) => n.id !== id))
-    await supabase.from('notifications').delete().eq('id', id)
+    const { error } = await supabase.from('notifications').delete().eq('id', id)
+    if (error) { setItems(snapshot); toast.error('Could not dismiss notification') }
   }
 
   const clearAll = async () => {
+    const snapshot = items
     setItems([])
-    await supabase.from('notifications').delete().eq('user_id', userId)
+    const { error } = await supabase.from('notifications').delete().eq('user_id', userId)
+    if (error) { setItems(snapshot); toast.error('Could not clear notifications') }
   }
 
   if (items.length === 0) {

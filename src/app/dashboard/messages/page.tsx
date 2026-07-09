@@ -35,7 +35,7 @@ export default async function MessagesPage() {
         </p>
       </div>
 
-      <ContactMessageList initial={(messages ?? []) as ContactMessage[]} />
+      <ContactMessageList initial={(messages ?? []) as ContactMessage[]} canDelete={isAdminRole(role)} />
     </div>
   )
 }
