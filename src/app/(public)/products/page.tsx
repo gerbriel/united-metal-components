@@ -73,7 +73,9 @@ export default async function ProductsPage({ searchParams }: Props) {
 
         {/* Search / sort / filter + grid */}
         <div className="flex-1 min-w-0">
-          <ProductBrowser products={products} cat={cat} categoryName={activeCategory?.name} initialQuery={q} />
+          {/* key on q: a new header search remounts the browser so its internal
+              query state re-seeds from the URL (category nav keeps its state) */}
+          <ProductBrowser key={q ?? ''} products={products} cat={cat} categoryName={activeCategory?.name} initialQuery={q} />
         </div>
       </div>
     </div>

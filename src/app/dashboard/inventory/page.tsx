@@ -32,12 +32,13 @@ export default async function InventoryPage() {
     supabase
       .from('products')
       .select('*, product_categories(id, name, slug, sort_order, icon)')
+      .order('sort_order')
       .order('name'),
     supabase.from('product_categories').select('*').order('sort_order').order('name'),
   ])
 
-  // Group products under their category, in the same order the storefront uses
-  // (category sort_order); products keep their name order within each group.
+  // Group products under their category (category sort_order). Within each group
+  // products keep the admin-set sort_order (name as tiebreak) from the query.
   const byCat = new Map<number, InvProduct[]>()
   for (const p of (products ?? []) as InvProduct[]) {
     const cid = p.product_categories?.id ?? -1

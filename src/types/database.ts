@@ -80,11 +80,13 @@ export interface Database {
           stock_qty: number
           image_url: string | null
           active: boolean
+          sort_order: number
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['products']['Row'], 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Database['public']['Tables']['products']['Insert']>
+        // sort_order has a DB default (0), so it's optional on insert.
+        Insert: Omit<Database['public']['Tables']['products']['Row'], 'id' | 'created_at' | 'updated_at' | 'sort_order'> & { sort_order?: number }
+        Update: Partial<Omit<Database['public']['Tables']['products']['Row'], 'id' | 'created_at' | 'updated_at'>>
       }
       orders: {
         Row: {

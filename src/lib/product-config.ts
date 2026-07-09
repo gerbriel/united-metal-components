@@ -171,15 +171,25 @@ export const PANEL_LENGTHS = [16, 21, 26, 31]
 export const HAT_CHANNEL_LENGTHS = [2, 3, 16, 21, 26, 31]
 export const BRACE_LENGTHS = [2, 3]
 
+// Overstock panels are discrete pre-made pieces tracked in panel_overstock
+// (migration 032). Their color/length options come from live inventory rows, not
+// the coil linear-foot flow or the full palette — so this SKU is deliberately
+// kept OUT of PANEL_SKUS and COLOR_SKUS below and handled by its own branch on
+// the product page / order form.
+export const OVERSTOCK_SKUS = new Set(['PANEL-29GA-SCRAP'])
+
+export function isOverstockSku(sku?: string | null): boolean {
+  return !!sku && OVERSTOCK_SKUS.has(sku)
+}
+
 // SKUs that get a length selector (per-foot products sold by piece).
 // Galvalume and Stone are no longer standalone panels — they're color choices on
 // PANEL-29GA (see migration 022), so they're not listed here.
-export const PANEL_SKUS = new Set(['PANEL-29GA', 'PANEL-29GA-SCRAP'])
+export const PANEL_SKUS = new Set(['PANEL-29GA'])
 
 // SKUs that support color selection
 export const COLOR_SKUS = new Set([
   'PANEL-29GA',
-  'PANEL-29GA-SCRAP',
   'TRIM-BOX-EVE',
   'TRIM-CORNER',
   'TRIM-FLASHING',

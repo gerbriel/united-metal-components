@@ -99,7 +99,8 @@
       "Bash(node _verify_door.mjs)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 3 http://localhost:5173/builder)",
       "Bash(lsof -ti:5173)",
-      "Bash(xargs kill -9)"
+      "Bash(xargs kill -9)",
+      "Bash(git mv *)"
     ]
   }
 }

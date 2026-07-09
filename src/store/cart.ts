@@ -8,18 +8,20 @@ export interface CartItem {
   length?:  number   // feet, for per-foot products
   lengthIn?: number  // extra inches (contractor custom only)
   color?:   string
+  overstockId?: number // specific panel_overstock listing this line draws from
 }
 
-// Composite dedup key: product + length + color combination
+// Composite dedup key: product + length + color + overstock listing combination
 export const itemKey = (
   productId: number,
   length?: number,
   lengthIn?: number,
-  color?: string
-) => `${productId}::${length ?? ''}::${lengthIn ?? ''}::${color ?? ''}`
+  color?: string,
+  overstockId?: number
+) => `${productId}::${length ?? ''}::${lengthIn ?? ''}::${color ?? ''}::${overstockId ?? ''}`
 
 export const cartItemKey = (i: CartItem) =>
-  itemKey(i.product.id, i.length, i.lengthIn, i.color)
+  itemKey(i.product.id, i.length, i.lengthIn, i.color, i.overstockId)
 
 // Unit price for a single piece (handles per-foot × length)
 export const itemUnitPrice = (i: CartItem): number => {
@@ -35,7 +37,7 @@ interface CartStore {
   addItem: (
     product: Product,
     qty?: number,
-    opts?: { length?: number; lengthIn?: number; color?: string }
+    opts?: { length?: number; lengthIn?: number; color?: string; overstockId?: number }
   ) => void
   removeItem: (key: string) => void
   updateQty: (key: string, qty: number) => void
@@ -51,7 +53,7 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (product, qty = 1, opts = {}) =>
         set((state) => {
-          const key = itemKey(product.id, opts.length, opts.lengthIn, opts.color)
+          const key = itemKey(product.id, opts.length, opts.lengthIn, opts.color, opts.overstockId)
           const existing = state.items.find((i) => cartItemKey(i) === key)
           if (existing) {
             return {

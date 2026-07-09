@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import ProductOrderForm, { type Availability, type CoilAvailability } from '@/components/shared/ProductOrderForm'
-import { PANEL_SKUS } from '@/lib/product-config'
+import { PANEL_SKUS, isOverstockSku } from '@/lib/product-config'
 import ProductViewer from '@/components/product3d/ProductViewer'
 import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
 import VariantSelect, { type VariantOption } from '@/components/shared/VariantSelect'
@@ -109,11 +109,27 @@ export default async function ProductDetailPage({ params }: Props) {
   // `public_coil_availability` RPC (migration 025), which returns only the
   // aggregated net footage, never raw coil/order rows.
   const sku = product.sku ?? ''
+  const isOverstock = isOverstockSku(sku)
   const isPanel = PANEL_SKUS.has(sku)
   const isHatOrBrace = sku === 'HAT-CHANNEL' || sku === 'BRACE'
   let availability: Availability = { kind: 'static' }
 
-  if (isPanel || isHatOrBrace) {
+  if (isOverstock) {
+    // Discrete pre-made pieces tracked in panel_overstock (staff-only under RLS),
+    // exposed as net-available-per-listing through the SECURITY DEFINER
+    // `public_panel_overstock` RPC (migration 032) — never price/coil/vendor.
+    const { data: rows } = await (supabase.rpc as any)('public_panel_overstock')
+    const items = ((rows ?? []) as { id: number; product_id: number; color: string | null; length_ft: number; length_in: number; available_qty: number }[])
+      .filter((r) => Number(r.product_id) === product.id && Number(r.available_qty) > 0)
+      .map((r) => ({
+        id: Number(r.id),
+        color: r.color ?? null,
+        lengthFt: Number(r.length_ft),
+        lengthIn: Number(r.length_in),
+        qty: Number(r.available_qty),
+      }))
+    availability = { kind: 'overstock', items }
+  } else if (isPanel || isHatOrBrace) {
     const { data: rows } = await (supabase.rpc as any)('public_coil_availability')
     const list = (rows ?? []) as { category: string; color: string | null; net_feet: number; has_unweighed: boolean }[]
     if (isPanel) {

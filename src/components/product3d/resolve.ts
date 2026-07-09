@@ -17,6 +17,7 @@ export type Archetype =
   | 'hat-channel'
   | 'base-rail'
   | 'brace'
+  | 'plate'
   | 'l-bracket'
   | 'rebar'
   | 'screw'
@@ -59,6 +60,7 @@ const BY_SKU: Record<string, Archetype> = {
   'RIDGE-CAP': 'ridge-cap',
   'HAT-CHANNEL': 'hat-channel',
   'L-BRACKET': 'l-bracket',
+  'PLATE-9': 'plate',
   'FOAM-STRIP': 'foam-strip',
   'FOAM-ENC': 'foam-strip',
   'FOAM-MALE': 'foam-male',

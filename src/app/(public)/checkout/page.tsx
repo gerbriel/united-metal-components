@@ -106,6 +106,7 @@ export default function CheckoutPage() {
           item_color:            i.color ?? null,
           linear_feet:           totalFt,
           length_feet:           i.length ?? null,
+          panel_overstock_id:    i.overstockId ?? null,
           is_special_order:      i.product.stock_qty === 0,
         }
       })

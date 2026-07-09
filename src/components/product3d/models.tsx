@@ -212,7 +212,7 @@ function HatChannel({ colorName }: ModelProps) {
   // Top-hat section: two bottom flanges, two walls, a raised top web.
   const f = 1.2 / 12, w = 1.5 / 12, h = 1.0 / 12, len = 4.5
   const geo = useMemo(
-    () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len),
+    () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len, 0.01),
     [],
   )
   const steel = useSteel(colorName)
@@ -224,7 +224,7 @@ function HatChannel({ colorName }: ModelProps) {
 // NOT a hollow tube. Drawn as a `[` centerline and extruded along its run, then laid
 // along X like the tubing so it reads as a length of channel.
 function Brace({ colorName }: ModelProps) {
-  const web = 3 / 12, flange = 1.5 / 12, th = 0.028, len = 3.0
+  const web = 3 / 12, flange = 1.5 / 12, th = 0.01, len = 3.0
   const geo = useMemo(() => {
     const hw = web / 2
     // top-flange tip → web top → web bottom → bottom-flange tip
@@ -232,6 +232,19 @@ function Brace({ colorName }: ModelProps) {
   }, [])
   const steel = useSteel(colorName)
   return <mesh geometry={geo} rotation={[0, Math.PI / 2, 0]} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+}
+
+// ── Square plate ────────────────────────────────────────────────────────────────
+// Flat 9" square steel plate (base/gusset plate). Same sheet color and gauge as the
+// hat channel / brace; drawn as a thin flat slab laid flat so the square face reads.
+function Plate({ colorName }: ModelProps) {
+  const side = 9 / 12, th = 0.01   // 9" square, same gauge as the hat channel / brace
+  const steel = useSteel(colorName)
+  return (
+    <mesh castShadow receiveShadow>
+      <boxGeometry args={[side, th, side]} /><meshStandardMaterial {...steel} />
+    </mesh>
+  )
 }
 
 // ── L-bracket ───────────────────────────────────────────────────────────────────
@@ -1357,6 +1370,7 @@ function GenericBox({ colorName }: ModelProps) {
 const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
   'square-tube': SquareTube,
   'brace': Brace,
+  'plate': Plate,
   'base-rail': BaseRail,
   'panel': Panel,
   'skylight': Skylight,

@@ -13,7 +13,7 @@ export interface Vendor { id: string; name: string }
 export interface OpenPo { id: string; po_number: string | null; vendor_id: string | null; status: string }
 
 interface Props {
-  table: 'product_coils' | 'tube_bundles'
+  table: 'product_coils' | 'tube_bundles' | 'panel_overstock'
   rowId: number
   vendors: Vendor[]
   openPos: OpenPo[]

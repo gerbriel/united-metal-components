@@ -1,10 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import InventoryActions from '@/components/shared/InventoryActions'
 import { iconFor } from '@/lib/nav-categories'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { Product, ProductCategory } from '@/types/database'
 
 export interface InventoryGroup {
@@ -27,6 +30,46 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const colSpan = isWarehouse ? 5 : 6
 
+  const supabase = createClient()
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+
+  // Local copy of the grouped rows so admin reordering feels instant. Resync
+  // when the server sends fresh data (router.refresh / realtime) — render-time
+  // adjustment rather than an effect, matching CategoryManager.
+  const [data, setData] = useState<InventoryGroup[]>(groups)
+  const [prevGroups, setPrevGroups] = useState(groups)
+  if (groups !== prevGroups) {
+    setPrevGroups(groups)
+    setData(groups)
+  }
+
+  // Move a product up/down within its category group, then persist the group's
+  // new order. We renumber the whole group (0..n-1) so the result is correct
+  // even if some rows shared a sort_order (e.g. freshly added products at 0).
+  const move = async (groupIdx: number, itemIdx: number, dir: -1 | 1) => {
+    if (busy) return
+    const j = itemIdx + dir
+    const items = data[groupIdx]?.items
+    if (!items || j < 0 || j >= items.length) return
+
+    const reordered = [...items]
+    ;[reordered[itemIdx], reordered[j]] = [reordered[j], reordered[itemIdx]]
+    const next = [...data]
+    next[groupIdx] = { ...data[groupIdx], items: reordered }
+    setData(next)
+
+    setBusy(true)
+    const writes = reordered
+      .map((p, i) => (p.sort_order === i ? null : { id: p.id, i }))
+      .filter((x): x is { id: number; i: number } => x !== null)
+      .map(({ id, i }) => supabase.from('products').update({ sort_order: i }).eq('id', id))
+    const results = await Promise.all(writes)
+    if (results.some((r) => r.error)) toast.error('Failed to save order')
+    setBusy(false)
+    router.refresh()
+  }
+
   const toggle = (id: number) =>
     setCollapsed((s) => {
       const next = new Set(s)
@@ -35,9 +78,9 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
       return next
     })
 
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.id))
+  const allCollapsed = data.length > 0 && data.every((g) => collapsed.has(g.id))
   const toggleAll = () =>
-    setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.id)))
+    setCollapsed(allCollapsed ? new Set() : new Set(data.map((g) => g.id)))
 
   return (
     <div className="overflow-x-auto">
@@ -60,7 +103,7 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
             <th className="text-right p-3">Actions</th>
           </tr>
         </thead>
-        {groups.map((g) => {
+        {data.map((g, gi) => {
           const Icon = iconFor(g.icon)
           const isOpen = !collapsed.has(g.id)
           return (
@@ -79,11 +122,35 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                   </button>
                 </td>
               </tr>
-              {isOpen && g.items.map((p) => (
+              {isOpen && g.items.map((p, i) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-3">
-                    <p className="font-medium">{p.name}</p>
-                    {p.sku && <p className="text-xs text-muted-foreground">{p.sku}</p>}
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <div className="flex flex-col shrink-0">
+                          <button
+                            onClick={() => move(gi, i, -1)}
+                            disabled={busy || i === 0}
+                            title="Move up"
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => move(gi, i, 1)}
+                            disabled={busy || i === g.items.length - 1}
+                            title="Move down"
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-medium">{p.name}</p>
+                        {p.sku && <p className="text-xs text-muted-foreground">{p.sku}</p>}
+                      </div>
+                    </div>
                   </td>
                   {!isWarehouse && (
                     <td className="p-3 text-right font-semibold">${p.price.toFixed(2)}</td>

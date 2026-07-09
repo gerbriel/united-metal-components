@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Profile } from '@/types/database'
 import CartDrawer from '@/components/shared/CartDrawer'
+import GlobalSearch from '@/components/layout/GlobalSearch'
 import { cn } from '@/lib/utils'
 
 // Product buckets render in the DB-driven category bar (see `categories` prop);
@@ -80,6 +81,9 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                 className="h-10 w-auto"
               />
             </Link>
+
+            {/* Global search — inline on desktop */}
+            <GlobalSearch className="hidden md:block flex-1 max-w-md mx-6" />
 
             {/* Actions */}
             <div className="flex items-center gap-1.5">
@@ -176,6 +180,13 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                 <Menu className="w-5 h-5" />
               </Button>
             </div>
+          </div>
+        </div>
+
+        {/* Global search — dedicated row on mobile/tablet (inline one is md+) */}
+        <div className="md:hidden border-t border-slate-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
+            <GlobalSearch />
           </div>
         </div>
 

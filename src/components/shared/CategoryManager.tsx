@@ -49,7 +49,9 @@ export default function CategoryManager({ initial }: { initial: CatRow[] }) {
   const openEdit = (c: CatRow) => {
     setEditing(c)
     setForm({ name: c.name, slug: c.slug, icon: c.icon ?? 'Package', description: c.description ?? '', nav_visible: c.nav_visible })
-    setSlugTouched(true)
+    // Start "untouched" so renaming the category re-suggests a matching slug,
+    // while a manual slug edit still wins (sets slugTouched → true).
+    setSlugTouched(false)
     setDialogOpen(true)
   }
 
@@ -62,9 +64,12 @@ export default function CategoryManager({ initial }: { initial: CatRow[] }) {
     if (editing) {
       const { error } = await supabase
         .from('product_categories')
-        .update({ name: form.name.trim(), icon: form.icon, description: form.description.trim() || null, nav_visible: form.nav_visible })
+        .update({ name: form.name.trim(), slug, icon: form.icon, description: form.description.trim() || null, nav_visible: form.nav_visible })
         .eq('id', editing.id)
-      if (error) { toast.error('Failed to save category'); setBusy(false); return }
+      if (error) {
+        toast.error(/duplicate|unique/i.test(error.message) ? 'That name or slug already exists' : 'Failed to save category')
+        setBusy(false); return
+      }
       toast.success('Category updated')
     } else {
       const nextOrder = rows.reduce((m, c) => Math.max(m, c.sort_order), -1) + 1
@@ -177,20 +182,22 @@ export default function CategoryManager({ initial }: { initial: CatRow[] }) {
                 value={form.name}
                 onChange={(e) => {
                   const name = e.target.value
-                  setForm((f) => ({ ...f, name, slug: slugTouched || editing ? f.slug : slugify(name) }))
+                  setForm((f) => ({ ...f, name, slug: slugTouched ? f.slug : slugify(name) }))
                 }}
                 placeholder="e.g. Fasteners"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Slug {editing && <span className="text-muted-foreground font-normal">(fixed after creation)</span>}</Label>
+              <Label>Slug</Label>
               <Input
                 value={form.slug}
                 onChange={(e) => { setSlugTouched(true); setForm((f) => ({ ...f, slug: slugify(e.target.value) })) }}
                 placeholder="fasteners"
-                disabled={!!editing}
               />
-              <p className="text-xs text-muted-foreground">Storefront URL: /products?cat={form.slug || '…'}</p>
+              <p className="text-xs text-muted-foreground">
+                Storefront URL: /products?cat={form.slug || '…'}
+                {editing && ' — changing this updates the category’s links'}
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Icon</Label>
