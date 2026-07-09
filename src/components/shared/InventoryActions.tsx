@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,6 +44,33 @@ export default function InventoryActions({ product, categories, mode = 'add', is
   // weight are all determined by the individual pieces logged in Overstock
   // inventory (panel_overstock), so those fields are managed there, not here.
   const isOverstock = isOverstockSku(form.sku)
+
+  // Live totals from the logged overstock pieces (staff-only table under RLS —
+  // fine here since this dialog only renders in the staff dashboard). Weight on
+  // hand ≈ the sheet's per-foot weight × total linear feet in stock.
+  const [ovStats, setOvStats] = useState<{ pieces: number; listings: number; linearFt: number } | null>(null)
+  useEffect(() => {
+    if (!open || !isOverstock || !product) return
+    let cancelled = false
+    supabase
+      .from('panel_overstock')
+      .select('quantity, length_ft, length_in')
+      .eq('product_id', product.id)
+      .eq('archived', false)
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        let pieces = 0
+        let linearFt = 0
+        for (const r of data as { quantity: number; length_ft: number; length_in: number }[]) {
+          const q = Number(r.quantity) || 0
+          pieces += q
+          linearFt += (Number(r.length_ft) + (Number(r.length_in) || 0) / 12) * q
+        }
+        setOvStats({ pieces, listings: data.length, linearFt })
+      })
+    // Reset on close / product change so the next open starts on "Loading…".
+    return () => { cancelled = true; setOvStats(null) }
+  }, [open, isOverstock, product])
 
   const handleSave = async () => {
     if (!form.name || (!isOverstock && !form.price)) { toast.error('Name and price are required'); return }
@@ -162,32 +189,55 @@ export default function InventoryActions({ product, categories, mode = 'add', is
               </SelectContent>
             </Select>
           </div>
-          {isOverstock && (
-            <div className="col-span-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                Price, unit, stock quantity, and weight are set per logged piece in{' '}
-                <span className="font-medium">Inventory → Overstock</span>, not here — this product
-                is just the storefront shell they group under.
-              </span>
-            </div>
+          {isOverstock ? (
+            <>
+              <div className="col-span-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  This is just the storefront shell overstock pieces group under. Price and unit are
+                  set per logged piece in <span className="font-medium">Inventory → Overstock</span>;
+                  stock and weight below are live totals from those pieces.
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Stock on hand (live)</Label>
+                <div className="h-9 flex items-center px-3 rounded-lg border bg-muted/40 text-sm text-muted-foreground">
+                  {!ovStats
+                    ? 'Loading…'
+                    : `${ovStats.pieces.toLocaleString()} pc${ovStats.pieces === 1 ? '' : 's'} · ${ovStats.listings} listing${ovStats.listings === 1 ? '' : 's'}`}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Weight on hand (live)</Label>
+                <div className="h-9 flex items-center px-3 rounded-lg border bg-muted/40 text-sm text-muted-foreground">
+                  {!ovStats
+                    ? 'Loading…'
+                    : product?.weight_lbs
+                      ? `≈ ${Math.round(ovStats.linearFt * Number(product.weight_lbs)).toLocaleString()} lbs`
+                      : '—'}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label>Price *</Label>
+                <Input type="number" step="0.01" value={form.price} onChange={set('price')} placeholder="0.00" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Unit (per)</Label>
+                <Input value={form.unit} onChange={set('unit')} placeholder="Foot / Each / Bundle" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Stock Quantity</Label>
+                <Input type="number" value={form.stock_qty} onChange={set('stock_qty')} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Weight (lbs)</Label>
+                <Input type="number" step="0.001" value={form.weight_lbs} onChange={set('weight_lbs')} />
+              </div>
+            </>
           )}
-          <div className="space-y-1.5">
-            <Label>Price {isOverstock ? '' : '*'}</Label>
-            <Input type="number" step="0.01" value={form.price} onChange={set('price')} placeholder="0.00" disabled={isOverstock} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Unit (per)</Label>
-            <Input value={form.unit} onChange={set('unit')} placeholder="Foot / Each / Bundle" disabled={isOverstock} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Stock Quantity</Label>
-            <Input type="number" value={form.stock_qty} onChange={set('stock_qty')} disabled={isOverstock} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Weight (lbs)</Label>
-            <Input type="number" step="0.001" value={form.weight_lbs} onChange={set('weight_lbs')} disabled={isOverstock} />
-          </div>
           <div className="col-span-2 space-y-1.5">
             <Label>Description</Label>
             <Input value={form.description} onChange={set('description')} placeholder="Brief description" />
