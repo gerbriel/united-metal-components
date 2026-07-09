@@ -2,13 +2,11 @@
 
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { ButtonLink } from '@/components/ui/button-link'
 import { Badge } from '@/components/ui/badge'
-import { Ruler, ShoppingCart, Tag, Phone } from 'lucide-react'
+import { Ruler, SlidersHorizontal, Tag, Phone } from 'lucide-react'
 import ProductThumb from '@/components/product3d/ProductThumb'
 import { COLORS } from '@/lib/product-config'
-import { useCartStore } from '@/store/cart'
-import { toast } from 'sonner'
 import type { Product } from '@/types/database'
 
 // One in-stock overstock piece — a distinct product/color/length batch — carrying
@@ -26,11 +24,10 @@ export interface OverstockListing {
 const fmtLen = (ft: number, inches: number) => (inches ? `${ft}' ${inches}"` : `${ft} ft`)
 
 // Each overstock piece is treated as its own product: a 3D panel rendered in the
-// listing's finish, with an Add that drops that exact listing into the cart.
-// Prices stay staff-only (quote flow), matching the rest of the catalog.
+// listing's finish. There's no one-click add — a piece has a quantity, so the
+// card routes to the product page (with this exact listing preselected) where the
+// buyer chooses how many. Prices stay staff-only (quote flow).
 export default function OverstockGrid({ listings }: { listings: OverstockListing[] }) {
-  const addItem = useCartStore((s) => s.addItem)
-
   if (listings.length === 0) {
     return (
       <div className="max-w-lg mx-auto text-center py-16 px-4">
@@ -53,26 +50,17 @@ export default function OverstockGrid({ listings }: { listings: OverstockListing
     )
   }
 
-  const handleAdd = (l: OverstockListing) => {
-    addItem(l.product, 1, {
-      length:      l.lengthFt,
-      lengthIn:    l.lengthIn || undefined,
-      color:       l.color ?? undefined,
-      overstockId: l.id,
-    })
-    const label = l.color ?? 'Bare'
-    toast.success(`${label} panel (${fmtLen(l.lengthFt, l.lengthIn)}) added to cart`)
-  }
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
       {listings.map((l) => {
         const entry = l.color ? COLORS.find((c) => c.name === l.color) : null
         const colorLabel = l.color ?? 'Bare'
+        // Link to the parent product with this exact listing preselected (?o=id).
+        const href = `/products/${l.product.id}?o=${l.id}`
         return (
           <Card key={l.id} className="group hover:shadow-lg transition-shadow h-full flex flex-col">
             <Link
-              href={`/products/${l.product.id}`}
+              href={href}
               className="block aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden"
             >
               {/* 3D panel rendered in this listing's finish */}
@@ -80,7 +68,7 @@ export default function OverstockGrid({ listings }: { listings: OverstockListing
             </Link>
             <CardContent className="p-4 flex flex-col flex-1">
               <Badge className="w-fit mb-2 text-xs bg-orange-100 text-orange-700 border-orange-200">Overstock</Badge>
-              <Link href={`/products/${l.product.id}`}>
+              <Link href={href}>
                 <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors">
                   {colorLabel} Panel
                 </h3>
@@ -109,9 +97,9 @@ export default function OverstockGrid({ listings }: { listings: OverstockListing
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t">
                 <span className="text-xs text-muted-foreground italic">Contact for pricing</span>
-                <Button size="sm" onClick={() => handleAdd(l)} className="gap-1">
-                  <ShoppingCart className="w-3 h-3" /> Add
-                </Button>
+                <ButtonLink href={href} size="sm" variant="outline" className="gap-1">
+                  <SlidersHorizontal className="w-3 h-3" /> Select options
+                </ButtonLink>
               </div>
             </CardContent>
           </Card>

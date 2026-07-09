@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge'
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { ShoppingCart } from 'lucide-react'
+import { ShoppingCart, SlidersHorizontal } from 'lucide-react'
+import { ButtonLink } from '@/components/ui/button-link'
 import ProductThumb from '@/components/product3d/ProductThumb'
-import { variantLabel, type VariantGroup } from '@/lib/product-config'
+import { variantLabel, variantGroupNeedsConfiguration, type VariantGroup } from '@/lib/product-config'
 import { sectionize } from '@/components/shared/VariantSelect'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
@@ -38,6 +39,10 @@ export default function VariantGroupCard({
   const section = (p: ProductWithCategory) =>
     group.members.find((m) => m.sku === p.sku)?.section
   const noun = group.selectLabel.toLowerCase()
+  // Tubing (needs a cut length) and colored screws (need a color) can't be added
+  // straight from the card — the dropdown only picks the size/package — so route
+  // to the product page to finish choosing, like the other configurable products.
+  const needsConfig = variantGroupNeedsConfiguration(group)
 
   const handleAdd = () => {
     addItem(selected)
@@ -84,7 +89,11 @@ export default function VariantGroupCard({
           <span className="text-xs text-muted-foreground italic">
             {selected.unit ? `Sold per ${selected.unit}` : 'Contact for pricing'}
           </span>
-          {selected.stock_qty > 0 ? (
+          {needsConfig ? (
+            <ButtonLink href={`/products/${selected.id}`} size="sm" variant="outline" className="gap-1">
+              <SlidersHorizontal className="w-3 h-3" /> Select options
+            </ButtonLink>
+          ) : selected.stock_qty > 0 ? (
             <Button size="sm" onClick={handleAdd} className="gap-1">
               <ShoppingCart className="w-3 h-3" /> Add
             </Button>

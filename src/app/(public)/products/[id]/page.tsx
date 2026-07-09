@@ -14,7 +14,7 @@ import { Weight, Ruler } from 'lucide-react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
-interface Props { params: Promise<{ id: string }> }
+interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ o?: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
@@ -23,8 +23,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: data ? applyProductOverrides(data).name : 'Product' }
 }
 
-export default async function ProductDetailPage({ params }: Props) {
+export default async function ProductDetailPage({ params, searchParams }: Props) {
   const { id } = await params
+  const { o } = await searchParams
+  // Overstock listing to preselect (?o=), when arriving from an overstock card.
+  const preselectOverstockId = o && /^\d+$/.test(o) ? Number(o) : undefined
   const supabase = await createClient()
 
   const [{ data: rawProduct }, { data: { user } }] = await Promise.all([
@@ -219,7 +222,7 @@ export default async function ProductDetailPage({ params }: Props) {
             </div>
           )}
 
-          <ProductOrderForm product={product} isContractor={isContractor} availability={availability} />
+          <ProductOrderForm product={product} isContractor={isContractor} availability={availability} preselectOverstockId={preselectOverstockId} />
         </div>
       </div>
 

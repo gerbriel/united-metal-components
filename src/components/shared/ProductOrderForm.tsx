@@ -57,9 +57,10 @@ interface Props {
   product: Product
   isContractor: boolean
   availability?: Availability
+  preselectOverstockId?: number   // overstock listing to auto-select (from an overstock card)
 }
 
-export default function ProductOrderForm({ product, isContractor, availability }: Props) {
+export default function ProductOrderForm({ product, isContractor, availability, preselectOverstockId }: Props) {
   const addItem = useCartStore((s) => s.addItem)
   const sku = product.sku ?? ''
 
@@ -87,15 +88,22 @@ export default function ProductOrderForm({ product, isContractor, availability }
   // never shown on the storefront; a custom length is simply a quote request.
   const supportsCustomLength = isContractor && (isPanel || isHatChannel || isBrace)
 
-  const [selectedLength, setSelectedLength] = useState<number | null>(null)
+  // Arriving from an overstock card (?o=id): the exact piece to preselect, so the
+  // color group opens and the listing is chosen on mount — buyer only picks a qty.
+  const preItem =
+    preselectOverstockId != null && availability?.kind === 'overstock'
+      ? availability.items.find((i) => i.id === preselectOverstockId) ?? null
+      : null
+
+  const [selectedLength, setSelectedLength] = useState<number | null>(preItem?.lengthFt ?? null)
   const [useCustom, setUseCustom] = useState(false)
   const [customFt, setCustomFt] = useState('')
   const [customIn, setCustomIn] = useState('')
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  const [selectedColor, setSelectedColor] = useState<string | null>(preItem?.color ?? null)
   const [qty, setQty] = useState(1)
   // Overstock: which color group is open (undefined = none) + the chosen listing.
-  const [overColor, setOverColor] = useState<string | undefined>(undefined)
-  const [overstockId, setOverstockId] = useState<number | null>(null)
+  const [overColor, setOverColor] = useState<string | undefined>(preItem ? (preItem.color ?? BARE) : undefined)
+  const [overstockId, setOverstockId] = useState<number | null>(preItem?.id ?? null)
 
   // Drive the interactive 3D viewer's finish from the selected color. Reset the
   // shared configurator when this form mounts for a (new) product.

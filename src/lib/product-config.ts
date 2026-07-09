@@ -221,3 +221,16 @@ export function requiresConfiguration(sku?: string | null, name?: string | null)
   if (PANEL_SKUS.has(s) || s === 'HAT-CHANNEL' || s === 'BRACE' || TUBING_CONFIG[s]?.type === 'preset') return true
   return false
 }
+
+// A VariantGroupCard's in-card dropdown only covers the size/package choice — it
+// can't supply a cut length or a color. So a group whose members still need one
+// of those (tubing = cut length; colored screws = color) must route to the
+// product page ("Select options") instead of a one-click Add, exactly like the
+// non-grouped configurable products above.
+export function variantGroupNeedsConfiguration(group: VariantGroup): boolean {
+  if (group.colors) return true                                        // needs a color
+  return group.members.some((m) => {
+    const t = TUBING_CONFIG[m.sku]
+    return t?.type === 'preset' || t?.type === 'special-order'         // needs a cut length / call-in
+  })
+}
