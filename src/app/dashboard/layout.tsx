@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, ShieldCheck, ShoppingBag, Building2, CheckSquare, Calculator, Tags } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, ShieldCheck, ShoppingBag, ShoppingCart, Building2, CheckSquare, Calculator, Tags } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
@@ -14,6 +14,7 @@ const ALL_NAV = [
   { href: '/dashboard/purchase-orders',    label: 'Purchase Orders', icon: ShoppingBag,     warehouseOk: false },
   { href: '/dashboard/vendors',            label: 'Vendors',         icon: Building2,       warehouseOk: false },
   { href: '/dashboard/crm',               label: 'CRM',             icon: Users,           warehouseOk: false },
+  { href: '/dashboard/carts',              label: 'Carts',           icon: ShoppingCart,    warehouseOk: false },
   { href: '/dashboard/analytics',          label: 'Analytics',       icon: BarChart3,       warehouseOk: false },
   { href: '/dashboard/newsletter',         label: 'Newsletter',      icon: Mail,            warehouseOk: false },
 ]

@@ -159,9 +159,9 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                     </div>
                   </td>
                   {(() => {
-                    // Overstock parent rows reflect the logged pieces (price =
-                    // total value of all pieces, unit = Each, stock = piece count)
-                    // rather than the shell product's stale per-foot fields.
+                    // Overstock parent rows reflect the logged pieces: price = total
+                    // value of all pieces, unit label "Total", stock = total piece
+                    // count — not the shell product's stale per-foot fields.
                     const over = isOverstockSku(p.sku)
                     const stats = over ? overstockStats[p.id] ?? { pieces: 0, totalValue: 0 } : null
                     const stock = stats ? stats.pieces : p.stock_qty
@@ -172,7 +172,7 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                             ${stats ? stats.totalValue.toFixed(2) : p.price.toFixed(2)}
                           </td>
                         )}
-                        <td className="p-3 text-right text-muted-foreground">{over ? 'Each' : p.unit ?? '—'}</td>
+                        <td className="p-3 text-right text-muted-foreground">{over ? 'Total' : p.unit ?? '—'}</td>
                         <td className="p-3 text-right font-mono">
                           <span className={stock < 10 && !over ? 'text-red-600 font-bold' : ''}>{stock}</span>
                         </td>

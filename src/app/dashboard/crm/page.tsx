@@ -1,8 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import CRMCustomerList from '@/components/shared/CRMCustomerList'
-import ActiveCartsList, { type ActiveCart } from '@/components/shared/ActiveCartsList'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { isAdminRole } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -31,16 +29,7 @@ export default async function CRMPage() {
     customersQuery = customersQuery.or('pricing_tier.is.null,pricing_tier.neq.contractor_tax_exempt_tbd')
   }
 
-  const [{ data: customers }, { data: carts }] = await Promise.all([
-    customersQuery,
-    // Active carts (staff-readable via RLS) — what shoppers currently have queued.
-    supabase
-      .from('carts')
-      .select('session_id, user_id, item_count, items, updated_at, profiles(full_name, company_name)')
-      .gt('item_count', 0)
-      .order('updated_at', { ascending: false })
-      .limit(50),
-  ])
+  const { data: customers } = await customersQuery
 
   return (
     <div className="space-y-5">
@@ -48,17 +37,6 @@ export default async function CRMPage() {
         <h1 className="text-2xl font-bold">CRM — Customers</h1>
         <p className="text-sm text-muted-foreground">{customers?.length ?? 0} customers</p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Active Carts</CardTitle>
-          <p className="text-xs text-muted-foreground">Shoppers with items in their cart — reach out or send a reminder.</p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ActiveCartsList carts={(carts ?? []) as unknown as ActiveCart[]} />
-        </CardContent>
-      </Card>
-
       <CRMCustomerList customers={(customers ?? []) as any} isAdmin={isAdmin} />
     </div>
   )

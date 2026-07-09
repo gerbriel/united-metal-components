@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Loader2, Package, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Loader2, Package, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { COLORS } from '@/lib/product-config'
@@ -80,6 +80,7 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
 
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null) // null = add mode
   const [form, setForm] = useState(EMPTY_FORM)
 
   const [qtyEditing, setQtyEditing] = useState<number | null>(null)
@@ -110,15 +111,27 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
     return () => { supabase.removeChannel(ch) }
   }, [fetchAll])
 
-  const handleAdd = async () => {
-    if (!productId) { toast.error('No overstock product configured'); return }
+  const rowToForm = (r: PanelOverstock): typeof EMPTY_FORM => ({
+    product_id: String(r.product_id),
+    color:      r.color ?? '',
+    length_ft:  String(r.length_ft),
+    length_in:  String(r.length_in),
+    quantity:   String(r.quantity),
+    unit_price: r.unit_price != null ? String(r.unit_price) : '',
+    coil_id:    r.coil_id != null ? String(r.coil_id) : '',
+    notes:      r.notes ?? '',
+  })
+
+  const openAdd  = () => { setEditingId(null); setForm(EMPTY_FORM); setOpen(true) }
+  const openEdit = (r: PanelOverstock) => { setEditingId(r.id); setForm(rowToForm(r)); setOpen(true) }
+
+  // Create (add mode) or update (edit mode) a listing from the shared form.
+  const handleSave = async () => {
     const lengthFt = parseInt(form.length_ft)
     const quantity = parseInt(form.quantity)
     if (isNaN(lengthFt) || lengthFt <= 0) { toast.error('Enter a valid length in feet'); return }
     if (isNaN(quantity) || quantity < 0) { toast.error('Enter a valid quantity'); return }
-    setAdding(true)
-    const { error } = await supabase.from('panel_overstock').insert({
-      product_id: productId,
+    const payload = {
       color:      form.color || null,
       length_ft:  lengthFt,
       length_in:  form.length_in ? parseInt(form.length_in) : 0,
@@ -126,10 +139,20 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
       unit_price: form.unit_price ? parseFloat(form.unit_price) : null,
       coil_id:    form.coil_id ? parseInt(form.coil_id) : null,
       notes:      form.notes || null,
-    })
-    if (error) { toast.error(error.message); setAdding(false); return }
-    toast.success('Overstock listing added')
+    }
+    setAdding(true)
+    if (editingId != null) {
+      const { error } = await supabase.from('panel_overstock').update(payload).eq('id', editingId)
+      if (error) { toast.error(error.message); setAdding(false); return }
+      toast.success('Overstock listing updated')
+    } else {
+      if (!productId) { toast.error('No overstock product configured'); setAdding(false); return }
+      const { error } = await supabase.from('panel_overstock').insert({ product_id: productId, ...payload })
+      if (error) { toast.error(error.message); setAdding(false); return }
+      toast.success('Overstock listing added')
+    }
     setOpen(false)
+    setEditingId(null)
     setForm(EMPTY_FORM)
     await fetchAll()
     setAdding(false)
@@ -194,15 +217,15 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
             />
           )}
           {isAdmin && (
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger render={
-                <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors">
-                  <Plus className="w-4 h-4" />Add Listing
-                </button>
-              } />
+            <button onClick={openAdd} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors">
+              <Plus className="w-4 h-4" />Add Listing
+            </button>
+          )}
+          {isAdmin && (
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(EMPTY_FORM) } }}>
               <DialogContent className="max-w-lg">
-                <DialogHeader><DialogTitle>Add Overstock Listing</DialogTitle></DialogHeader>
-                {!productId && (
+                <DialogHeader><DialogTitle>{editingId != null ? 'Edit' : 'Add'} Overstock Listing</DialogTitle></DialogHeader>
+                {editingId == null && !productId && (
                   <p className="text-sm text-red-600">No overstock product is configured. Create one in Products first.</p>
                 )}
                 <div className="grid grid-cols-2 gap-4 py-2">
@@ -279,8 +302,9 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button onClick={handleAdd} disabled={adding || !productId}>
-                    {adding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Add Listing
+                  <Button onClick={handleSave} disabled={adding || (editingId == null && !productId)}>
+                    {adding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {editingId != null ? 'Save Changes' : 'Add Listing'}
                   </Button>
                 </div>
               </DialogContent>
@@ -352,6 +376,12 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
                             </Button>
                             {isAdmin && (
                               <>
+                                <Button
+                                  size="sm" variant="outline" className="h-7 text-xs"
+                                  onClick={() => openEdit(r)}
+                                >
+                                  <Pencil className="w-3 h-3 mr-1" />Edit
+                                </Button>
                                 <LinkPoDialog
                                   table="panel_overstock"
                                   rowId={r.id}
