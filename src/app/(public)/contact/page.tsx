@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +20,30 @@ export default function ContactPage() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Signed-in visitors: prefill name/email/phone from their profile so they
+  // don't retype it (only fills fields they haven't already touched).
+  useEffect(() => {
+    let active = true
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, first_name, last_name, email, phone')
+        .eq('id', user.id)
+        .single()
+      if (!active || !data) return
+      const p = data as { full_name?: string | null; first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null }
+      const name = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || ''
+      setForm((f) => ({
+        ...f,
+        name:  f.name  || name,
+        email: f.email || p.email || user.email || '',
+        phone: f.phone || p.phone || '',
+      }))
+    })
+    return () => { active = false }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -37,6 +61,23 @@ export default function ContactPage() {
     }
 
     setLoading(true)
+
+    // Store the message for staff. A SECURITY DEFINER trigger matches it to an
+    // existing customer (by email/phone) and notifies every office employee +
+    // admin — so this single anonymous insert drives the whole staff pipeline.
+    const { error } = await supabase.from('contact_messages').insert({
+      name:       clean.name,
+      email:      clean.email,
+      phone:      clean.phone || null,
+      message:    clean.message,
+      subscribed: form.subscribe,
+    })
+    if (error) {
+      toast.error('Something went wrong sending your message. Please call us or try again.')
+      setLoading(false)
+      return
+    }
+
     if (form.subscribe && clean.email) {
       await supabase
         .from('newsletter_subscribers')
@@ -67,8 +108,8 @@ export default function ContactPage() {
                   <Input type="email" value={form.email} onChange={set('email')} required />
                 </div>
                 <div className="space-y-1.5 col-span-2">
-                  <Label>Phone</Label>
-                  <Input type="tel" value={form.phone} onChange={set('phone')} />
+                  <Label>Phone *</Label>
+                  <Input type="tel" value={form.phone} onChange={set('phone')} required />
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Message *</Label>

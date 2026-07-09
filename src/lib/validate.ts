@@ -58,7 +58,8 @@ export const checkoutSchema = z.object({
 export const contactSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().email('Enter a valid email address').max(254),
-  phone,
+  // Required so staff can sync the message to an existing customer (CRM profile).
+  phone: requiredPhone,
   message: z
     .string()
     .min(10, 'Message must be at least 10 characters')
