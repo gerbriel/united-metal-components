@@ -5,7 +5,7 @@ import { useConfigurator } from '@/store/configurator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ShoppingCart, Phone, Minus, Plus, PackageCheck, AlertTriangle } from 'lucide-react'
+import { ShoppingCart, Phone, Minus, Plus, PackageCheck, AlertTriangle, ClipboardList } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useCartStore } from '@/store/cart'
 import { toast } from 'sonner'
@@ -306,6 +306,30 @@ export default function ProductOrderForm({ product, isContractor, availability, 
     (!hasLengths || (useCustom ? (parseFloat(customFt) || 0) > 0 : selectedLength !== null)) &&
     (!hasColor || selectedColor !== null)
 
+  // Live coil availability (panels per selected color; hat channel / braces from
+  // the shared pool). Falls back to nothing so the page's static badge shows.
+  const coil: CoilAvailability | null =
+    availability?.kind === 'pool' ? availability.pool
+    : availability?.kind === 'panel' ? (selectedColor ? availability.byColor[selectedColor] ?? { netFeet: 0, onOrderFeet: 0, hasUnweighed: false } : null)
+    : null
+  const needsColorFirst = availability?.kind === 'panel' && !selectedColor
+
+  // Linear feet this order would draw from the coil — qty × per-piece length.
+  const perPieceFt = hasLengths
+    ? (useCustom ? (parseFloat(customFt) || 0) + (parseFloat(customIn) || 0) / 12 : (selectedLength ?? 0))
+    : 0
+  const neededFeet = perPieceFt * qty
+
+  // When the order can't come off the shelf as-is it becomes a special-order
+  // request instead of a cart add: the live coil footage for the chosen
+  // color/pool can't cover it, or (non-coil items) the order exceeds stock.
+  const isCoilProduct = availability?.kind === 'panel' || availability?.kind === 'pool'
+  const coilShort = coil != null && (coil.netFeet <= 0 || coil.netFeet < neededFeet)
+  const staticShort = !isCoilProduct && qty > product.stock_qty
+  const isRequest = coilShort || staticShort
+  // Nothing available at all, vs. some stock that just can't cover this order.
+  const fullyOut = isCoilProduct ? (coil != null && coil.netFeet <= 0) : isOutOfStock
+
   const handleAdd = () => {
     if (!canAdd) return
 
@@ -322,20 +346,12 @@ export default function ProductOrderForm({ product, isContractor, availability, 
     if (lengthVal) parts.push(lengthInVal ? `${lengthVal} ft ${lengthInVal} in` : `${lengthVal} ft`)
     if (selectedColor) parts.push(selectedColor)
     const detail = parts.length ? ` (${parts.join(' · ')})` : ''
-    if (isOutOfStock) {
+    if (isRequest) {
       toast.success(`Special order request added for ${product.name}${detail}`)
     } else {
       toast.success(`${qty} × ${product.name}${detail} added to cart`)
     }
   }
-
-  // Live coil availability (panels per selected color; hat channel / braces from
-  // the shared pool). Falls back to nothing so the page's static badge shows.
-  const coil: CoilAvailability | null =
-    availability?.kind === 'pool' ? availability.pool
-    : availability?.kind === 'panel' ? (selectedColor ? availability.byColor[selectedColor] ?? { netFeet: 0, onOrderFeet: 0, hasUnweighed: false } : null)
-    : null
-  const needsColorFirst = availability?.kind === 'panel' && !selectedColor
 
   return (
     <div className="space-y-6">
@@ -360,12 +376,16 @@ export default function ProductOrderForm({ product, isContractor, availability, 
         </div>
       )}
 
-      {/* Out-of-stock notice */}
-      {isOutOfStock && (
+      {/* Request notice — shown whenever the order can't be filled from stock */}
+      {isRequest && (
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <p className="text-sm font-medium text-amber-800">Currently out of stock</p>
+          <p className="text-sm font-medium text-amber-800">
+            {fullyOut ? 'Currently out of stock' : 'Not enough in stock for this order'}
+          </p>
           <p className="text-xs text-amber-700 mt-0.5">
-            You can still request this item — we&apos;ll special order it and notify you of the estimated arrival.
+            {fullyOut
+              ? "You can still request this item — we'll special order it and notify you of the estimated arrival."
+              : "You can still submit this as a request — we'll special order the balance and notify you of the estimated arrival."}
           </p>
         </div>
       )}
@@ -518,8 +538,8 @@ export default function ProductOrderForm({ product, isContractor, availability, 
           onClick={handleAdd}
           disabled={!canAdd}
         >
-          <ShoppingCart className="w-4 h-4" />
-          {isOutOfStock ? 'Request Item' : 'Add to Cart'}
+          {isRequest ? <ClipboardList className="w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+          {isRequest ? 'Request' : 'Add to Cart'}
         </Button>
       </div>
 
