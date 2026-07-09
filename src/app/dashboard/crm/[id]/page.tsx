@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import AddCrmNote from '@/components/shared/AddCrmNote'
+import CartReminderButton from '@/components/shared/CartReminderButton'
 import CustomerAccountControls from '@/components/shared/CustomerAccountControls'
 import { isAdminRole } from '@/types/database'
 import type { Metadata } from 'next'
@@ -29,10 +30,11 @@ export default async function CustomerDetailPage({ params }: Props) {
   // their pricing tier (warehouse staff cannot reach the CRM at all).
   const canEditAccount = isAdmin || viewerRole === 'office_employee'
 
-  const [{ data: customer }, { data: orders }, { data: notes }] = await Promise.all([
+  const [{ data: customer }, { data: orders }, { data: notes }, { data: cart }] = await Promise.all([
     supabase.from('profiles').select('*, pricing_tier').eq('id', id).single(),
     supabase.from('orders').select('*, order_items(id, quantity, total_price, products(id, name, sku))').eq('customer_id', id).order('created_at', { ascending: false }),
     supabase.from('crm_notes').select('*, profiles(full_name)').eq('customer_id', id).order('created_at', { ascending: false }),
+    supabase.from('carts').select('items, item_count, updated_at').eq('user_id', id).gt('item_count', 0).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
   ])
 
   if (!customer) notFound()
@@ -212,6 +214,44 @@ export default async function CustomerDetailPage({ params }: Props) {
           </dl>
         </CardContent>
       </Card>
+
+      {/* Current cart — what the customer has queued but not ordered */}
+      {cart && (cart as any).item_count > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Current Cart</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {(cart as any).item_count} item{(cart as any).item_count === 1 ? '' : 's'} · updated {new Date((cart as any).updated_at).toLocaleString()}
+                </p>
+              </div>
+              <CartReminderButton customerId={customer.id} itemCount={(cart as any).item_count} />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {((cart as any).items as any[]).map((it, idx) => {
+                const detail = [
+                  it.sku,
+                  it.color,
+                  it.length != null ? `${it.length} ft${it.lengthIn ? ` ${it.lengthIn} in` : ''}` : null,
+                  it.overstock ? 'Overstock' : null,
+                ].filter(Boolean).join(' · ')
+                return (
+                  <div key={idx} className="flex items-center justify-between gap-3 p-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium">{it.name ?? 'Item'}</p>
+                      {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
+                    </div>
+                    <span className="font-mono text-sm shrink-0">×{it.quantity ?? 1}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className={`grid gap-5 ${isAdmin ? 'lg:grid-cols-2' : ''}`}>
         {/* Orders */}

@@ -2,6 +2,7 @@ import PublicHeader from '@/components/layout/PublicHeader'
 import PublicFooter from '@/components/layout/PublicFooter'
 import AnalyticsTracker from '@/components/shared/AnalyticsTracker'
 import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
+import CartSync from '@/components/shared/CartSync'
 import { getNavCategories } from '@/lib/categories'
 
 export default async function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -14,6 +15,7 @@ export default async function PublicLayout({ children }: { children: React.React
       <PublicFooter categories={categories} />
       <AnalyticsTracker />
       <RealtimeRefresh />
+      <CartSync />
     </>
   )
 }
