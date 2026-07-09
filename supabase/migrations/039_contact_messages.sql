@@ -40,14 +40,17 @@ ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
 -- Anyone (including anonymous visitors) may submit a message; the SECURITY
 -- DEFINER triggers do the privileged work. No SELECT for the submitter.
+DROP POLICY IF EXISTS "Anyone can submit a contact message" ON public.contact_messages;
 CREATE POLICY "Anyone can submit a contact message"
   ON public.contact_messages FOR INSERT
   TO anon, authenticated
   WITH CHECK (true);
 
 -- Office + admin read and update (mark read / claim).
+DROP POLICY IF EXISTS "Office and admin can read contact messages" ON public.contact_messages;
 CREATE POLICY "Office and admin can read contact messages"
   ON public.contact_messages FOR SELECT USING (public.is_office_or_admin());
+DROP POLICY IF EXISTS "Office and admin can update contact messages" ON public.contact_messages;
 CREATE POLICY "Office and admin can update contact messages"
   ON public.contact_messages FOR UPDATE USING (public.is_office_or_admin());
 
@@ -58,7 +61,16 @@ DECLARE
   matched uuid;
   digits  text;
 BEGIN
-  IF NEW.email IS NOT NULL AND length(trim(NEW.email)) > 0 THEN
+  -- A logged-in customer always links to their own profile, no matter what
+  -- email/phone they typed (auth.uid() is the session user even under SECURITY
+  -- DEFINER). Staff submissions fall through to email/phone matching.
+  IF auth.uid() IS NOT NULL THEN
+    SELECT id INTO matched
+    FROM public.profiles
+    WHERE id = auth.uid() AND role::text = 'customer';
+  END IF;
+
+  IF matched IS NULL AND NEW.email IS NOT NULL AND length(trim(NEW.email)) > 0 THEN
     SELECT id INTO matched
     FROM public.profiles
     WHERE role::text = 'customer' AND lower(email) = lower(trim(NEW.email))
@@ -83,6 +95,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS contact_message_match ON public.contact_messages;
 CREATE TRIGGER contact_message_match
   BEFORE INSERT ON public.contact_messages
   FOR EACH ROW EXECUTE FUNCTION public.contact_message_match_customer();
@@ -102,6 +115,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS contact_message_notify ON public.contact_messages;
 CREATE TRIGGER contact_message_notify
   AFTER INSERT ON public.contact_messages
   FOR EACH ROW EXECUTE FUNCTION public.contact_message_notify_staff();

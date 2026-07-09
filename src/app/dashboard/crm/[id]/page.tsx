@@ -30,11 +30,13 @@ export default async function CustomerDetailPage({ params }: Props) {
   // their pricing tier (warehouse staff cannot reach the CRM at all).
   const canEditAccount = isAdmin || viewerRole === 'office_employee'
 
-  const [{ data: customer }, { data: orders }, { data: notes }, { data: cart }] = await Promise.all([
+  const [{ data: customer }, { data: orders }, { data: notes }, { data: cart }, { data: messages }] = await Promise.all([
     supabase.from('profiles').select('*, pricing_tier').eq('id', id).single(),
     supabase.from('orders').select('*, order_items(id, quantity, total_price, products(id, name, sku))').eq('customer_id', id).order('created_at', { ascending: false }),
     supabase.from('crm_notes').select('*, profiles(full_name)').eq('customer_id', id).order('created_at', { ascending: false }),
     supabase.from('carts').select('items, item_count, updated_at').eq('user_id', id).gt('item_count', 0).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    // Contact-form messages synced to this customer (matched on email/phone).
+    supabase.from('contact_messages').select('id, message, email, phone, read, created_at').eq('customer_id', id).order('created_at', { ascending: false }),
   ])
 
   if (!customer) notFound()
@@ -307,6 +309,41 @@ export default async function CustomerDetailPage({ params }: Props) {
           </Card>
         )}
       </div>
+
+      {/* Contact messages — storefront "Contact Us" submissions synced to this
+          customer (matched on email/phone). Kept on the profile as a record. */}
+      {messages && messages.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base">Contact Messages</CardTitle>
+              <Link href="/dashboard/messages" className="text-xs text-muted-foreground hover:text-primary">
+                All messages →
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {messages.map((m: any) => (
+              <div key={m.id} className="p-3 bg-slate-50 rounded-lg text-sm">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(m.created_at).toLocaleString()}
+                  </span>
+                  {!m.read && (
+                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs">New</Badge>
+                  )}
+                </div>
+                <p className="whitespace-pre-wrap">{m.message}</p>
+                {(m.email !== c.email || m.phone) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {[m.email, m.phone].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notes */}
       <Card>
