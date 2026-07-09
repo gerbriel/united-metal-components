@@ -177,6 +177,11 @@ export function resolveModel(product: {
     // Specific SKUs (e.g. WIN-36X36 → window-grid) are already caught by BY_SKU.
     (sku.startsWith('SCREWS') ? 'screw' : undefined) ??
     (sku.startsWith('WIN') ? 'window' : undefined) ??
+    // The 9" square plate lives in the mixed 'components' bucket, which otherwise
+    // falls back to the generic crate ('box'). Match it by name too, so a
+    // re-typed SKU (SKUs are admin-editable) can't drop it back to the crate —
+    // "plate" only appears in this product's name across the catalog.
+    (/\bplate\b/i.test(product.name ?? '') ? 'plate' : undefined) ??
     BY_CATEGORY[slug] ??
     // Door category slugs: mini-650-doors, acero-doors, model-2000-doors, …
     (slug.endsWith('-doors') ? 'garage-door' : undefined) ??
