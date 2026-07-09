@@ -1,5 +1,5 @@
 -- ============================================================
--- Migration 032: Overstock panel inventory
+-- Migration 031: Overstock panel inventory
 -- ============================================================
 -- Pre-made ("overstock") panels are discrete, already-cut sheet-metal pieces
 -- whose lengths are fixed by whatever was previously fabricated. They come in

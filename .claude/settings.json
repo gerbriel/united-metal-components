@@ -100,7 +100,16 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 3 http://localhost:5173/builder)",
       "Bash(lsof -ti:5173)",
       "Bash(xargs kill -9)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(npx eslint *)",
+      "Bash(git rev-list *)",
+      "Bash(git commit -m 'Overstock: case-insensitive parent SKU + inventory-managed parent fields *)",
+      "Bash(git fetch *)",
+      "Bash(git commit -q -m 'Overstock parent: live stock/weight in Edit Product, drop price/unit *)",
+      "Bash(git commit -q -m 'Overstock: import a canceled order'\\\\''s panels into inventory *)",
+      "Bash(git commit -q -m 'Overstock: correct order pricing + live inventory-row totals *)",
+      "Bash(git commit -q -m 'CRM: server-side carts + Active Carts view + reminders *)",
+      "Bash(git commit -q -m 'Carts tab + overstock listing edit + Total row label *)"
     ]
   }
 }

@@ -20,7 +20,7 @@ export default async function CRMPage() {
 
   let customersQuery = supabase
     .from('profiles')
-    .select('id, full_name, company_name, phone, created_at, pricing_tier, orders(id, total, status)')
+    .select('id, full_name, company_name, phone, email, created_at, pricing_tier, orders(id, total, status)')
     .eq('role', 'customer')
     .order('created_at', { ascending: false })
 

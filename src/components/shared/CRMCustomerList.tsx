@@ -18,6 +18,7 @@ interface Customer {
   full_name: string | null
   company_name: string | null
   phone: string | null
+  email: string | null
   created_at: string
   orders: CustomerOrder[]
 }
@@ -36,7 +37,7 @@ export default function CRMCustomerList({ customers, isAdmin }: Props) {
     return customers.filter((c) => {
       if (search) {
         const q = search.toLowerCase()
-        const ok = [c.full_name, c.company_name, c.phone]
+        const ok = [c.full_name, c.company_name, c.phone, c.email]
           .some((v) => v?.toLowerCase().includes(q))
         if (!ok) return false
       }
@@ -52,7 +53,7 @@ export default function CRMCustomerList({ customers, isAdmin }: Props) {
         <div className="relative flex-1 min-w-52">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search name, company, phone…"
+            placeholder="Search name, company, phone, email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -95,6 +96,7 @@ export default function CRMCustomerList({ customers, isAdmin }: Props) {
                     <p className="text-xs text-muted-foreground truncate">
                       {c.company_name ? `${c.company_name} · ` : ''}{c.phone ?? 'No phone'}
                     </p>
+                    {c.email && <p className="text-xs text-muted-foreground truncate">{c.email}</p>}
                   </div>
                   <div className="text-right shrink-0">
                     {isAdmin && <p className="text-sm font-bold text-primary">${totalRevenue.toFixed(2)}</p>}

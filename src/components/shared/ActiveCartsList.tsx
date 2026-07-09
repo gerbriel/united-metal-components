@@ -12,6 +12,7 @@ export interface ActiveCart {
   item_count: number
   items: CartSnapshotItem[]
   updated_at: string
+  stage?: string | null
   profiles?: { full_name: string | null; company_name: string | null } | null
 }
 
@@ -27,6 +28,7 @@ export default function ActiveCartsList({ carts }: { carts: ActiveCart[] }) {
         <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
           <tr>
             <th className="text-left p-3">Shopper</th>
+            <th className="text-left p-3">Stage</th>
             <th className="text-left p-3">Items</th>
             <th className="text-right p-3">Count</th>
             <th className="text-right p-3">Updated</th>
@@ -49,7 +51,14 @@ export default function ActiveCartsList({ carts }: { carts: ActiveCart[] }) {
                     <span className="text-muted-foreground">Guest</span>
                   )}
                 </td>
-                <td className="p-3 text-muted-foreground max-w-[420px] truncate" title={summary}>{summary || '—'}</td>
+                <td className="p-3">
+                  {c.stage === 'checkout' ? (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Checkout</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Browsing</span>
+                  )}
+                </td>
+                <td className="p-3 text-muted-foreground max-w-[360px] truncate" title={summary}>{summary || '—'}</td>
                 <td className="p-3 text-right font-mono">{c.item_count}</td>
                 <td className="p-3 text-right text-xs text-muted-foreground">{new Date(c.updated_at).toLocaleString()}</td>
               </tr>
