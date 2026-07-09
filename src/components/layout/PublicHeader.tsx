@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, Suspense } from 'react'
-import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
+import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package, Tag } from 'lucide-react'
 import { iconFor, type NavCategory } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
@@ -218,6 +218,14 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                   </Link>
                 )
               })}
+              {/* Overstock — not a category; jumps straight to the overstock product */}
+              <Link
+                href="/overstock"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-orange-600 hover:text-orange-700 transition-colors"
+              >
+                <Tag className="w-3.5 h-3.5" />
+                Overstock
+              </Link>
             </nav>
           </div>
         </div>
@@ -256,6 +264,14 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                   </Link>
                 )
               })}
+              <Link
+                href="/overstock"
+                className="flex items-center gap-2.5 text-sm font-semibold py-2 px-3 rounded-lg hover:bg-slate-50 hover:text-orange-700 transition-colors text-orange-600"
+                onClick={() => setMobileOpen(false)}
+              >
+                <Tag className="w-4 h-4" />
+                Overstock
+              </Link>
               <div className="my-2 border-t border-slate-100" />
               {navLinks.map((l) => (
                 <Link
