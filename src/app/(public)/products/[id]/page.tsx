@@ -180,20 +180,25 @@ export default async function ProductDetailPage({ params }: Props) {
             <p className="text-muted-foreground mt-4 mb-6">{product.description}</p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {product.weight_lbs && (
-              <div className="flex items-center gap-2 text-sm p-3 bg-slate-50 rounded-lg">
-                <Weight className="w-4 h-4 text-muted-foreground" />
-                <span>{product.weight_lbs} lbs</span>
-              </div>
-            )}
-            {product.unit && (
-              <div className="flex items-center gap-2 text-sm p-3 bg-slate-50 rounded-lg">
-                <Ruler className="w-4 h-4 text-muted-foreground" />
-                <span>Sold per {product.unit}</span>
-              </div>
-            )}
-          </div>
+          {/* Weight / "sold per" chips are misleading for overstock — pieces
+              vary by length and are sold individually, not per foot — so hide
+              them there (dimensions come from the in-stock options below). */}
+          {!isOverstock && (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {product.weight_lbs && (
+                <div className="flex items-center gap-2 text-sm p-3 bg-slate-50 rounded-lg">
+                  <Weight className="w-4 h-4 text-muted-foreground" />
+                  <span>{product.weight_lbs} lbs</span>
+                </div>
+              )}
+              {product.unit && (
+                <div className="flex items-center gap-2 text-sm p-3 bg-slate-50 rounded-lg">
+                  <Ruler className="w-4 h-4 text-muted-foreground" />
+                  <span>Sold per {product.unit}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {sizeOptions && <DoorSizeSelect options={sizeOptions} currentId={product.id} />}
           {variantOptions && vgroup && (

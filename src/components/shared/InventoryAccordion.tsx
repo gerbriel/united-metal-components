@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import InventoryActions from '@/components/shared/InventoryActions'
 import { iconFor } from '@/lib/nav-categories'
+import { isOverstockSku } from '@/lib/product-config'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { Product, ProductCategory } from '@/types/database'
 
@@ -17,14 +18,19 @@ export interface InventoryGroup {
   items: Product[]
 }
 
+// Live totals for overstock parent products, keyed by product id: summed from
+// their logged panel_overstock pieces (see the inventory page).
+export type OverstockStats = Record<number, { pieces: number; totalValue: number }>
+
 interface Props {
   groups: InventoryGroup[]
   isWarehouse: boolean
   isAdmin: boolean
   categories: ProductCategory[]
+  overstockStats?: OverstockStats
 }
 
-export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categories }: Props) {
+export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categories, overstockStats = {} }: Props) {
   // Track collapsed sections (default: all expanded). Kept in a Set of category
   // ids; survives router.refresh()/realtime updates since state isn't remounted.
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
@@ -152,19 +158,34 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                       </div>
                     </div>
                   </td>
-                  {!isWarehouse && (
-                    <td className="p-3 text-right font-semibold">${p.price.toFixed(2)}</td>
-                  )}
-                  <td className="p-3 text-right text-muted-foreground">{p.unit ?? '—'}</td>
-                  <td className="p-3 text-right font-mono">
-                    <span className={p.stock_qty < 10 ? 'text-red-600 font-bold' : ''}>{p.stock_qty}</span>
-                  </td>
-                  <td className="p-3 text-right">
-                    {!p.active ? <Badge variant="secondary">Inactive</Badge>
-                      : p.stock_qty === 0 ? <Badge className="bg-red-100 text-red-700 border-red-200 border">Out</Badge>
-                      : p.stock_qty < 10 ? <Badge className="bg-amber-100 text-amber-700 border-amber-200 border">Low</Badge>
-                      : <Badge className="bg-green-100 text-green-700 border-green-200 border">OK</Badge>}
-                  </td>
+                  {(() => {
+                    // Overstock parent rows reflect the logged pieces (price =
+                    // total value of all pieces, unit = Each, stock = piece count)
+                    // rather than the shell product's stale per-foot fields.
+                    const over = isOverstockSku(p.sku)
+                    const stats = over ? overstockStats[p.id] ?? { pieces: 0, totalValue: 0 } : null
+                    const stock = stats ? stats.pieces : p.stock_qty
+                    return (
+                      <>
+                        {!isWarehouse && (
+                          <td className="p-3 text-right font-semibold" title={stats ? 'Total value of overstock pieces' : undefined}>
+                            ${stats ? stats.totalValue.toFixed(2) : p.price.toFixed(2)}
+                          </td>
+                        )}
+                        <td className="p-3 text-right text-muted-foreground">{over ? 'Each' : p.unit ?? '—'}</td>
+                        <td className="p-3 text-right font-mono">
+                          <span className={stock < 10 && !over ? 'text-red-600 font-bold' : ''}>{stock}</span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {!p.active ? <Badge variant="secondary">Inactive</Badge>
+                            : stock === 0 ? <Badge className="bg-red-100 text-red-700 border-red-200 border">Out</Badge>
+                            : over ? <Badge className="bg-green-100 text-green-700 border-green-200 border">OK</Badge>
+                            : stock < 10 ? <Badge className="bg-amber-100 text-amber-700 border-amber-200 border">Low</Badge>
+                            : <Badge className="bg-green-100 text-green-700 border-green-200 border">OK</Badge>}
+                        </td>
+                      </>
+                    )
+                  })()}
                   <td className="p-3 text-right">
                     <InventoryActions product={p} categories={categories} mode="edit" isAdmin={isAdmin} />
                   </td>

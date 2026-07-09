@@ -28,14 +28,26 @@ export default async function InventoryPage() {
   const isWarehouse = isWarehouseRole(role)
   const isAdmin = isAdminRole(role)
 
-  const [{ data: products }, { data: categories }] = await Promise.all([
+  const [{ data: products }, { data: categories }, { data: overRows }] = await Promise.all([
     supabase
       .from('products')
       .select('*, product_categories(id, name, slug, sort_order, icon)')
       .order('sort_order')
       .order('name'),
     supabase.from('product_categories').select('*').order('sort_order').order('name'),
+    // Live overstock totals for the overstock parent rows (null/[] if the table
+    // isn't there yet — the accordion just falls back to the shell fields).
+    supabase.from('panel_overstock').select('product_id, quantity, unit_price').eq('archived', false),
   ])
+
+  // Sum logged pieces per overstock product: total value + piece count.
+  const overstockStats: Record<number, { pieces: number; totalValue: number }> = {}
+  for (const r of (overRows ?? []) as { product_id: number; quantity: number; unit_price: number | null }[]) {
+    const s = (overstockStats[r.product_id] ??= { pieces: 0, totalValue: 0 })
+    const q = Number(r.quantity) || 0
+    s.pieces += q
+    s.totalValue += (Number(r.unit_price) || 0) * q
+  }
 
   // Group products under their category (category sort_order). Within each group
   // products keep the admin-set sort_order (name as tiebreak) from the query.
@@ -72,6 +84,7 @@ export default async function InventoryPage() {
           isWarehouse={isWarehouse}
           isAdmin={isAdmin}
           categories={categories ?? []}
+          overstockStats={overstockStats}
         />
       </Card>
     </div>
