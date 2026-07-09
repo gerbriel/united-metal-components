@@ -176,7 +176,7 @@ export const BRACE_LENGTHS = [2, 3]
 // the coil linear-foot flow or the full palette — so this SKU is deliberately
 // kept OUT of PANEL_SKUS and COLOR_SKUS below and handled by its own branch on
 // the product page / order form.
-export const OVERSTOCK_SKUS = new Set(['PANEL-29GA-SCRAP'])
+export const OVERSTOCK_SKUS = new Set(['PANEL-29GA-OVERSTOCK'])
 
 export function isOverstockSku(sku?: string | null): boolean {
   return !!sku && OVERSTOCK_SKUS.has(sku)
