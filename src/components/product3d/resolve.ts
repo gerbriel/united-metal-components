@@ -111,6 +111,8 @@ const BY_SKU: Record<string, Archetype> = {
 const BY_CATEGORY: Record<string, Archetype> = {
   'square-tubing': 'square-tube',
   'panels': 'panel',
+  'overstock': 'panel',   // overstock panels live in their own category (migration 035) but are still panels
+
   'base-rail': 'base-rail',
   'braces': 'brace',
   'rebar': 'rebar',
