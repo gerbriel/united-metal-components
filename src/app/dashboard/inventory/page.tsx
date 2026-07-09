@@ -28,7 +28,7 @@ export default async function InventoryPage() {
   const isWarehouse = isWarehouseRole(role)
   const isAdmin = isAdminRole(role)
 
-  const [{ data: products }, { data: categories }, { data: overRows }] = await Promise.all([
+  const [{ data: products }, { data: categories }, { data: overRows }, { data: tierRows }] = await Promise.all([
     supabase
       .from('products')
       .select('*, product_categories(id, name, slug, sort_order, icon)')
@@ -38,7 +38,18 @@ export default async function InventoryPage() {
     // Live overstock totals for the overstock parent rows (null/[] if the table
     // isn't there yet — the accordion just falls back to the shell fields).
     supabase.from('panel_overstock').select('product_id, quantity, unit_price').eq('archived', false),
+    // Per-item Contractor / Retail overrides for the inventory price columns.
+    // A blank tier price falls back to the product's base price in the accordion.
+    supabase.from('product_tier_prices').select('product_id, tier_key, price').in('tier_key', ['contractor', 'retail']),
   ])
+
+  // productId → { contractor?, retail? } explicit tier-price overrides.
+  const tierPrices: Record<number, { contractor?: number; retail?: number }> = {}
+  for (const r of (tierRows ?? []) as { product_id: number; tier_key: string; price: number | string }[]) {
+    const e = (tierPrices[r.product_id] ??= {})
+    if (r.tier_key === 'contractor') e.contractor = Number(r.price)
+    else if (r.tier_key === 'retail') e.retail = Number(r.price)
+  }
 
   // Sum logged pieces per overstock product: total value + piece count.
   const overstockStats: Record<number, { pieces: number; totalValue: number }> = {}
@@ -85,6 +96,7 @@ export default async function InventoryPage() {
           isAdmin={isAdmin}
           categories={categories ?? []}
           overstockStats={overstockStats}
+          tierPrices={tierPrices}
         />
       </Card>
     </div>

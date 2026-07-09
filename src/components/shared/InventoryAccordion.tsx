@@ -22,19 +22,36 @@ export interface InventoryGroup {
 // their logged panel_overstock pieces (see the inventory page).
 export type OverstockStats = Record<number, { pieces: number; totalValue: number }>
 
+// Explicit Contractor / Retail tier-price overrides, keyed by product id. A
+// missing value means that tier charges the product's base price.
+export type TierPriceMap = Record<number, { contractor?: number; retail?: number }>
+
 interface Props {
   groups: InventoryGroup[]
   isWarehouse: boolean
   isAdmin: boolean
   categories: ProductCategory[]
   overstockStats?: OverstockStats
+  tierPrices?: TierPriceMap
 }
 
-export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categories, overstockStats = {} }: Props) {
+// One tier-price cell: the explicit override in bold, or the base-price fallback
+// muted so staff can tell at a glance which prices are actually set per tier.
+function TierPrice({ override, base }: { override?: number; base: number }) {
+  const isSet = override != null
+  return (
+    <span className={isSet ? 'font-semibold' : 'text-muted-foreground'}>
+      ${(isSet ? override : base).toFixed(2)}
+    </span>
+  )
+}
+
+export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categories, overstockStats = {}, tierPrices = {} }: Props) {
   // Track collapsed sections (default: all expanded). Kept in a Set of category
   // ids; survives router.refresh()/realtime updates since state isn't remounted.
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
-  const colSpan = isWarehouse ? 5 : 6
+  // +2 price columns (Contractor, Retail) for non-warehouse staff.
+  const colSpan = isWarehouse ? 5 : 7
 
   const supabase = createClient()
   const router = useRouter()
@@ -102,7 +119,8 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
         <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
           <tr>
             <th className="text-left p-3">Product</th>
-            {!isWarehouse && <th className="text-right p-3">Price</th>}
+            {!isWarehouse && <th className="text-right p-3">Contractor</th>}
+            {!isWarehouse && <th className="text-right p-3">Retail</th>}
             <th className="text-right p-3">Unit</th>
             <th className="text-right p-3">Stock</th>
             <th className="text-right p-3">Status</th>
@@ -168,9 +186,22 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                     return (
                       <>
                         {!isWarehouse && (
-                          <td className="p-3 text-right font-semibold" title={stats ? 'Total value of overstock pieces' : undefined}>
-                            ${stats ? stats.totalValue.toFixed(2) : p.price.toFixed(2)}
-                          </td>
+                          stats ? (
+                            // Overstock parents are priced per-listing, not per tier —
+                            // show their total logged value across both price columns.
+                            <td className="p-3 text-right font-semibold" colSpan={2} title="Total value of overstock pieces">
+                              ${stats.totalValue.toFixed(2)}
+                            </td>
+                          ) : (
+                            <>
+                              <td className="p-3 text-right">
+                                <TierPrice override={tierPrices[p.id]?.contractor} base={p.price} />
+                              </td>
+                              <td className="p-3 text-right">
+                                <TierPrice override={tierPrices[p.id]?.retail} base={p.price} />
+                              </td>
+                            </>
+                          )
                         )}
                         <td className="p-3 text-right text-muted-foreground">{over ? 'Total' : p.unit ?? '—'}</td>
                         <td className="p-3 text-right font-mono">

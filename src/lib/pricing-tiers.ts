@@ -68,3 +68,39 @@ export function tierBelongsToType(
 export function defaultTierForType(tiers: PricingTier[], type: CustomerType): string | null {
   return tiersForType(tiers, type)[0]?.value ?? null
 }
+
+// ── Pricing & tax resolution ──────────────────────────────────
+// Only the two "base" tiers (Retail, Contractor) carry per-item prices in the
+// price list. Every other tier derives its price from one of them and differs
+// only in how tax is applied, so staff never enter prices for the derived ones:
+//   • retail_tax_exempt          → Retail price, no tax
+//   • contractor_tax_exempt      → Contractor price, no tax
+//   • contractor_tax_exempt_tbd  → Contractor price, taxed until the exemption
+//                                  is approved (pending)
+//   • ag_tax_exempt              → Retail price, taxed at the agricultural rate
+//                                  (federal + state ag), not standard sales tax
+export type TaxMode = 'sales' | 'exempt' | 'ag'
+
+export interface TierPricing {
+  basis: string   // tier key whose per-item price this tier charges
+  tax: TaxMode    // how tax is figured for this tier
+}
+
+export const TIER_PRICING: Record<string, TierPricing> = {
+  retail:                    { basis: 'retail',     tax: 'sales' },
+  retail_tax_exempt:         { basis: 'retail',     tax: 'exempt' },
+  contractor:                { basis: 'contractor', tax: 'sales' },
+  contractor_tax_exempt:     { basis: 'contractor', tax: 'exempt' },
+  contractor_tax_exempt_tbd: { basis: 'contractor', tax: 'sales' },
+  ag_tax_exempt:             { basis: 'retail',     tax: 'ag' },
+}
+
+// The tier a given tier inherits its per-item price from (itself when it's a
+// base tier, or an unknown/custom tier that prices itself).
+export const priceBasisTier = (key: string): string => TIER_PRICING[key]?.basis ?? key
+
+// A tier needs its own column in the price list only when it prices itself.
+export const isBasePriceTier = (key: string): boolean => priceBasisTier(key) === key
+
+// How tax is applied for a tier (defaults to standard sales tax).
+export const taxModeForTier = (key: string): TaxMode => TIER_PRICING[key]?.tax ?? 'sales'

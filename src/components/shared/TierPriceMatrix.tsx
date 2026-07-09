@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Search, Check, Loader2 } from 'lucide-react'
-import type { PricingTier } from '@/lib/pricing-tiers'
+import { isBasePriceTier, type PricingTier } from '@/lib/pricing-tiers'
 
 export interface MatrixProduct {
   id: number
@@ -116,7 +116,13 @@ export default function TierPriceMatrix({
 }: { products: MatrixProduct[]; tiers: PricingTier[]; initialPrices: TierPriceMap }) {
   const [q, setQ] = useState('')
 
-  const activeTiers = useMemo(() => tiers.filter((t) => t.active !== false), [tiers])
+  // Only the base-price tiers (Retail, Contractor) get an editable column —
+  // tax-exempt and agricultural tiers derive their price from one of these, so
+  // there's nothing to type for them (see TIER_PRICING in pricing-tiers.ts).
+  const activeTiers = useMemo(
+    () => tiers.filter((t) => t.active !== false && isBasePriceTier(t.value)),
+    [tiers],
+  )
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
     if (!s) return products
@@ -136,7 +142,8 @@ export default function TierPriceMatrix({
 
       <p className="text-xs text-muted-foreground">
         Edit the <span className="font-medium text-foreground">Base</span> price to change the product&apos;s
-        default; leave a tier cell blank to charge that base. Prices save automatically.
+        default; leave a tier cell blank to charge that base. Only Retail and Contractor are set here —
+        tax-exempt and agricultural tiers reuse these automatically. Prices save automatically.
       </p>
 
       <Card className="overflow-x-auto">
