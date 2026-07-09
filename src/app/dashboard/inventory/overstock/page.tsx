@@ -36,11 +36,12 @@ export default async function OverstockPage() {
       .select('*, products(name), product_coils(coil_identifier, color)')
       .order('received_at', { ascending: false }),
     // The catalog product(s) overstock panels are sold under (e.g. the 29 GA
-    // "Overstock" SKU). New listings attach to the first one.
+    // "Overstock" SKU). New listings attach to the first one. Match SKU
+    // case-insensitively (ilike, no wildcards) since it's admin-editable.
     supabase
       .from('products')
       .select('id, name, sku')
-      .in('sku', [...OVERSTOCK_SKUS])
+      .or([...OVERSTOCK_SKUS].map((s) => `sku.ilike.${s}`).join(','))
       .order('name'),
     // Panel coils, for the optional source-coil (traceability) picker.
     supabase

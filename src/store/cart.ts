@@ -25,6 +25,11 @@ export const cartItemKey = (i: CartItem) =>
 
 // Unit price for a single piece (handles per-foot × length)
 export const itemUnitPrice = (i: CartItem): number => {
+  // Overstock panels are priced per-listing (staff-only) — NOT from the parent
+  // product's per-foot price. The storefront never sees the listing price, so an
+  // overstock line records 0 here and staff apply the listing's own unit_price
+  // (reachable via panel_overstock_id) when they review the order.
+  if (i.overstockId != null) return 0
   if (i.length !== undefined) {
     const totalFt = i.length + (i.lengthIn ?? 0) / 12
     return i.product.price * totalFt

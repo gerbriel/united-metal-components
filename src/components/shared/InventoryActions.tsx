@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Pencil, Loader2, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Loader2, Archive, ArchiveRestore, Trash2, Info } from 'lucide-react'
+import { isOverstockSku } from '@/lib/product-config'
 import type { Product, ProductCategory } from '@/types/database'
 
 interface Props {
@@ -39,8 +40,13 @@ export default function InventoryActions({ product, categories, mode = 'add', is
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // The overstock parent is just a grouping shell: price, unit, stock qty, and
+  // weight are all determined by the individual pieces logged in Overstock
+  // inventory (panel_overstock), so those fields are managed there, not here.
+  const isOverstock = isOverstockSku(form.sku)
+
   const handleSave = async () => {
-    if (!form.name || !form.price) { toast.error('Name and price are required'); return }
+    if (!form.name || (!isOverstock && !form.price)) { toast.error('Name and price are required'); return }
     setLoading(true)
 
     const payload = {
@@ -49,7 +55,7 @@ export default function InventoryActions({ product, categories, mode = 'add', is
       category_id: form.category_id ? Number(form.category_id) : null,
       description: form.description || null,
       unit: form.unit || null,
-      price: parseFloat(form.price),
+      price: form.price ? parseFloat(form.price) : 0,
       stock_qty: parseInt(form.stock_qty) || 0,
       weight_lbs: form.weight_lbs ? parseFloat(form.weight_lbs) : null,
       active: form.active,
@@ -156,21 +162,31 @@ export default function InventoryActions({ product, categories, mode = 'add', is
               </SelectContent>
             </Select>
           </div>
+          {isOverstock && (
+            <div className="col-span-2 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Price, unit, stock quantity, and weight are set per logged piece in{' '}
+                <span className="font-medium">Inventory → Overstock</span>, not here — this product
+                is just the storefront shell they group under.
+              </span>
+            </div>
+          )}
           <div className="space-y-1.5">
-            <Label>Price *</Label>
-            <Input type="number" step="0.01" value={form.price} onChange={set('price')} placeholder="0.00" />
+            <Label>Price {isOverstock ? '' : '*'}</Label>
+            <Input type="number" step="0.01" value={form.price} onChange={set('price')} placeholder="0.00" disabled={isOverstock} />
           </div>
           <div className="space-y-1.5">
             <Label>Unit (per)</Label>
-            <Input value={form.unit} onChange={set('unit')} placeholder="Foot / Each / Bundle" />
+            <Input value={form.unit} onChange={set('unit')} placeholder="Foot / Each / Bundle" disabled={isOverstock} />
           </div>
           <div className="space-y-1.5">
             <Label>Stock Quantity</Label>
-            <Input type="number" value={form.stock_qty} onChange={set('stock_qty')} />
+            <Input type="number" value={form.stock_qty} onChange={set('stock_qty')} disabled={isOverstock} />
           </div>
           <div className="space-y-1.5">
             <Label>Weight (lbs)</Label>
-            <Input type="number" step="0.001" value={form.weight_lbs} onChange={set('weight_lbs')} />
+            <Input type="number" step="0.001" value={form.weight_lbs} onChange={set('weight_lbs')} disabled={isOverstock} />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label>Description</Label>
