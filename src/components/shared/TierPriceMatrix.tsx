@@ -68,6 +68,49 @@ function PriceCell({
   )
 }
 
+// The product's base price (products.price) — the fallback charged when a tier
+// cell is blank. Editable inline here so admins set base + tier prices on one
+// screen; autosaves to the products table on blur. Base can't be blank.
+function BaseCell({ productId, initial }: { productId: number; initial: number }) {
+  const [baseline, setBaseline] = useState(initial.toFixed(2))
+  const [val, setVal] = useState(initial.toFixed(2))
+  const [state, setState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const supabase = createClient()
+
+  const save = async () => {
+    const trimmed = val.trim()
+    if (trimmed === baseline) return
+    const price = Number(trimmed)
+    if (trimmed === '' || Number.isNaN(price) || price < 0) {
+      toast.error('Enter a valid base price')
+      setVal(baseline)
+      return
+    }
+    setState('saving')
+    const { error } = await supabase.from('products').update({ price }).eq('id', productId)
+    if (error) { toast.error('Failed to save base price'); setState('idle'); setVal(baseline); return }
+    setVal(price.toFixed(2))
+    setBaseline(price.toFixed(2))
+    setState('saved')
+    setTimeout(() => setState('idle'), 1200)
+  }
+
+  return (
+    <div className="relative">
+      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">$</span>
+      <Input
+        inputMode="decimal"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        className="h-8 w-28 pl-5 pr-6 text-sm text-right font-mono"
+      />
+      {state === 'saving' && <Loader2 className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 animate-spin text-muted-foreground" />}
+      {state === 'saved' && <Check className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-green-600" />}
+    </div>
+  )
+}
+
 export default function TierPriceMatrix({
   products, tiers, initialPrices,
 }: { products: MatrixProduct[]; tiers: PricingTier[]; initialPrices: TierPriceMap }) {
@@ -92,7 +135,8 @@ export default function TierPriceMatrix({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Leave a cell blank to charge the product&apos;s base price. Prices save automatically.
+        Edit the <span className="font-medium text-foreground">Base</span> price to change the product&apos;s
+        default; leave a tier cell blank to charge that base. Prices save automatically.
       </p>
 
       <Card className="overflow-x-auto">
@@ -104,7 +148,7 @@ export default function TierPriceMatrix({
               {activeTiers.map((t) => (
                 <th key={t.value} className="text-right p-3 font-medium whitespace-nowrap">
                   {t.label}
-                  <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${t.group === 'contractor' ? 'bg-orange-400' : 'bg-blue-400'}`} />
+                  <span className={`ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle ${t.group === 'contractor' ? 'bg-orange-400' : t.group === 'ag' ? 'bg-green-500' : 'bg-blue-400'}`} />
                 </th>
               ))}
             </tr>
@@ -119,7 +163,9 @@ export default function TierPriceMatrix({
                   <p className="font-medium leading-tight">{p.name}</p>
                   {p.sku && <p className="text-xs text-muted-foreground font-mono">{p.sku}{p.unit ? ` · per ${p.unit}` : ''}</p>}
                 </td>
-                <td className="p-3 text-right font-mono text-muted-foreground whitespace-nowrap">${Number(p.price).toFixed(2)}</td>
+                <td className="p-2 text-right">
+                  <BaseCell productId={p.id} initial={Number(p.price)} />
+                </td>
                 {activeTiers.map((t) => (
                   <td key={t.value} className="p-2 text-right">
                     <PriceCell

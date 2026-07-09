@@ -12,7 +12,14 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react'
-import type { CustomerType } from '@/lib/pricing-tiers'
+import { CUSTOMER_TYPE_LABEL, type CustomerType } from '@/lib/pricing-tiers'
+
+// Account-type accent colors for the row badge.
+const TYPE_BADGE: Record<CustomerType, string> = {
+  retail: 'bg-blue-100 text-blue-800',
+  contractor: 'bg-orange-100 text-orange-800',
+  ag: 'bg-green-100 text-green-800',
+}
 
 export interface PricingTierRow {
   id: number
@@ -144,9 +151,9 @@ export default function PricingTierManager({ initial }: { initial: PricingTierRo
             </div>
             <Badge
               variant="secondary"
-              className={`text-xs shrink-0 ${t.customer_type === 'contractor' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}
+              className={`text-xs shrink-0 ${TYPE_BADGE[t.customer_type] ?? TYPE_BADGE.retail}`}
             >
-              {t.customer_type === 'contractor' ? 'Contractor' : 'Retail'}
+              {CUSTOMER_TYPE_LABEL[t.customer_type] ?? 'Retail'}
             </Badge>
             <div className="min-w-0 flex-1">
               <p className="font-medium text-sm truncate">{t.label}</p>
@@ -197,6 +204,7 @@ export default function PricingTierManager({ initial }: { initial: PricingTierRo
                 <SelectContent>
                   <SelectItem value="retail">Retail (One-off Customer)</SelectItem>
                   <SelectItem value="contractor">Contractor</SelectItem>
+                  <SelectItem value="ag">Agricultural</SelectItem>
                 </SelectContent>
               </Select>
             </div>

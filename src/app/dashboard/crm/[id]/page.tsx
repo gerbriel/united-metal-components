@@ -152,6 +152,8 @@ export default async function CustomerDetailPage({ params }: Props) {
                   <dd>
                     {c.customer_type === 'contractor' ? (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-medium">Contractor</span>
+                    ) : c.customer_type === 'ag' ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">Agricultural</span>
                     ) : c.customer_type === 'retail' ? (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">One-off Customer</span>
                     ) : (

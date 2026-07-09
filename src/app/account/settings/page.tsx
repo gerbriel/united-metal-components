@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, HardHat, Home } from 'lucide-react'
+import { Loader2, HardHat, Home, Sprout } from 'lucide-react'
 
 type FormState = {
   first_name:         string
@@ -23,7 +23,7 @@ type FormState = {
 
 type AccountInfo = {
   email:         string
-  customer_type: 'retail' | 'contractor' | null
+  customer_type: 'retail' | 'contractor' | 'ag' | null
   pricing_tier:  string | null
 }
 
@@ -33,6 +33,7 @@ const PRICING_TIER_LABEL: Record<string, string> = {
   contractor:                'Contractor',
   contractor_tax_exempt_tbd: 'Contractor (Tax Exempt - Pending)',
   contractor_tax_exempt:     'Contractor (Tax Exempt)',
+  ag_tax_exempt:             'Agricultural (Tax Exempt)',
 }
 
 const EMPTY: FormState = {
@@ -98,6 +99,7 @@ export default function SettingsPage() {
   }
 
   const isContractor = account.customer_type === 'contractor'
+  const isAg = account.customer_type === 'ag'
   // Show business section if they're a contractor OR already have any business data
   const showBusinessSection =
     isContractor ||
@@ -116,16 +118,20 @@ export default function SettingsPage() {
         <CardContent className="flex items-center gap-4">
           <div
             className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: isContractor ? '#fed7aa' : '#bfdbfe' }}
+            style={{ background: isContractor ? '#fed7aa' : isAg ? '#bbf7d0' : '#bfdbfe' }}
           >
             {isContractor
               ? <HardHat className="w-5 h-5 text-orange-700" />
+              : isAg
+              ? <Sprout className="w-5 h-5 text-green-700" />
               : <Home className="w-5 h-5 text-blue-700" />}
           </div>
           <div>
             <p className="font-semibold text-sm">
               {isContractor
                 ? 'Contractor / Business'
+                : isAg
+                ? 'Agricultural'
                 : account.customer_type === 'retail'
                 ? 'One-off Customer'
                 : 'Customer'}

@@ -7,7 +7,7 @@
 // gets retail tiers and a contractor only contractor tiers — keeping Account
 // Type and Pricing Tier in sync wherever the pair is edited.
 
-export type CustomerType = 'retail' | 'contractor'
+export type CustomerType = 'retail' | 'contractor' | 'ag'
 
 export interface PricingTier {
   value: string          // the `key` stored on profiles.pricing_tier
@@ -25,7 +25,15 @@ export const DEFAULT_PRICING_TIERS: PricingTier[] = [
   { value: 'contractor',                label: 'Contractor',                        group: 'contractor', active: true, sort: 30 },
   { value: 'contractor_tax_exempt_tbd', label: 'Contractor (Tax Exempt - Pending)', group: 'contractor', active: true, sort: 40 },
   { value: 'contractor_tax_exempt',     label: 'Contractor (Tax Exempt)',           group: 'contractor', active: true, sort: 50 },
+  { value: 'ag_tax_exempt',             label: 'Agricultural (Tax Exempt)',         group: 'ag',         active: true, sort: 60 },
 ]
+
+// Display label + accent for each account type, shared by the badges/pickers.
+export const CUSTOMER_TYPE_LABEL: Record<CustomerType, string> = {
+  retail: 'Retail',
+  contractor: 'Contractor',
+  ag: 'Agricultural',
+}
 
 // value → label for the seed tiers. A read-only fallback; DB-driven surfaces
 // build their own map from fetched tiers so renames/new tiers show correctly.

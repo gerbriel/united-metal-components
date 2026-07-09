@@ -92,6 +92,7 @@ export default function CustomerAccountControls({ userId, customerType, pricingT
               <SelectItem value="__unassigned__">—</SelectItem>
               <SelectItem value="retail">One-off Customer</SelectItem>
               <SelectItem value="contractor">Contractor</SelectItem>
+              <SelectItem value="ag">Agricultural</SelectItem>
             </SelectContent>
           </Select>
         </dd>

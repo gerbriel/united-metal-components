@@ -24,7 +24,7 @@ interface UserRow {
   suspended_reason: string | null
   can_receive_inventory: boolean
   pricing_tier: string | null
-  customer_type: 'retail' | 'contractor' | null
+  customer_type: 'retail' | 'contractor' | 'ag' | null
   created_at: string
 }
 
@@ -183,9 +183,13 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
                           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                             u.customer_type === 'contractor'
                               ? 'bg-orange-100 text-orange-700'
+                              : u.customer_type === 'ag'
+                              ? 'bg-green-100 text-green-700'
                               : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {u.customer_type === 'contractor' ? 'Contractor' : 'One-off Customer'}
+                            {u.customer_type === 'contractor' ? 'Contractor'
+                              : u.customer_type === 'ag' ? 'Agricultural'
+                              : 'One-off Customer'}
                           </span>
                         )}
                         <p className="text-xs text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</p>
