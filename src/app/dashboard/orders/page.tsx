@@ -4,7 +4,7 @@ import Link from 'next/link'
 import OrdersClientShell from '@/components/shared/OrdersClientShell'
 import type { Metadata } from 'next'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
-import { Tv } from 'lucide-react'
+import { Tv, Plus } from 'lucide-react'
 
 export const metadata: Metadata = { title: 'Orders — Dashboard' }
 
@@ -71,13 +71,24 @@ export default async function DashboardOrdersPage({ searchParams }: Props) {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Orders</h1>
-        <Link
-          href="/dashboard/orders/tv"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
-        >
-          <Tv className="w-3.5 h-3.5" />
-          TV Mode
-        </Link>
+        <div className="flex items-center gap-2">
+          {!isWarehouse && (
+            <Link
+              href="/dashboard/orders/new"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              New Order
+            </Link>
+          )}
+          <Link
+            href="/dashboard/orders/tv"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors border rounded-md px-2.5 py-1.5"
+          >
+            <Tv className="w-3.5 h-3.5" />
+            TV Mode
+          </Link>
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">

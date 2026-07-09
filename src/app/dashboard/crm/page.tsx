@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import CRMCustomerList from '@/components/shared/CRMCustomerList'
+import CreateCustomerDialog from '@/components/shared/CreateCustomerDialog'
 import { isAdminRole } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -33,9 +34,12 @@ export default async function CRMPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">CRM — Customers</h1>
-        <p className="text-sm text-muted-foreground">{customers?.length ?? 0} customers</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">{customers?.length ?? 0} customers</p>
+          <CreateCustomerDialog />
+        </div>
       </div>
       <CRMCustomerList customers={(customers ?? []) as any} isAdmin={isAdmin} />
     </div>
