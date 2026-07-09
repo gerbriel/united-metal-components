@@ -8,6 +8,7 @@ import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import OrderAdminActions from '@/components/shared/OrderAdminActions'
+import OrderPriceEditor, { type EditorItem } from '@/components/shared/OrderPriceEditor'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
@@ -49,7 +50,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('*, profiles(first_name, last_name, full_name, phone, company_name, mailing_address, business_address), order_items(*, products(name, sku, unit, description))')
+    .select('*, profiles(first_name, last_name, full_name, phone, company_name, mailing_address, business_address, pricing_tier), order_items(*, products(name, sku, unit, description, price))')
     .eq('id', id)
     .single()
 
@@ -124,6 +125,28 @@ export default async function DashboardOrderDetail({ params }: Props) {
   }))
 
   const specialItems = orderItems.filter((i) => i.is_special_order)
+
+  // Admins can correct line prices only while the order is still pending — the
+  // window before it is accepted. This is how a price that drifted after the
+  // order was placed gets fixed. Tax mirrors checkout: waived for exempt tiers.
+  const EXEMPT_TIERS = new Set(['retail_tax_exempt', 'contractor_tax_exempt'])
+  const exempt = EXEMPT_TIERS.has((order.profiles as any)?.pricing_tier ?? '')
+  const canEditPrices = isAdmin && !isWarehouse && order.status === 'pending'
+
+  const editorItems: EditorItem[] = (order.order_items as any[]).map((i: any) => ({
+    id: i.id,
+    name: i.products?.name ?? 'Unknown product',
+    sku: i.products?.sku ?? null,
+    unit: i.products?.unit ?? null,
+    quantity: i.quantity,
+    unit_price: Number(i.unit_price),
+    total_price: Number(i.total_price),
+    length_feet: i.length_feet ?? null,
+    linear_feet: i.linear_feet ?? null,
+    product_price: i.products?.price != null ? Number(i.products.price) : null,
+    is_overstock: i.panel_overstock_id != null,
+    detail: i.notes ?? null,
+  }))
 
   const customer = order.profiles as any
   const customerName = customer?.first_name && customer?.last_name
@@ -216,6 +239,21 @@ export default async function DashboardOrderDetail({ params }: Props) {
               </table>
             </CardContent>
           </Card>
+
+          {/* Adjust pricing — admin only, before the order enters fulfillment */}
+          {canEditPrices && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Adjust Pricing</CardTitle></CardHeader>
+              <CardContent>
+                <OrderPriceEditor
+                  orderId={order.id}
+                  items={editorItems}
+                  exempt={exempt}
+                  storedTotal={order.total}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           {/* Special Order ETA — shown when there are special order items */}
           {specialItems.length > 0 && !isWarehouse && (
