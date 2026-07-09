@@ -9,6 +9,8 @@ import AddCrmNote from '@/components/shared/AddCrmNote'
 import CartReminderButton from '@/components/shared/CartReminderButton'
 import CustomerAccountControls from '@/components/shared/CustomerAccountControls'
 import { isAdminRole } from '@/types/database'
+import { tierLabelMap } from '@/lib/pricing-tiers'
+import { getPricingTiers } from '@/lib/pricing-tiers.server'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -44,13 +46,9 @@ export default async function CustomerDetailPage({ params }: Props) {
 
   const c = customer as any
 
-  const PRICING_TIER_LABEL: Record<string, string> = {
-    retail:                    'Retail',
-    retail_tax_exempt:         'Retail (Tax Exempt)',
-    contractor:                'Contractor',
-    contractor_tax_exempt_tbd: 'Contractor (Tax Exempt - Pending)',
-    contractor_tax_exempt:     'Contractor (Tax Exempt)',
-  }
+  // Admin-managed pricing tiers drive the picker and the label shown here.
+  const pricingTiers = await getPricingTiers()
+  const tierLabels = tierLabelMap(pricingTiers)
 
   const initials = customer.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() ?? '?'
   const totalRevenue = orders?.reduce((sum, o) => sum + o.total, 0) ?? 0
@@ -145,6 +143,7 @@ export default async function CustomerDetailPage({ params }: Props) {
                 userId={customer.id}
                 customerType={c.customer_type ?? null}
                 pricingTier={c.pricing_tier ?? null}
+                tiers={pricingTiers}
               />
             ) : (
               <>
@@ -165,7 +164,7 @@ export default async function CustomerDetailPage({ params }: Props) {
                   <dt className="text-xs text-muted-foreground mb-0.5">Pricing Tier</dt>
                   <dd className="font-medium">
                     {c.pricing_tier
-                      ? PRICING_TIER_LABEL[c.pricing_tier] ?? c.pricing_tier
+                      ? tierLabels[c.pricing_tier] ?? c.pricing_tier
                       : <span className="text-muted-foreground font-normal">Unassigned</span>
                     }
                   </dd>

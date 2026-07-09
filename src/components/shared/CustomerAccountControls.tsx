@@ -4,27 +4,25 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { AlertTriangle } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
-// Pricing tiers mirror the admin user manager / CRM label map. '__unassigned__'
-// clears the tier (no pricing on file yet). Prices are never shown on the
-// storefront regardless — the tier drives internal/quoted pricing only.
-const TIER_OPTIONS: { value: string; label: string }[] = [
-  { value: '__unassigned__',            label: 'Unassigned' },
-  { value: 'retail',                    label: 'Retail' },
-  { value: 'retail_tax_exempt',         label: 'Retail (Tax Exempt)' },
-  { value: 'contractor',                label: 'Contractor' },
-  { value: 'contractor_tax_exempt_tbd', label: 'Contractor (Tax Exempt - Pending)' },
-  { value: 'contractor_tax_exempt',     label: 'Contractor (Tax Exempt)' },
-]
+import {
+  tierLabelMap,
+  tiersForType,
+  tierBelongsToType,
+  defaultTierForType,
+  type CustomerType,
+  type PricingTier,
+} from '@/lib/pricing-tiers'
 
 interface Props {
   userId: string
-  customerType: 'retail' | 'contractor' | null
+  customerType: CustomerType | null
   pricingTier: string | null
+  tiers: PricingTier[]   // admin-managed tiers (migration 041), fetched server-side
 }
 
-export default function CustomerAccountControls({ userId, customerType, pricingTier }: Props) {
+export default function CustomerAccountControls({ userId, customerType, pricingTier, tiers }: Props) {
   const supabase = createClient()
   const router = useRouter()
   const [type, setType] = useState<string>(customerType ?? '__unassigned__')
@@ -45,16 +43,43 @@ export default function CustomerAccountControls({ userId, customerType, pricingT
   }
 
   const onTypeChange = (v: string | null) => {
-    if (!v) return
+    if (!v || v === type) return
     setType(v)
-    save({ customer_type: v === '__unassigned__' ? '__clear__' : v })
+
+    // Clearing the account type clears the tier too (a tier is meaningless
+    // without a type).
+    if (v === '__unassigned__') {
+      setTier('__unassigned__')
+      save({ customer_type: '__clear__', pricing_tier: '__clear__' })
+      return
+    }
+
+    // Keep the tier in sync: if the current tier doesn't belong to the new
+    // account type, fall back to that type's base tier so the two never drift.
+    const nextType = v as CustomerType
+    const currentTier = tier === '__unassigned__' ? null : tier
+    if (!tierBelongsToType(tiers, currentTier, nextType)) {
+      const def = defaultTierForType(tiers, nextType)
+      setTier(def ?? '__unassigned__')
+      save({ customer_type: v, pricing_tier: def ?? '__clear__' })
+    } else {
+      save({ customer_type: v })
+    }
   }
 
   const onTierChange = (v: string | null) => {
-    if (!v) return
+    if (!v || v === tier) return
     setTier(v)
     save({ pricing_tier: v === '__unassigned__' ? '__clear__' : v })
   }
+
+  const accountType = type === '__unassigned__' ? null : (type as CustomerType)
+  const tierOptions = tiersForType(tiers, accountType)
+  const currentTier = tier === '__unassigned__' ? null : tier
+  const labelFor = tierLabelMap(tiers)
+  // Legacy/mismatched data (e.g. a contractor tier left on a retail account):
+  // surface it so staff can see and correct it, rather than silently blanking.
+  const mismatched = !tierBelongsToType(tiers, currentTier, accountType)
 
   return (
     <>
@@ -75,14 +100,30 @@ export default function CustomerAccountControls({ userId, customerType, pricingT
       <div>
         <dt className="text-xs text-muted-foreground mb-1">Pricing Tier</dt>
         <dd>
-          <Select value={tier} onValueChange={onTierChange} disabled={saving}>
+          <Select value={tier} onValueChange={onTierChange} disabled={saving || !accountType}>
             <SelectTrigger className="h-8 w-56"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {TIER_OPTIONS.map((o) => (
+              <SelectItem value="__unassigned__">Unassigned</SelectItem>
+              {/* Show the current value even when it's out of the type's set,
+                  so a mismatch is visible and fixable. */}
+              {mismatched && currentTier && (
+                <SelectItem value={currentTier}>
+                  {labelFor[currentTier] ?? currentTier} (mismatch)
+                </SelectItem>
+              )}
+              {tierOptions.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {!accountType ? (
+            <p className="text-xs text-muted-foreground mt-1">Set an account type first.</p>
+          ) : mismatched ? (
+            <p className="text-xs text-amber-600 mt-1 inline-flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              Tier doesn&apos;t match the account type — pick a {accountType} tier.
+            </p>
+          ) : null}
         </dd>
       </div>
     </>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2, ShieldOff, ShieldCheck } from 'lucide-react'
+import { tiersForType, tierLabelMap, type PricingTier } from '@/lib/pricing-tiers'
 
 interface UserRow {
   id: string
@@ -26,7 +27,7 @@ interface UserRow {
   created_at: string
 }
 
-interface Props { initialUsers: UserRow[] }
+interface Props { initialUsers: UserRow[]; tiers: PricingTier[] }
 
 const ROLE_LABELS: Record<string, string> = {
   customer:           'Customer',
@@ -46,8 +47,9 @@ type Patch = Partial<{
   pricing_tier: string | null
 }>
 
-export default function AdminUserManager({ initialUsers }: Props) {
+export default function AdminUserManager({ initialUsers, tiers }: Props) {
   const [users, setUsers]           = useState<UserRow[]>(initialUsers)
+  const tierLabels = tierLabelMap(tiers)
   const [suspendingId, setSuspendingId] = useState<string | null>(null)
   const [suspendReason, setSuspendReason] = useState('')
   const [loadingId, setLoadingId]   = useState<string | null>(null)
@@ -224,27 +226,38 @@ export default function AdminUserManager({ initialUsers }: Props) {
                     </td>
 
                     <td className="p-3">
-                      {!isStaffRole(u.role) ? (
-                        <Select
-                          value={u.pricing_tier ?? '__unset__'}
-                          onValueChange={(v) => v && callRpc(u.id, {
-                            pricing_tier: v === '__unset__' ? '__clear__' : v,
-                          })}
-                          disabled={isBusy}
-                        >
-                          <SelectTrigger className="w-52 h-8 text-xs">
-                            <SelectValue placeholder="— unassigned —" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__unset__" className="text-muted-foreground">— unassigned —</SelectItem>
-                            <SelectItem value="retail">Retail</SelectItem>
-                            <SelectItem value="retail_tax_exempt">Retail (Tax Exempt)</SelectItem>
-                            <SelectItem value="contractor">Contractor</SelectItem>
-                            <SelectItem value="contractor_tax_exempt_tbd">Contractor (Tax Exempt - TBD)</SelectItem>
-                            <SelectItem value="contractor_tax_exempt">Contractor (Tax Exempt)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                      {!isStaffRole(u.role) ? (() => {
+                        // Offer the tiers for the customer's account type; when the
+                        // type is unset, offer all active tiers. Always include the
+                        // current value so a stale/inactive tier stays visible.
+                        const options = u.customer_type
+                          ? tiersForType(tiers, u.customer_type)
+                          : tiers.filter((t) => t.active !== false)
+                        const current = u.pricing_tier
+                        const showCurrent = current && !options.some((o) => o.value === current)
+                        return (
+                          <Select
+                            value={current ?? '__unset__'}
+                            onValueChange={(v) => v && callRpc(u.id, {
+                              pricing_tier: v === '__unset__' ? '__clear__' : v,
+                            })}
+                            disabled={isBusy}
+                          >
+                            <SelectTrigger className="w-52 h-8 text-xs">
+                              <SelectValue placeholder="— unassigned —" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__unset__" className="text-muted-foreground">— unassigned —</SelectItem>
+                              {showCurrent && (
+                                <SelectItem value={current}>{tierLabels[current] ?? current} (mismatch)</SelectItem>
+                              )}
+                              {options.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )
+                      })() : <span className="text-muted-foreground text-xs">—</span>}
                     </td>
 
                     <td className="p-3">

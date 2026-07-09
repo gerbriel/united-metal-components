@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import AdminUserManager from '@/components/shared/AdminUserManager'
 import { isAdminRole } from '@/types/database'
+import { getPricingTiers } from '@/lib/pricing-tiers.server'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'Admin — User Management' }
@@ -16,10 +17,13 @@ export default async function AdminPage() {
   const { data: viewer } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (!isAdminRole((viewer as any)?.role ?? '')) redirect('/dashboard')
 
-  const { data: allUsers } = await supabase
-    .from('profiles')
-    .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, created_at')
-    .order('created_at', { ascending: false })
+  const [{ data: allUsers }, pricingTiers] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, created_at')
+      .order('created_at', { ascending: false }),
+    getPricingTiers(),
+  ])
 
   const total = allUsers?.length ?? 0
   const active = allUsers?.filter((u) => (u as any).account_status !== 'suspended').length ?? 0
@@ -58,7 +62,7 @@ export default async function AdminPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <AdminUserManager initialUsers={(allUsers ?? []) as any} />
+          <AdminUserManager initialUsers={(allUsers ?? []) as any} tiers={pricingTiers} />
         </CardContent>
       </Card>
     </div>

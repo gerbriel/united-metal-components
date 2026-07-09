@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, MessageSquare, ShieldCheck, ShoppingBag, ShoppingCart, Building2, CheckSquare, Calculator, Tags } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, Users, BarChart3, Mail, MessageSquare, ShieldCheck, ShoppingBag, ShoppingCart, Building2, CheckSquare, Calculator, Tags, DollarSign } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardSignOut from '@/components/shared/DashboardSignOut'
@@ -84,6 +84,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Link href="/dashboard/categories"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
                 <Tags className="w-4 h-4" />Categories
+              </Link>
+              <Link href="/dashboard/pricing-tiers"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+                <DollarSign className="w-4 h-4" />Pricing Tiers
               </Link>
               <Link href="/dashboard/inventory/approvals"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
