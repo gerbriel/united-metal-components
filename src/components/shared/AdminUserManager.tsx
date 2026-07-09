@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Loader2, ShieldOff, ShieldCheck } from 'lucide-react'
+import { Loader2, ShieldOff, ShieldCheck, Trash2 } from 'lucide-react'
 import { tiersForType, tierLabelMap, type PricingTier } from '@/lib/pricing-tiers'
+import CreateUserDialog from '@/components/shared/CreateUserDialog'
 
 interface UserRow {
   id: string
@@ -27,7 +28,7 @@ interface UserRow {
   created_at: string
 }
 
-interface Props { initialUsers: UserRow[]; tiers: PricingTier[] }
+interface Props { initialUsers: UserRow[]; tiers: PricingTier[]; currentUserId: string }
 
 const ROLE_LABELS: Record<string, string> = {
   customer:           'Customer',
@@ -47,8 +48,9 @@ type Patch = Partial<{
   pricing_tier: string | null
 }>
 
-export default function AdminUserManager({ initialUsers, tiers }: Props) {
+export default function AdminUserManager({ initialUsers, tiers, currentUserId }: Props) {
   const [users, setUsers]           = useState<UserRow[]>(initialUsers)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const tierLabels = tierLabelMap(tiers)
   const [suspendingId, setSuspendingId] = useState<string | null>(null)
   const [suspendReason, setSuspendReason] = useState('')
@@ -110,6 +112,20 @@ export default function AdminUserManager({ initialUsers, tiers }: Props) {
   const handleUnsuspend = (userId: string) =>
     callRpc(userId, { account_status: 'active', suspended_reason: null })
 
+  const handleDelete = async (u: UserRow) => {
+    const label = u.first_name && u.last_name
+      ? `${u.first_name} ${u.last_name}`
+      : u.full_name ?? u.company_name ?? 'this user'
+    if (!confirm(`Delete ${label}? This permanently removes their account and can't be undone.`)) return
+    setDeletingId(u.id)
+    const res = await fetch(`/api/admin/users?id=${u.id}`, { method: 'DELETE' })
+    const json = await res.json().catch(() => ({}))
+    setDeletingId(null)
+    if (!res.ok) { toast.error(json.error ?? 'Failed to delete user'); return }
+    toast.success('User deleted')
+    await fetchUsers()
+  }
+
   const filtered = users.filter((u) => {
     if (!search) return true
     const q = search.toLowerCase()
@@ -122,12 +138,15 @@ export default function AdminUserManager({ initialUsers, tiers }: Props) {
 
   return (
     <div className="space-y-4">
-      <Input
-        placeholder="Search by name, company, phone, or role…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex items-center justify-between gap-3">
+        <Input
+          placeholder="Search by name, company, phone, or role…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <CreateUserDialog />
+      </div>
       <p className="text-xs text-muted-foreground">{filtered.length} of {users.length} users</p>
 
       <div className="border rounded-xl overflow-hidden">
@@ -276,41 +295,54 @@ export default function AdminUserManager({ initialUsers, tiers }: Props) {
                     </td>
 
                     <td className="p-3">
-                      {isBusy ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                      ) : isSuspended ? (
-                        <Button
-                          size="sm" variant="outline"
-                          onClick={() => handleUnsuspend(u.id)}
-                          className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50"
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 mr-1" />Reinstate
-                        </Button>
-                      ) : showingReason ? (
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={suspendReason}
-                            onChange={(e) => setSuspendReason(e.target.value)}
-                            placeholder="Reason…"
-                            className="h-7 text-xs w-36"
-                            onKeyDown={(e) => e.key === 'Enter' && handleSuspend(u.id)}
-                          />
-                          <Button size="sm" onClick={() => handleSuspend(u.id)} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white border-0">
-                            Confirm
+                      <div className="flex items-center gap-2">
+                        {isBusy ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        ) : isSuspended ? (
+                          <Button
+                            size="sm" variant="outline"
+                            onClick={() => handleUnsuspend(u.id)}
+                            className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 mr-1" />Reinstate
                           </Button>
-                          <button onClick={() => { setSuspendingId(null); setSuspendReason('') }} className="text-xs text-muted-foreground hover:text-foreground">
-                            Cancel
+                        ) : showingReason ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={suspendReason}
+                              onChange={(e) => setSuspendReason(e.target.value)}
+                              placeholder="Reason…"
+                              className="h-7 text-xs w-36"
+                              onKeyDown={(e) => e.key === 'Enter' && handleSuspend(u.id)}
+                            />
+                            <Button size="sm" onClick={() => handleSuspend(u.id)} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white border-0">
+                              Confirm
+                            </Button>
+                            <button onClick={() => { setSuspendingId(null); setSuspendReason('') }} className="text-xs text-muted-foreground hover:text-foreground">
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm" variant="outline"
+                            onClick={() => setSuspendingId(u.id)}
+                            className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
+                          >
+                            <ShieldOff className="w-3.5 h-3.5 mr-1" />Suspend
+                          </Button>
+                        )}
+                        {/* Permanent delete — hidden for your own account. */}
+                        {u.id !== currentUserId && !showingReason && (
+                          <button
+                            onClick={() => handleDelete(u)}
+                            disabled={deletingId === u.id}
+                            title="Delete user"
+                            className="p-1.5 rounded-md hover:bg-red-50 text-muted-foreground hover:text-red-600 disabled:opacity-40"
+                          >
+                            {deletingId === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                           </button>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm" variant="outline"
-                          onClick={() => setSuspendingId(u.id)}
-                          className="h-7 text-xs text-red-700 border-red-300 hover:bg-red-50"
-                        >
-                          <ShieldOff className="w-3.5 h-3.5 mr-1" />Suspend
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

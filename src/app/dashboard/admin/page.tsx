@@ -62,7 +62,7 @@ export default async function AdminPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <AdminUserManager initialUsers={(allUsers ?? []) as any} tiers={pricingTiers} />
+          <AdminUserManager initialUsers={(allUsers ?? []) as any} tiers={pricingTiers} currentUserId={user.id} />
         </CardContent>
       </Card>
     </div>
