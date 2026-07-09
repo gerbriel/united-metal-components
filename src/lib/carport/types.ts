@@ -64,7 +64,9 @@ export interface BomLine {
   item: string
   qty: number
   unit: string // 'panels' | 'pieces' | 'ft' | 'boxes' | 'each'
-  detail?: string // length / color / notes
+  color?: string // finish color, when the line carries one (shopping-list column)
+  size?: string // length / size for the shopping-list column, e.g. 9'0" or 6"
+  detail?: string // remaining engineering notes (spacing, chart refs, etc.)
   sku?: string // maps to a real product where applicable
 }
 

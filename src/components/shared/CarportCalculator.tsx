@@ -631,10 +631,10 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-right w-16">Qty</TableHead>
-                    <TableHead className="w-20">Unit</TableHead>
-                    <TableHead>Detail</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="w-32">Color</TableHead>
+                    <TableHead className="w-28">Size / Length</TableHead>
+                    <TableHead className="text-right w-24">Qty</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -648,14 +648,43 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                             {cat}
                           </TableCell>
                         </TableRow>
-                        {rows.map((l, i) => (
-                          <TableRow key={`${cat}-${i}`}>
-                            <TableCell className="font-medium whitespace-normal">{l.item}</TableCell>
-                            <TableCell className="text-right tabular-nums">{l.qty}</TableCell>
-                            <TableCell className="text-muted-foreground">{l.unit}</TableCell>
-                            <TableCell className="text-muted-foreground whitespace-normal">{l.detail ?? ''}</TableCell>
-                          </TableRow>
-                        ))}
+                        {rows.map((l, i) => {
+                          const swatch = l.color ? COLORS.find((c) => c.name === l.color) : undefined
+                          return (
+                            <TableRow key={`${cat}-${i}`}>
+                              <TableCell className="align-top">
+                                <div className="font-medium whitespace-normal">{l.item}</div>
+                                {l.detail && (
+                                  <div className="text-xs text-muted-foreground whitespace-normal">{l.detail}</div>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top">
+                                {l.color ? (
+                                  <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                    <span
+                                      className="inline-block w-3.5 h-3.5 rounded-sm ring-1 ring-black/10 shrink-0"
+                                      style={
+                                        swatch?.gradient
+                                          ? { backgroundImage: swatch.gradient }
+                                          : { background: swatch?.hex ?? '#e2e8f0' }
+                                      }
+                                    />
+                                    {l.color}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="align-top tabular-nums">
+                                {l.size ?? <span className="text-muted-foreground">—</span>}
+                              </TableCell>
+                              <TableCell className="align-top text-right whitespace-nowrap">
+                                <span className="tabular-nums font-medium">{l.qty}</span>{' '}
+                                <span className="text-muted-foreground">{l.unit}</span>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
                       </Fragment>
                     )
                   })}

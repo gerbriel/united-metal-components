@@ -265,7 +265,7 @@ export function calculateBom(
   if (roofPanelCount > 0) {
     lines.push({
       category: 'Roof', item: 'Roof panels', qty: roofPanelCount, unit: 'panels',
-      detail: `${roofPanelLengthLabel} long · ${roofColor}`, sku: 'PANEL-29GA',
+      color: roofColor, size: roofPanelLengthLabel, sku: 'PANEL-29GA',
     })
   }
   if (hasRidge && length > 0) {
@@ -273,17 +273,17 @@ export function calculateBom(
     lines.push({
       // Ridge cap always matches the roof panel color, not the trim color.
       category: 'Roof', item: 'Ridge cap', qty: Math.ceil(length / capLen), unit: 'pieces',
-      detail: roofColor, sku: 'RIDGE-CAP',
+      color: roofColor, size: `${capLen}'`, sku: 'RIDGE-CAP',
     })
   }
 
   // ---- Wall panels ---------------------------------------------------------
   if (encloseSides && length > 0) {
     const perSide = wallOrientation === 'horizontal' ? Math.ceil(legHeight / cov) : round(length / cov)
-    const detail = wallOrientation === 'horizontal' ? `${length}' long` : `${ftIn(legHeight)} long`
+    const sizeLabel = wallOrientation === 'horizontal' ? `${length}'` : ftIn(legHeight)
     lines.push({
       category: 'Walls', item: 'Side wall panels', qty: perSide * 2, unit: 'panels',
-      detail: `${detail} · ${wallColor} (both sides)`, sku: 'PANEL-29GA',
+      color: wallColor, size: sizeLabel, detail: 'both sides', sku: 'PANEL-29GA',
     })
   }
   if (encloseEnds && width > 0) {
@@ -291,7 +291,7 @@ export function calculateBom(
     const heightLabel = hasRidge ? `up to ${ftIn(peakHeight)} (gable-cut)` : ftIn(peakHeight)
     lines.push({
       category: 'Walls', item: 'End wall panels', qty: perEnd * 2, unit: 'panels',
-      detail: `${heightLabel} · ${wallColor} (both ends)`, sku: 'PANEL-29GA',
+      color: wallColor, size: heightLabel, detail: 'both ends', sku: 'PANEL-29GA',
     })
   }
   const totalPanels = lines.filter((l) => l.item.endsWith('panels')).reduce((s, l) => s + l.qty, 0)
@@ -315,7 +315,8 @@ export function calculateBom(
       : widespan ? ` · ${webPanels - 1} web${webPanels - 1 > 1 ? 's' : ''}/side` : ''
     lines.push({
       category: 'Structure', item: 'Trusses / bows (frames)', qty: frames, unit: 'each',
-      detail: `${width}' wide · ${ftIn(actualSpacingFt)} o.c.${extraNote}${trussNote} · ${chartNote}`,
+      size: `${width}' wide`,
+      detail: `${ftIn(actualSpacingFt)} o.c.${extraNote}${trussNote} · ${chartNote}`,
     })
     const legLabel =
       legType === 'zigzag' ? 'zig-zag leg (built-up)'
@@ -324,11 +325,11 @@ export function calculateBom(
       : '2½" tube'
     lines.push({
       category: 'Structure', item: 'Column posts (legs)', qty: columns, unit: 'each',
-      detail: `${ftIn(legHeight)} · ${legLabel} (both sides)`, sku: 'TUBE-MAIN',
+      size: ftIn(legHeight), detail: `${legLabel} (both sides)`, sku: 'TUBE-MAIN',
     })
     lines.push({
       category: 'Structure', item: 'Roof beams / rafters', qty: frames * roofBeamsPerFrame, unit: 'each',
-      detail: `${ftIn(slopeLen)} · 2½" tube`, sku: 'TUBE-MAIN',
+      size: ftIn(slopeLen), detail: '2½" tube', sku: 'TUBE-MAIN',
     })
     if (hasRidge) {
       lines.push({
@@ -339,18 +340,18 @@ export function calculateBom(
     const kbLen = legHeight <= 8 ? 24 : 36
     lines.push({
       category: 'Structure', item: 'Knee braces', qty: frames * 2, unit: 'each',
-      detail: `${kbLen}" · 2½×1½ channel`, sku: 'CHANNEL-KNEE',
+      size: `${kbLen}"`, detail: '2½×1½ channel', sku: 'CHANNEL-KNEE',
     })
     // Base rail along every wall line the posts seat into.
     const baseRailFt = round(2 * (width + length))
     lines.push({
       category: 'Structure', item: 'Base rail', qty: baseRailFt, unit: 'ft',
-      detail: 'perimeter · 2½" tube', sku: 'TUBE-MAIN',
+      size: 'perimeter', detail: '2½" tube', sku: 'TUBE-MAIN',
     })
     // Connector sleeves — one per post base (+ eave splices).
     lines.push({
       category: 'Structure', item: 'Connector sleeves', qty: posts, unit: 'each',
-      detail: '6" · 2¼" 12ga tube', sku: 'SLEEVE',
+      size: '6"', detail: '2¼" 12ga tube', sku: 'SLEEVE',
     })
   }
   if (endPosts > 0) {
@@ -387,7 +388,7 @@ export function calculateBom(
   if (purlinRuns > 0) {
     lines.push({
       category: 'Structure', item: 'Purlins (hat channel)', qty: purlinRuns, unit: 'runs',
-      detail: `${ftIn(purlinSpacing)} o.c. · 4×1 hat · run = ${length}'`, sku: 'HAT-CHANNEL',
+      size: `${length}'`, detail: `${ftIn(purlinSpacing)} o.c. · 4×1 hat`, sku: 'HAT-CHANNEL',
     })
   }
   const girtRunsPerWall = Math.ceil(legHeight / girtSpacing)
@@ -405,20 +406,20 @@ export function calculateBom(
   if (length > 0) {
     lines.push({
       category: 'Trim', item: 'Eave trim', qty: Math.ceil(length / trimLen) * 2, unit: 'pieces',
-      detail: `both eaves · ${trimColor}`, sku: 'TRIM-BOX-EVE',
+      color: trimColor, detail: 'both eaves', sku: 'TRIM-BOX-EVE',
     })
   }
   if (width > 0) {
     const rakeRuns = hasRidge ? 4 : 2
     lines.push({
       category: 'Trim', item: 'Rake / gable trim', qty: Math.ceil(slopeLen / trimLen) * rakeRuns, unit: 'pieces',
-      detail: trimColor, sku: 'TRIM-L',
+      color: trimColor, sku: 'TRIM-L',
     })
   }
   if (encloseSides && encloseEnds && legHeight > 0) {
     lines.push({
       category: 'Trim', item: 'Corner trim', qty: 4 * Math.ceil(legHeight / trimLen), unit: 'pieces',
-      detail: `${ftIn(legHeight)} · ${trimColor}`, sku: 'TRIM-CORNER',
+      color: trimColor, size: ftIn(legHeight), sku: 'TRIM-CORNER',
     })
   }
 
@@ -458,7 +459,7 @@ export function calculateBom(
   if (roofStyle === 'vertical' && roofPanelCount > 0) {
     lines.push({
       category: 'Fasteners', item: 'Side vertical trim (SVT)', qty: round(roofPanelCount / 2) + 1, unit: 'pieces',
-      detail: trimColor, sku: 'TRIM-SIDE-VERT',
+      color: trimColor, sku: 'TRIM-SIDE-VERT',
     })
   }
   // 3) Anchors (Table 11) — per post, by wind; +2 at each enclosed corner.
