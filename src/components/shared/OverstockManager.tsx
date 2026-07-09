@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner'
 import { Plus, Loader2, Package, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
+import OverstockImport from '@/components/shared/OverstockImport'
 import { COLORS } from '@/lib/product-config'
 
 interface OverstockProduct { id: number; name: string; sku: string | null }
@@ -185,6 +186,13 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Show archived
           </label>
+          {isAdmin && (
+            <OverstockImport
+              overstockProductId={productId}
+              onImported={fetchAll}
+              triggerLabel="Import from order"
+            />
+          )}
           {isAdmin && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger render={

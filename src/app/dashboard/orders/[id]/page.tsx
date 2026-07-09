@@ -8,6 +8,7 @@ import LoadingChecklist from '@/components/shared/LoadingChecklist'
 import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import OrderAdminActions from '@/components/shared/OrderAdminActions'
+import OverstockImport from '@/components/shared/OverstockImport'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
 import { orderColorAvailability, openPoCoilFlags, OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
@@ -303,6 +304,22 @@ export default async function DashboardOrderDetail({ params }: Props) {
 
           {isAdmin && (
             <OrderAdminActions orderId={order.id} archived={order.archived ?? false} />
+          )}
+
+          {/* Canceled orders: send their already-cut panels to overstock inventory */}
+          {order.status === 'cancelled' && !isWarehouse && (
+            <Card>
+              <CardHeader><CardTitle className="text-base">Overstock</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  This order was canceled — send its panels to overstock inventory to re-sell them.
+                </p>
+                <OverstockImport
+                  orderId={order.id}
+                  triggerClassName="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
+                />
+              </CardContent>
+            </Card>
           )}
 
           {/* Customer info */}
