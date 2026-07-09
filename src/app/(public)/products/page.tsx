@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default async function ProductsPage({ searchParams }: Props) {
-  const { cat, q } = await searchParams
+  const { cat } = await searchParams
   const supabase = await createClient()
 
   // Storefront-visible categories, in admin-defined order (shared with the header
@@ -71,11 +71,10 @@ export default async function ProductsPage({ searchParams }: Props) {
           </ul>
         </aside>
 
-        {/* Search / sort / filter + grid */}
+        {/* Grid (search / sort / in-stock controls live in the header nav and
+            drive this via URL query params: q / sort / inStock) */}
         <div className="flex-1 min-w-0">
-          {/* key on q: a new header search remounts the browser so its internal
-              query state re-seeds from the URL (category nav keeps its state) */}
-          <ProductBrowser key={q ?? ''} products={products} cat={cat} categoryName={activeCategory?.name} initialQuery={q} />
+          <ProductBrowser products={products} cat={cat} categoryName={activeCategory?.name} />
         </div>
       </div>
     </div>

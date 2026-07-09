@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
 import { iconFor, type NavCategory } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,7 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
           : 'bg-white border-b border-slate-100'
       )}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 gap-3">
 
             {/* Logo */}
             <Link href="/" className="flex items-center shrink-0">
@@ -82,16 +82,18 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
               />
             </Link>
 
-            {/* Global search — inline on desktop */}
-            <GlobalSearch className="hidden md:block flex-1 max-w-md mx-6" />
-
-            {/* Actions */}
-            <div className="flex items-center gap-1.5">
+            {/* Actions — search sits next to Contact (grows to fill toward the logo) */}
+            <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
+              {/* Global search — inline next to Contact on desktop; sort/filter
+                  render beside it only on the products page (see GlobalSearch) */}
+              <Suspense fallback={null}>
+                <GlobalSearch className="hidden md:flex flex-1 max-w-md min-w-0 mr-1" />
+              </Suspense>
               {navLinks.map((l) => (
                 <Link
                   key={l.href}
                   href={l.href}
-                  className="hidden md:inline-flex px-3 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+                  className="hidden md:inline-flex px-3 py-2 text-sm font-medium text-slate-600 hover:text-primary transition-colors shrink-0"
                 >
                   {l.label}
                 </Link>
@@ -186,7 +188,9 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
         {/* Global search — dedicated row on mobile/tablet (inline one is md+) */}
         <div className="md:hidden border-t border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
-            <GlobalSearch />
+            <Suspense fallback={null}>
+              <GlobalSearch />
+            </Suspense>
           </div>
         </div>
 
