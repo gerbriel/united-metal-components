@@ -109,7 +109,9 @@
       "Bash(git commit -q -m 'Overstock: import a canceled order'\\\\''s panels into inventory *)",
       "Bash(git commit -q -m 'Overstock: correct order pricing + live inventory-row totals *)",
       "Bash(git commit -q -m 'CRM: server-side carts + Active Carts view + reminders *)",
-      "Bash(git commit -q -m 'Carts tab + overstock listing edit + Total row label *)"
+      "Bash(git commit -q -m 'Carts tab + overstock listing edit + Total row label *)",
+      "Bash(git commit -q -m 'Fix cart sync \\(RPC never fired\\) + cart stage + profile email *)",
+      "Bash(git commit -q -m 'Staff-created customers + order builder *)"
     ]
   }
 }

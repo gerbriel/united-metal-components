@@ -30,10 +30,12 @@ export default function ProductBrowser({
   products,
   cat,
   categoryName,
+  isStaff = false,
 }: {
   products: ProductWithCategory[]
   cat?: string
   categoryName?: string
+  isStaff?: boolean
 }) {
   // URL is the source of truth — the header search bar owns q / sort / inStock.
   const searchParams = useSearchParams()
@@ -70,7 +72,7 @@ export default function ProductBrowser({
         <p className="text-muted-foreground mt-1">{count} {count === 1 ? 'product' : 'products'}</p>
       </div>
 
-      <ProductGrid products={results} />
+      <ProductGrid products={results} isStaff={isStaff} />
     </div>
   )
 }

@@ -10,7 +10,9 @@ import { resolveModel, type ProductLike } from './resolve'
 
 // A slowly auto-rotating group holding the fit-to-unit model. Rotation is applied
 // OUTSIDE <Resize>/<Center> so the fit is measured once and never churns.
-function Spinner({ product }: { product: ProductLike }) {
+// `colorName` (optional) tints the model — used by overstock cards to render each
+// piece in its own finish; omitted for the plain catalog thumbnails.
+function Spinner({ product, colorName }: { product: ProductLike; colorName?: string | null }) {
   const ref = useRef<THREE.Group>(null)
   const { archetype, params } = resolveModel(product)
   useFrame((_, dt) => {
@@ -20,7 +22,7 @@ function Spinner({ product }: { product: ProductLike }) {
     <group ref={ref}>
       <Center>
         <Resize>
-          <ProductModel archetype={archetype} params={params} />
+          <ProductModel archetype={archetype} colorName={colorName} params={params} />
         </Resize>
       </Center>
     </group>
@@ -29,7 +31,7 @@ function Spinner({ product }: { product: ProductLike }) {
 
 // Lightweight thumbnail canvas: plain 3-point lighting (no per-canvas environment
 // map) so a page full of these stays cheap. Non-interactive by design.
-export default function ThumbCanvas({ product }: { product: ProductLike }) {
+export default function ThumbCanvas({ product, colorName }: { product: ProductLike; colorName?: string | null }) {
   return (
     <Canvas
       dpr={[1, 1.5]}
@@ -39,7 +41,7 @@ export default function ThumbCanvas({ product }: { product: ProductLike }) {
       {/* Low-res procedural environment so the metal reads as metal (not black),
           but cheap enough to run on many thumbnails at once. No shadows here. */}
       <Lights shadows={false} envResolution={64} />
-      <Spinner product={product} />
+      <Spinner product={product} colorName={colorName} />
     </Canvas>
   )
 }

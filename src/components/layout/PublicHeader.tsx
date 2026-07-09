@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, Suspense } from 'react'
-import { ShoppingCart, Menu, X, Bell, User, LogOut, LayoutDashboard, Package, Tag } from 'lucide-react'
+import { ShoppingCart, Menu, X, User, LogOut, LayoutDashboard, Package, Tag } from 'lucide-react'
 import { iconFor, type NavCategory } from '@/lib/nav-categories'
 import { Button } from '@/components/ui/button'
 import { ButtonLink } from '@/components/ui/button-link'
@@ -14,7 +14,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Profile } from '@/types/database'
 import CartDrawer from '@/components/shared/CartDrawer'
-import GlobalSearch from '@/components/layout/GlobalSearch'
+import GlobalSearch, { type ProductSearchItem } from '@/components/layout/GlobalSearch'
+import NotificationBell from '@/components/shared/NotificationBell'
 import { cn } from '@/lib/utils'
 
 // Product buckets render in the DB-driven category bar (see `categories` prop);
@@ -23,7 +24,7 @@ const navLinks = [
   { href: '/contact', label: 'Contact' },
 ]
 
-export default function PublicHeader({ categories }: { categories: NavCategory[] }) {
+export default function PublicHeader({ categories, products = [] }: { categories: NavCategory[]; products?: ProductSearchItem[] }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
@@ -87,7 +88,7 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
               {/* Global search — inline next to Contact on desktop; sort/filter
                   render beside it only on the products page (see GlobalSearch) */}
               <Suspense fallback={null}>
-                <GlobalSearch className="hidden md:flex flex-1 max-w-md min-w-0 mr-1" />
+                <GlobalSearch className="hidden md:flex flex-1 max-w-md min-w-0 mr-1" products={products} />
               </Suspense>
               {navLinks.map((l) => (
                 <Link
@@ -98,6 +99,16 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                   {l.label}
                 </Link>
               ))}
+              {/* Notifications — sits beside the cart for signed-in users (needs a
+                  user to count against; anonymous visitors have no notifications) */}
+              {profile && (
+                <NotificationBell
+                  href="/account/notifications"
+                  className="relative inline-flex items-center justify-center h-9 w-9 rounded-md text-slate-700 hover:bg-slate-100 transition-colors"
+                  iconClassName="w-5 h-5"
+                />
+              )}
+
               {/* Cart */}
               <Button variant="ghost" size="icon" className="relative" onClick={() => setCartOpen(true)}>
                 <ShoppingCart className="w-5 h-5" />
@@ -136,11 +147,6 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
                         </Link>
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem>
-                      <Link href="/account/notifications" className="flex items-center w-full">
-                        <Bell className="w-4 h-4 mr-2" />Notifications
-                      </Link>
-                    </DropdownMenuItem>
                     {isStaff && (
                       <>
                         <DropdownMenuSeparator />
@@ -189,7 +195,7 @@ export default function PublicHeader({ categories }: { categories: NavCategory[]
         <div className="md:hidden border-t border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5">
             <Suspense fallback={null}>
-              <GlobalSearch />
+              <GlobalSearch products={products} onSubmitted={() => setMobileOpen(false)} />
             </Suspense>
           </div>
         </div>

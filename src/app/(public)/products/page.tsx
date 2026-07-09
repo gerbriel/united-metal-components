@@ -31,6 +31,16 @@ export default async function ProductsPage({ searchParams }: Props) {
     .order('name')
   const products = applyAllProductOverrides(rawProducts ?? [])
 
+  // Staff see a marker on configurable ("Select options") cards so they can
+  // tell them apart from direct-add products; customers never see it.
+  const STAFF_ROLES = ['employee', 'office_employee', 'warehouse_employee', 'admin']
+  const { data: { user } } = await supabase.auth.getUser()
+  let isStaff = false
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    isStaff = !!profile && STAFF_ROLES.includes((profile as any).role)
+  }
+
   const activeCategory = categories?.find((c) => c.slug === cat)
 
   return (
@@ -74,7 +84,7 @@ export default async function ProductsPage({ searchParams }: Props) {
         {/* Grid (search / sort / in-stock controls live in the header nav and
             drive this via URL query params: q / sort / inStock) */}
         <div className="flex-1 min-w-0">
-          <ProductBrowser products={products} cat={cat} categoryName={activeCategory?.name} />
+          <ProductBrowser products={products} cat={cat} categoryName={activeCategory?.name} isStaff={isStaff} />
         </div>
       </div>
     </div>

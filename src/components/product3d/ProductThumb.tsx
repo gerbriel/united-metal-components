@@ -21,7 +21,7 @@ const ThumbCanvas = dynamic(() => import('./ThumbCanvas'), { ssr: false })
 // finish, and also collapses fast scroll-through churn.
 const UNMOUNT_DELAY_MS = 800
 
-export default function ProductThumb({ product }: { product: ProductLike }) {
+export default function ProductThumb({ product, colorName }: { product: ProductLike; colorName?: string | null }) {
   const ref = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -51,7 +51,7 @@ export default function ProductThumb({ product }: { product: ProductLike }) {
   return (
     <div ref={ref} className="w-full h-full">
       {mounted ? (
-        <ThumbCanvas product={product} />
+        <ThumbCanvas product={product} colorName={colorName} />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
           <Package className="w-10 h-10 text-slate-300" />

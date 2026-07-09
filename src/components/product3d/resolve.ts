@@ -51,6 +51,10 @@ export type Archetype =
   | 'box'
 
 const BY_SKU: Record<string, Archetype> = {
+  // Overstock panels are sold under their own SKU but are the same L5 sheet as
+  // the regular panel — pin it so the storefront card renders a panel even if the
+  // category join is ever missing.
+  'PANEL-29GA-OVERSTOCK': 'panel',
   'TRIM-L': 'trim-l',
   'TRIM-J': 'trim-j',
   'TRIM-CORNER': 'trim-corner',

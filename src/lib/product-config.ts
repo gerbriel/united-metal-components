@@ -202,3 +202,22 @@ export const COLOR_SKUS = new Set([
   'RIDGE-CAP',
   'HAT-CHANNEL',
 ])
+
+// A product that can't be meaningfully added to the cart straight from a grid
+// card because it first needs a color, a cut length, or a specific in-stock
+// piece — the storefront card links to the product page ("Select options")
+// instead of an Add button. Derived from the same tables the product page and
+// order form use, so the grid and the detail page never disagree.
+//
+// Variant-group members (tubing sizes, screw packages) return false: those get
+// a VariantGroupCard/DoorLineCard whose in-card dropdown covers the choice, so
+// they keep their Add button (see ProductGrid's grouping).
+export function requiresConfiguration(sku?: string | null, name?: string | null): boolean {
+  const s = sku ?? ''
+  if (variantGroupFor(s)) return false
+  if (isOverstockSku(s)) return true                                  // pick a specific piece
+  if (COLOR_SKUS.has(s) || isWasherScrew(s, name)) return true        // needs a color
+  // needs a cut length
+  if (PANEL_SKUS.has(s) || s === 'HAT-CHANNEL' || s === 'BRACE' || TUBING_CONFIG[s]?.type === 'preset') return true
+  return false
+}
