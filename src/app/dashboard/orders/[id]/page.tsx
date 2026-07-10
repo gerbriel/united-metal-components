@@ -9,6 +9,7 @@ import SpecialOrderETA from '@/components/shared/SpecialOrderETA'
 import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/database'
 import OrderAdminActions from '@/components/shared/OrderAdminActions'
 import OrderPriceEditor, { type EditorItem } from '@/components/shared/OrderPriceEditor'
+import { fetchTaxRates } from '@/lib/tax'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
@@ -128,9 +129,10 @@ export default async function DashboardOrderDetail({ params }: Props) {
 
   // Admins can correct line prices only while the order is still pending — the
   // window before it is accepted. This is how a price that drifted after the
-  // order was placed gets fixed. Tax mirrors checkout: waived for exempt tiers.
-  const EXEMPT_TIERS = new Set(['retail_tax_exempt', 'contractor_tax_exempt'])
-  const exempt = EXEMPT_TIERS.has((order.profiles as any)?.pricing_tier ?? '')
+  // order was placed gets fixed. The editor previews tax per the customer's tier
+  // + admin-set rates, matching the recompute_order_totals trigger.
+  const customerTier = (order.profiles as any)?.pricing_tier ?? null
+  const taxRates = await fetchTaxRates(supabase)
   const canEditPrices = isAdmin && !isWarehouse && order.status === 'pending'
 
   const editorItems: EditorItem[] = (order.order_items as any[]).map((i: any) => ({
@@ -248,7 +250,8 @@ export default async function DashboardOrderDetail({ params }: Props) {
                 <OrderPriceEditor
                   orderId={order.id}
                   items={editorItems}
-                  exempt={exempt}
+                  tier={customerTier}
+                  rates={taxRates}
                   storedTotal={order.total}
                 />
               </CardContent>

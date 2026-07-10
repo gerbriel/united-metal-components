@@ -15,22 +15,27 @@ import { toast } from 'sonner'
 import { Loader2, ShoppingBag, LogIn, MapPin, Clock } from 'lucide-react'
 import { checkoutSchema } from '@/lib/validate'
 import { sanitizeText, sanitizePhone } from '@/lib/sanitize'
+import { fetchTaxRates, taxForOrder, DEFAULT_TAX_RATES, type TaxRates } from '@/lib/tax'
 
 export default function CheckoutPage() {
   const { items, total, clearCart } = useCartStore()
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', notes: '' })
+  const [tier, setTier] = useState<string | null>(null)
+  const [rates, setRates] = useState<TaxRates>(DEFAULT_TAX_RATES)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
+    fetchTaxRates(supabase).then(setRates)
     ;(supabase.auth.getUser() as Promise<{ data: { user: any } }>).then(async ({ data }) => {
       const user = data.user
       setUser(user)
       if (user) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
         if (profile) {
+          setTier((profile as any).pricing_tier ?? null)
           setForm((f) => ({
             ...f,
             name:  (profile as any).full_name ?? '',
@@ -64,7 +69,9 @@ export default function CheckoutPage() {
     setLoading(true)
 
     const subtotal = total()
-    const tax = subtotal * 0.0825
+    // Preview only — the recompute_order_totals trigger writes the authoritative
+    // tax from the customer's tier + admin rates once the line items are inserted.
+    const tax = taxForOrder(subtotal, tier, rates)
     const orderTotal = subtotal + tax
 
     const { data: order, error } = await supabase.from('orders').insert({

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isStaffRole, isWarehouseRole } from '@/types/database'
 import OrderBuilder from '@/components/shared/OrderBuilder'
+import { fetchTaxRates } from '@/lib/tax'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'New Order — Dashboard' }
@@ -15,7 +16,7 @@ export default async function NewOrderPage() {
   const role = (profile as { role?: string } | null)?.role ?? ''
   if (!isStaffRole(role) || isWarehouseRole(role)) redirect('/dashboard/orders')
 
-  const [{ data: customers }, { data: products }] = await Promise.all([
+  const [{ data: customers }, { data: products }, rates] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, company_name, email, phone, pricing_tier')
@@ -26,6 +27,7 @@ export default async function NewOrderPage() {
       .select('id, name, sku, price, unit')
       .eq('active', true)
       .order('name'),
+    fetchTaxRates(supabase),
   ])
 
   return (
@@ -37,6 +39,7 @@ export default async function NewOrderPage() {
       <OrderBuilder
         customers={(customers ?? []) as never}
         products={(products ?? []) as never}
+        rates={rates}
       />
     </div>
   )

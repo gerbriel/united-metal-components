@@ -8,9 +8,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Loader2, Trash2, AlertTriangle, RotateCcw, Save } from 'lucide-react'
 import { formatOrderQty } from '@/lib/orderUnits'
-
-// Tax mirrors checkout / OrderBuilder: flat 8.25%, waived for tax-exempt tiers.
-const TAX_RATE = 0.0825
+import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
 
 export interface EditorItem {
   id: number
@@ -58,14 +56,17 @@ interface Row extends EditorItem {
 export default function OrderPriceEditor({
   orderId,
   items,
-  exempt,
+  tier,
+  rates,
   storedTotal,
 }: {
   orderId: number
   items: EditorItem[]
-  exempt: boolean
+  tier: string | null
+  rates: TaxRates
   storedTotal: number
 }) {
+  const exempt = taxRateForTier(tier, rates) === 0
   const router = useRouter()
   const supabase = createClient()
 
@@ -80,10 +81,10 @@ export default function OrderPriceEditor({
   const unitOf = (r: Row) => parseFloat(r.priceInput) || 0
   const lineTotal = (r: Row) => unitOf(r) * r.quantity
 
-  // Mirror the DB recompute_order_totals trigger exactly (migration 040) so the
+  // Mirror the DB recompute_order_totals trigger exactly (migration 046) so the
   // preview matches the totals the trigger writes on save — no jump on refresh.
   const subtotal = round2(present.reduce((s, r) => s + lineTotal(r), 0))
-  const tax = exempt ? 0 : round2(subtotal * TAX_RATE)
+  const tax = taxForOrder(subtotal, tier, rates)
   const total = round2(subtotal + tax)
 
   const dirty = useMemo(

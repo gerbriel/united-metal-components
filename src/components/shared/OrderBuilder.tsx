@@ -12,6 +12,7 @@ import { Loader2, Plus, Trash2, X } from 'lucide-react'
 import CreateCustomerDialog from '@/components/shared/CreateCustomerDialog'
 import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku } from '@/lib/product-config'
 import { ORDER_STATUS_LABEL } from '@/types/database'
+import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
 
 interface CustomerRow {
   id: string
@@ -32,8 +33,6 @@ interface Line {
   color: string
 }
 
-const TAX_RATE = 0.0825
-const EXEMPT = new Set(['retail_tax_exempt', 'contractor_tax_exempt'])
 const STATUS_OPTIONS = ['pending', 'confirmed', 'processing', 'ready_for_pickup', 'completed']
 
 const needsLength = (sku?: string | null) =>
@@ -42,7 +41,7 @@ const needsColor = (sku?: string | null) => !!sku && (COLOR_SKUS.has(sku) || isO
 
 const custName = (c: CustomerRow) => c.full_name || c.company_name || c.email || 'Customer'
 
-export default function OrderBuilder({ customers, products }: { customers: CustomerRow[]; products: ProductRow[] }) {
+export default function OrderBuilder({ customers, products, rates }: { customers: CustomerRow[]; products: ProductRow[]; rates: TaxRates }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -57,7 +56,7 @@ export default function OrderBuilder({ customers, products }: { customers: Custo
   const [saving, setSaving] = useState(false)
 
   const customer = allCustomers.find((c) => c.id === customerId) ?? null
-  const exempt = !!customer && EXEMPT.has(customer.pricing_tier ?? '')
+  const exempt = !!customer && taxRateForTier(customer.pricing_tier, rates) === 0
 
   const custMatches = useMemo(() => {
     const q = custSearch.trim().toLowerCase()
@@ -86,7 +85,7 @@ export default function OrderBuilder({ customers, products }: { customers: Custo
 
   const lineTotal = (l: Line) => (parseFloat(l.unitPrice) || 0) * (parseFloat(l.qty) || 0)
   const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0)
-  const tax = exempt ? 0 : subtotal * TAX_RATE
+  const tax = taxForOrder(subtotal, customer?.pricing_tier, rates)
   const total = subtotal + tax
 
   const submit = async () => {
