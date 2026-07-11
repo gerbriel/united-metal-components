@@ -13,6 +13,10 @@ import CreateCustomerDialog from '@/components/shared/CreateCustomerDialog'
 import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku } from '@/lib/product-config'
 import { ORDER_STATUS_LABEL } from '@/types/database'
 import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
+import { priceBasisTier } from '@/lib/pricing-tiers'
+
+// Contractor / Retail per-item overrides, keyed by product id (blank → base).
+export type OrderTierPriceMap = Record<number, { retail?: number; contractor?: number }>
 
 interface CustomerRow {
   id: string
@@ -31,6 +35,7 @@ interface Line {
   lengthFt: string
   lengthIn: string
   color: string
+  auto: boolean   // price still auto-set from the tier (untouched by staff)
 }
 
 const STATUS_OPTIONS = ['pending', 'confirmed', 'processing', 'ready_for_pickup', 'completed']
@@ -41,7 +46,7 @@ const needsColor = (sku?: string | null) => !!sku && (COLOR_SKUS.has(sku) || isO
 
 const custName = (c: CustomerRow) => c.full_name || c.company_name || c.email || 'Customer'
 
-export default function OrderBuilder({ customers, products, rates }: { customers: CustomerRow[]; products: ProductRow[]; rates: TaxRates }) {
+export default function OrderBuilder({ customers, products, rates, tierPrices }: { customers: CustomerRow[]; products: ProductRow[]; rates: TaxRates; tierPrices: OrderTierPriceMap }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -72,16 +77,38 @@ export default function OrderBuilder({ customers, products, rates }: { customers
     return products.filter((p) => `${p.name} ${p.sku ?? ''}`.toLowerCase().includes(q)).slice(0, 8)
   }, [products, prodSearch])
 
+  // The unit price to default a line to: the customer's tier price for the
+  // product (Contractor/Retail override, else base), from the tier's price
+  // basis. No customer selected yet → the product's base price.
+  const defaultUnitFor = (product: ProductRow, cust: CustomerRow | null): number => {
+    if (!cust) return product.price ?? 0
+    const basis = priceBasisTier(cust.pricing_tier ?? '')
+    const over =
+      basis === 'contractor' ? tierPrices[product.id]?.contractor
+      : basis === 'retail'   ? tierPrices[product.id]?.retail
+      : undefined
+    return over ?? product.price ?? 0
+  }
+
   const addProduct = (p: ProductRow) => {
     setLines((ls) => [
       ...ls,
-      { key: `${p.id}-${Date.now()}`, product: p, qty: '1', unitPrice: String(p.price ?? 0), lengthFt: '', lengthIn: '', color: '' },
+      { key: `${p.id}-${Date.now()}`, product: p, qty: '1', unitPrice: String(defaultUnitFor(p, customer)), lengthFt: '', lengthIn: '', color: '', auto: true },
     ])
     setProdSearch('')
   }
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key))
+
+  // Select (or clear) the customer and re-price still-automatic lines to the new
+  // tier; lines whose price staff already edited are left as-is. `cust` can be
+  // passed explicitly for a just-created customer not yet in allCustomers.
+  const selectCustomer = (id: string | null, cust?: CustomerRow | null) => {
+    setCustomerId(id)
+    const c = cust !== undefined ? cust : id ? allCustomers.find((x) => x.id === id) ?? null : null
+    setLines((ls) => ls.map((l) => (l.auto ? { ...l, unitPrice: String(defaultUnitFor(l.product, c)) } : l)))
+  }
 
   const lineTotal = (l: Line) => (parseFloat(l.unitPrice) || 0) * (parseFloat(l.qty) || 0)
   const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0)
@@ -150,8 +177,9 @@ export default function OrderBuilder({ customers, products, rates }: { customers
               triggerLabel="New Customer"
               triggerClassName="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border text-sm font-medium hover:bg-muted transition-colors"
               onCreated={(c) => {
-                setAllCustomers((cs) => [{ id: c.id, full_name: c.name, company_name: null, email: null, phone: null, pricing_tier: null }, ...cs])
-                setCustomerId(c.id)
+                const row = { id: c.id, full_name: c.name, company_name: null, email: null, phone: null, pricing_tier: null }
+                setAllCustomers((cs) => [row, ...cs])
+                selectCustomer(c.id, row)
                 setCustSearch('')
               }}
             />
@@ -165,7 +193,7 @@ export default function OrderBuilder({ customers, products, rates }: { customers
                   {exempt ? ' · Tax exempt' : ''}
                 </p>
               </div>
-              <button onClick={() => setCustomerId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => selectCustomer(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
             </div>
           ) : (
             <div className="relative">
@@ -173,7 +201,7 @@ export default function OrderBuilder({ customers, products, rates }: { customers
               {custMatches.length > 0 && (
                 <div className="mt-1 border rounded-lg divide-y max-h-56 overflow-y-auto">
                   {custMatches.map((c) => (
-                    <button key={c.id} onClick={() => { setCustomerId(c.id); setCustSearch('') }} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">
+                    <button key={c.id} onClick={() => { selectCustomer(c.id); setCustSearch('') }} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50">
                       <span className="font-medium">{custName(c)}</span>
                       {c.email && <span className="text-muted-foreground"> · {c.email}</span>}
                     </button>
@@ -242,7 +270,7 @@ export default function OrderBuilder({ customers, products, rates }: { customers
                     )}
                     <div className="space-y-1">
                       <Label className="text-xs">Unit price</Label>
-                      <Input type="number" step="0.01" className="h-8 w-24" value={l.unitPrice} onChange={(e) => setLine(l.key, { unitPrice: e.target.value })} />
+                      <Input type="number" step="0.01" className="h-8 w-24" value={l.unitPrice} onChange={(e) => setLine(l.key, { unitPrice: e.target.value, auto: false })} />
                     </div>
                     <div className="ml-auto text-right">
                       <Label className="text-xs">Line total</Label>
