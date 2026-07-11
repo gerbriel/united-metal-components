@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Loader2, ShieldOff, ShieldCheck, Trash2 } from 'lucide-react'
+import { Loader2, ShieldOff, ShieldCheck, Trash2, Pencil } from 'lucide-react'
 import { tiersForType, tierLabelMap, type PricingTier } from '@/lib/pricing-tiers'
 import CreateUserDialog from '@/components/shared/CreateUserDialog'
 
@@ -46,6 +48,11 @@ type Patch = Partial<{
   suspended_reason: string | null
   can_receive_inventory: boolean | null
   pricing_tier: string | null
+  full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  phone: string | null
 }>
 
 export default function AdminUserManager({ initialUsers, tiers, currentUserId }: Props) {
@@ -89,6 +96,11 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
         : null
     }
     if ('pricing_tier' in patch) args.p_pricing_tier = patch.pricing_tier ?? null
+    if ('full_name' in patch)    args.p_full_name    = patch.full_name ?? null
+    if ('first_name' in patch)   args.p_first_name   = patch.first_name ?? null
+    if ('last_name' in patch)    args.p_last_name    = patch.last_name ?? null
+    if ('company_name' in patch) args.p_company_name = patch.company_name ?? null
+    if ('phone' in patch)        args.p_phone        = patch.phone ?? null
 
     const { error } = await supabase.rpc('admin_update_user_profile', args)
     if (error) toast.error(`Failed: ${error.message}`)
@@ -111,6 +123,37 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
 
   const handleUnsuspend = (userId: string) =>
     callRpc(userId, { account_status: 'active', suspended_reason: null })
+
+  // Contact-info editing (name / company / phone).
+  const [editUser, setEditUser] = useState<UserRow | null>(null)
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', company_name: '', phone: '' })
+
+  const openEdit = (u: UserRow) => {
+    setEditForm({
+      first_name:   u.first_name ?? '',
+      last_name:    u.last_name ?? '',
+      company_name: u.company_name ?? '',
+      phone:        u.phone ?? '',
+    })
+    setEditUser(u)
+  }
+
+  const saveEdit = async () => {
+    if (!editUser) return
+    const first = editForm.first_name.trim()
+    const last  = editForm.last_name.trim()
+    const patch: Patch = {
+      first_name:   first,
+      last_name:    last,
+      company_name: editForm.company_name.trim(),
+      phone:        editForm.phone.trim(),
+    }
+    // Keep the full_name display in sync when a first/last name is provided.
+    if (first || last) patch.full_name = [first, last].filter(Boolean).join(' ')
+    const target = editUser
+    setEditUser(null)
+    await callRpc(target.id, patch)
+  }
 
   const handleDelete = async (u: UserRow) => {
     const label = u.first_name && u.last_name
@@ -335,6 +378,16 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
                             <ShieldOff className="w-3.5 h-3.5 mr-1" />Suspend
                           </Button>
                         )}
+                        {/* Edit contact info */}
+                        {!showingReason && (
+                          <button
+                            onClick={() => openEdit(u)}
+                            title="Edit contact info"
+                            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {/* Permanent delete — hidden for your own account. */}
                         {u.id !== currentUserId && !showingReason && (
                           <button
@@ -355,6 +408,39 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
           </table>
         </div>
       </div>
+
+      {/* Edit contact info */}
+      <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit contact info</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>First name</Label>
+                <Input value={editForm.first_name} onChange={(e) => setEditForm((f) => ({ ...f, first_name: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Last name</Label>
+                <Input value={editForm.last_name} onChange={(e) => setEditForm((f) => ({ ...f, last_name: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Company</Label>
+              <Input value={editForm.company_name} onChange={(e) => setEditForm((f) => ({ ...f, company_name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={loadingId === editUser?.id}>Save changes</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
