@@ -30,6 +30,58 @@ export function steelMaterialProps(name?: string | null) {
     : { metalness: 0.55, roughness: 0.42 }
 }
 
+// ── Printed stone-look finishes (texture map) ───────────────────────────────────
+// A few finishes (Light Rock, Dark Stone) are a PRINTED PATTERN, not a solid color:
+// artwork printed on the flat coil, then roll-formed, so it hugs the ribs. Those
+// COLORS entries carry a `texture` url; a panel in one of those finishes renders the
+// image as a `map` (see models.tsx Panel) with developedPanelUV() below so the print
+// flows over the corrugation. `hex` stays the swatch color + no-texture fallback.
+const TEXTURE_BY_NAME: Record<string, string> = Object.fromEntries(
+  COLORS.filter((c) => c.texture).map((c) => [c.name.toLowerCase(), c.texture!]),
+)
+
+// Real-world run-length (feet) covered by one full print tile. The panel UVs are in
+// feet (developed width × run length), so this sets the apparent stone size; the
+// cross-axis repeat is derived from the image aspect so stones aren't stretched.
+// One knob to tune the look — smaller = larger stones / fewer repeats.
+export const PRINT_FEET_PER_TILE = 5
+
+// Cache one THREE.Texture per url (shared across every panel + thumbnail canvas —
+// three uploads it per-renderer, so one Texture object is safe to reuse).
+const printedTexCache: Record<string, THREE.Texture> = {}
+
+export function printedTexture(url: string): THREE.Texture {
+  const hit = printedTexCache[url]
+  if (hit) return hit
+  const setRepeat = (tex: THREE.Texture, aspectHW: number) =>
+    // V = run length (1 tile / PRINT_FEET_PER_TILE ft); U derived from H/W so the
+    // stone keeps its proportions across the developed width.
+    tex.repeat.set(aspectHW / PRINT_FEET_PER_TILE, 1 / PRINT_FEET_PER_TILE)
+  const tex = new THREE.TextureLoader().load(url, (t) => {
+    const img = t.image as { width: number; height: number } | undefined
+    if (img?.width) setRepeat(t, img.height / img.width)
+    t.needsUpdate = true
+  })
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.colorSpace = THREE.SRGBColorSpace
+  // No mipmaps + linear filtering: this project targets software/headless GL stacks
+  // that sample mipmapped textures as their 1×1 average (see bubbleTexture) — the
+  // print would vanish. Keeps the pattern visible everywhere at some aliasing cost.
+  tex.magFilter = THREE.LinearFilter
+  tex.minFilter = THREE.LinearFilter
+  tex.generateMipmaps = false
+  setRepeat(tex, 900 / 550) // provisional (portrait) until the image reports its size
+  printedTexCache[url] = tex
+  return tex
+}
+
+// Texture for a finish NAME, or null if that finish is a plain solid color.
+export function colorTexture(name?: string | null): THREE.Texture | null {
+  if (!name) return null
+  const url = TEXTURE_BY_NAME[name.toLowerCase()]
+  return url ? printedTexture(url) : null
+}
+
 // ── Folded sheet-metal profiles (ported from the Carports builder) ──────────────
 // Turn an OPEN centreline polyline into a thin CLOSED ribbon (centreline ± half the
 // sheet thickness) so a bent-sheet cross-section extrudes into a real solid with
@@ -310,4 +362,42 @@ export function l5Center(ribs = 5, stiffeners = true): [number, number][] {
   }
   pts.push([x0 + w, 0])
   return pts
+}
+
+// ── Developed-surface UVs for a printed panel (printed-coil look) ────────────────
+// Faux-stone panels are printed on the FLAT coil, then roll-formed — so the artwork
+// runs continuously across the unrolled sheet and up-and-over every rib without
+// distorting on the rib flanks. Reproduce that by replacing the panel's UVs with:
+//   U = arc length along the cross-section centreline (the developed width, feet)
+//   V = distance along the run (feet, = the extrude/Z axis)
+// Feed the SAME centreline used to build the ribbon. Its x is monotonic left→right
+// (each rib/stiffener bump advances x), so developed length is a function of x —
+// which every vertex (top face, flanks, underside) shares consistently. Apply BEFORE
+// splitUnderside so the split copies these UVs through. Returns the same geometry.
+export function developedPanelUV(
+  geo: THREE.BufferGeometry,
+  center: [number, number][],
+): THREE.BufferGeometry {
+  const xs = [center[0][0]]
+  const ss = [0]
+  let s = 0
+  for (let i = 1; i < center.length; i++) {
+    s += Math.hypot(center[i][0] - center[i - 1][0], center[i][1] - center[i - 1][1])
+    xs.push(center[i][0]); ss.push(s)
+  }
+  const sOfX = (x: number): number => {
+    if (x <= xs[0]) return ss[0]
+    if (x >= xs[xs.length - 1]) return ss[ss.length - 1]
+    let lo = 0, hi = xs.length - 1
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (xs[mid] <= x) lo = mid; else hi = mid }
+    return ss[lo] + (ss[hi] - ss[lo]) * ((x - xs[lo]) / (xs[hi] - xs[lo] || 1))
+  }
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute
+  const uv = new Float32Array(pos.count * 2)
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2] = sOfX(pos.getX(i)) // developed width (ft)
+    uv[i * 2 + 1] = pos.getZ(i)   // run length (ft)
+  }
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2))
+  return geo
 }

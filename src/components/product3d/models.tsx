@@ -8,8 +8,10 @@ import {
   l5Center,
   L5_RIB_H,
   splitUnderside,
+  developedPanelUV,
   bubbleTexture,
   colorHex,
+  colorTexture,
   steelMaterialProps,
   isMetallicFinish,
   screwThreadGeometry,
@@ -87,20 +89,39 @@ function BaseRail({ colorName }: ModelProps) {
 // show the off-white backer coat on the underside; galvalume/bare stays uniform.
 const PANEL_BACKER = { color: '#EDEAE0', metalness: 0.35, roughness: 0.55 }
 
+// Stone-look finishes read as matte painted print, not shiny metal.
+const PANEL_PRINT_MAT = { metalness: 0.1, roughness: 0.82 }
+
 function Panel({ colorName }: ModelProps) {
   const len = 5
-  const geo = useMemo(
-    () => splitUnderside(extrudeProfile(ribbonShape(l5Center(5), 0.02), len)),
-    [],
-  )
+  // Developed-surface UVs (regardless of finish — free, unused when there's no map)
+  // so a printed finish flows over the ribs like the real printed coil.
+  const geo = useMemo(() => {
+    const center = l5Center(5)
+    return splitUnderside(developedPanelUV(extrudeProfile(ribbonShape(center, 0.02), len), center))
+  }, [])
   const steel = useSteel(colorName, '#c8c8c0')
   // Galvalume (and no-color/bare) sheets are the same metal on both faces; every
   // painted color gets the off-white backer underneath.
   const painted = !!colorName && !colorName.toLowerCase().includes('galvalume')
   const under = painted ? PANEL_BACKER : steel
+  // Printed stone finishes (Light Rock, Dark Stone): the artwork IS the surface, so
+  // the top face renders the texture over a white base (map shows true color) with a
+  // matte, non-metallic finish. Built imperatively so the first shader compile picks
+  // up USE_MAP (assigning `map` via JSX props can leave material.version at 0 — same
+  // gotcha handled on the insulation roll's materials).
+  const tex = colorTexture(colorName)
+  const topMat = useMemo(() => {
+    if (!tex) return null
+    return new THREE.MeshStandardMaterial({
+      color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide,
+    })
+  }, [tex])
   return (
     <mesh geometry={geo} castShadow receiveShadow>
-      <meshStandardMaterial attach="material-0" {...steel} side={THREE.DoubleSide} />
+      {topMat
+        ? <primitive object={topMat} attach="material-0" />
+        : <meshStandardMaterial attach="material-0" {...steel} side={THREE.DoubleSide} />}
       <meshStandardMaterial attach="material-1" {...under} side={THREE.DoubleSide} />
     </mesh>
   )

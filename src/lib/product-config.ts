@@ -6,6 +6,12 @@ type ColorEntry = {
   // to fake the sheen of a bare metallic finish. The 3D viewer always renders
   // from `hex` (see product3d/geom.ts), so keep `hex` representative too.
   gradient?: string
+  // Stone-look finishes are a PRINTED PATTERN, not a solid color: the artwork is
+  // printed on the flat coil and then roll-formed, so it flows over the ribs. When
+  // set, the 3D panel renders this image as a texture map (see product3d/geom.ts →
+  // colorTexture / developedPanelUV) instead of the flat `hex`. Path is public/-
+  // relative (served at the site root). `hex` stays the swatch color + fallback.
+  texture?: string
 }
 
 // Hex values are tuned to read true-to-life on the storefront swatches and drive
@@ -27,8 +33,8 @@ export const COLORS: ColorEntry[] = [
   { name: 'Forest Green',  hex: '#2C4E27', textDark: false },
   { name: 'Barn Red',      hex: '#7C2A24', textDark: false },
   { name: 'Black',         hex: '#1C1C1C', textDark: false },
-  { name: 'Light Rock',    hex: '#9E9384', textDark: true  },
-  { name: 'Dark Stone',    hex: '#4E453E', textDark: false },
+  { name: 'Light Rock',    hex: '#9E9384', textDark: true,  texture: '/textures/light-rock.jpg' },
+  { name: 'Dark Stone',    hex: '#4E453E', textDark: false, texture: '/textures/dark-stone.jpg' },
 ]
 
 export type ColorName = string
