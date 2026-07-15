@@ -13,6 +13,20 @@ export type OrderStatus =
 export type NotificationType = 'order_update' | 'newsletter' | 'system'
 export type SubscriberStatus = 'active' | 'unsubscribed'
 export type CampaignStatus = 'draft' | 'scheduled' | 'sent'
+export type AnnouncementFormat = 'bar' | 'hero' | 'modal' | 'corner' | 'bottom'
+export type AnnouncementBgStyle = 'navy' | 'orange' | 'green' | 'red' | 'dark'
+export type AnnouncementTargetMode = 'all' | 'include' | 'exclude'
+export type AnnouncementAudience = 'everyone' | 'anon' | 'auth'
+export type AnnouncementFrequency = 'always' | 'session' | 'daily' | 'once'
+export type AnnouncementTrigger = 'load' | 'delay' | 'exit'
+export type AnnouncementEventType = 'impression' | 'click' | 'dismiss'
+export interface AnnouncementUtm {
+  source?: string
+  medium?: string
+  campaign?: string
+  content?: string
+  term?: string
+}
 
 export interface Database {
   public: {
@@ -250,8 +264,62 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['analytics_events']['Row'], 'id' | 'created_at'>
         Update: never
       }
+      announcements: {
+        Row: {
+          id: number
+          format: AnnouncementFormat
+          title: string | null
+          body: string | null
+          image_path: string | null
+          cta_label: string | null
+          cta_url: string | null
+          bg_style: AnnouncementBgStyle
+          target_mode: AnnouncementTargetMode
+          target_paths: string[]
+          audience: AnnouncementAudience
+          frequency: AnnouncementFrequency
+          trigger: AnnouncementTrigger
+          delay_seconds: number
+          dismissible: boolean
+          priority: number
+          utm: AnnouncementUtm
+          starts_at: string | null
+          ends_at: string | null
+          active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['announcements']['Row'], 'id' | 'created_at' | 'updated_at'>> & {
+          format: AnnouncementFormat
+        }
+        Update: Partial<Omit<Database['public']['Tables']['announcements']['Row'], 'id' | 'created_at'>>
+      }
+      announcement_events: {
+        Row: {
+          id: number
+          announcement_id: number
+          event: AnnouncementEventType
+          session_id: string | null
+          page: string | null
+          user_id: string | null
+          user_role: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['announcement_events']['Row'], 'id' | 'created_at'>
+        Update: never
+      }
     }
-    Views: Record<string, never>
+    Views: {
+      announcement_stats: {
+        Row: {
+          announcement_id: number
+          impressions: number
+          clicks: number
+          dismisses: number
+        }
+      }
+    }
     Functions: Record<string, never>
     Enums: {
       user_role: UserRole
@@ -278,6 +346,9 @@ export type NewsletterSubscriber = Database['public']['Tables']['newsletter_subs
 export type NewsletterCampaign = Database['public']['Tables']['newsletter_campaigns']['Row']
 export type CrmNote = Database['public']['Tables']['crm_notes']['Row']
 export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['Row']
+export type Announcement = Database['public']['Tables']['announcements']['Row']
+export type AnnouncementEvent = Database['public']['Tables']['announcement_events']['Row']
+export type AnnouncementStats = Database['public']['Views']['announcement_stats']['Row']
 
 export type NewsletterCampaignRecipient = Database['public']['Tables']['newsletter_campaign_recipients']['Row']
 
