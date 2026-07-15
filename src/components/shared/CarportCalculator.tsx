@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useMemo, useState } from 'react'
-import { Calculator, Plus, Minus, Trash2, Settings2, Printer, RotateCcw, Truck, SlidersHorizontal, ShieldCheck } from 'lucide-react'
+import { Calculator, Plus, Trash2, Settings2, Printer, RotateCcw, Truck, SlidersHorizontal, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -66,8 +66,8 @@ const DEFAULT_INPUT: CarportInput = {
   roofColor: 'Forest Green',
   wallColor: 'Forest Green',
   trimColor: 'Hawaiian Blue',
-  certification: 'uncertified',
-  bracing: 'none',
+  certification: 'local_code', // certified by default
+  bracing: 'diagonal',         // diagonal braces by default
   extraTrusses: 0,
   extraPurlins: false,
   gauge: 12, // 12ga is the standard frame tube (mirrors the builder's default)
@@ -193,37 +193,6 @@ function Segmented<T extends string>({
   )
 }
 
-function Stepper({
-  value,
-  onChange,
-  min = 0,
-}: {
-  value: number
-  onChange: (n: number) => void
-  min?: number
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onChange(Math.max(min, value - 1))}>
-        <Minus className="h-4 w-4" />
-      </Button>
-      <span className="w-8 text-center text-sm font-semibold tabular-nums">{value}</span>
-      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onChange(value + 1)}>
-        <Plus className="h-4 w-4" />
-      </Button>
-      {value > min && (
-        <button
-          type="button"
-          className="ml-1 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => onChange(min)}
-        >
-          reset
-        </button>
-      )}
-    </div>
-  )
-}
-
 export default function CarportCalculator({ variant = 'dashboard' }: Props) {
   const [input, setInput] = useState<CarportInput>(DEFAULT_INPUT)
   const [rules, setRules] = useState<RuleSet>(DEFAULT_RULES)
@@ -339,6 +308,56 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                   />
                   Enclose end walls
                 </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Colors</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ColorSelect label="Roof" value={input.roofColor} onChange={(v) => set('roofColor', v)} />
+              <ColorSelect label="Sides" value={input.wallColor} onChange={(v) => set('wallColor', v)} />
+              <ColorSelect label="Trim" value={input.trimColor} onChange={(v) => set('trimColor', v)} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Openings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <NumberField label="Walk-in doors" value={input.walkDoors} onChange={(n) => set('walkDoors', n)} />
+                <NumberField label="Windows" value={input.windows} onChange={(n) => set('windows', n)} />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Roll-up doors</Label>
+                  <Button variant="outline" size="sm" onClick={addRollUp}>
+                    <Plus className="w-4 h-4" /> Add
+                  </Button>
+                </div>
+                {input.rollUps.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No roll-up doors.</p>
+                )}
+                {input.rollUps.map((d, i) => (
+                  <div key={i} className="flex items-end gap-2">
+                    <NumberField label="Width (ft)" value={d.width} onChange={(n) => updateRollUp(i, { width: n })} />
+                    <NumberField label="Height (ft)" value={d.height} onChange={(n) => updateRollUp(i, { height: n })} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => removeRollUp(i)}
+                      aria-label="Remove roll-up door"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -507,7 +526,6 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                 </CardTitle>
                 <span className="text-xs text-muted-foreground">
                   {input.groundSnow ?? 30} psf · {input.windSpeed ?? 105} mph
-                  {(input.extraTrusses ?? 0) > 0 ? ` · +${input.extraTrusses} trusses` : ''}
                   <span className="ml-2">{showLoads ? 'Hide' : 'Edit'}</span>
                 </span>
               </button>
@@ -518,68 +536,12 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                   <NumberField label="Ground snow" suffix="psf" value={input.groundSnow ?? 30} onChange={(n) => set('groundSnow', n)} />
                   <NumberField label="Wind speed" suffix="mph" value={input.windSpeed ?? 105} onChange={(n) => set('windSpeed', n)} />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Extra trusses <span className="text-muted-foreground font-normal">· added beyond load spacing</span></Label>
-                  <Stepper value={input.extraTrusses ?? 0} onChange={(n) => set('extraTrusses', n)} />
-                  <p className="text-xs text-muted-foreground">
-                    {result.meta.baseTrusses} required by the {result.meta.frameChart ? `${result.meta.frameChart}′ chart` : 'estimate'}
-                    {(input.extraTrusses ?? 0) > 0
-                      ? ` + ${input.extraTrusses} extra → ${result.meta.trusses} frames justified at ${Math.round(result.meta.frameSpacingFt * 12)}″ o.c.`
-                      : ` at ${Math.round(result.meta.frameSpacingFt * 12)}″ o.c. — add extras to tighten spacing evenly.`}
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  {result.meta.trusses} trusses at {Math.round(result.meta.frameSpacingFt * 12)}″ o.c.
+                  {result.meta.frameChart ? ` · ${result.meta.frameChart}′ chart` : ' · estimate'} — sized from the snow &amp; wind loads.
+                </p>
               </CardContent>
             )}
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Colors</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <ColorSelect label="Roof" value={input.roofColor} onChange={(v) => set('roofColor', v)} />
-              <ColorSelect label="Sides" value={input.wallColor} onChange={(v) => set('wallColor', v)} />
-              <ColorSelect label="Trim" value={input.trimColor} onChange={(v) => set('trimColor', v)} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Openings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <NumberField label="Walk-in doors" value={input.walkDoors} onChange={(n) => set('walkDoors', n)} />
-                <NumberField label="Windows" value={input.windows} onChange={(n) => set('windows', n)} />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Roll-up doors</Label>
-                  <Button variant="outline" size="sm" onClick={addRollUp}>
-                    <Plus className="w-4 h-4" /> Add
-                  </Button>
-                </div>
-                {input.rollUps.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No roll-up doors.</p>
-                )}
-                {input.rollUps.map((d, i) => (
-                  <div key={i} className="flex items-end gap-2">
-                    <NumberField label="Width (ft)" value={d.width} onChange={(n) => updateRollUp(i, { width: n })} />
-                    <NumberField label="Height (ft)" value={d.height} onChange={(n) => updateRollUp(i, { height: n })} />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => removeRollUp(i)}
-                      aria-label="Remove roll-up door"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
           </Card>
         </div>
 
