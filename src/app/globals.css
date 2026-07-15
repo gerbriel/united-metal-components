@@ -135,3 +135,11 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* Print: remove the browser's default header/footer (date, document title,
+   URL, and page number) by zeroing the @page margin box — the browser only
+   draws those in the margin, so with no margin they disappear. Printed
+   content supplies its own inset via padding (see the dashboard layout). */
+@media print {
+  @page { margin: 0; }
+}

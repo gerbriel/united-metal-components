@@ -51,9 +51,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     : 'Office'
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      {/* Sidebar */}
-      <aside className="w-60 bg-sidebar text-sidebar-foreground flex flex-col shrink-0">
+    <div className="flex h-screen overflow-hidden bg-slate-50 print:block print:h-auto print:overflow-visible print:bg-white">
+      {/* Sidebar — hidden when printing (loading sheets etc.) */}
+      <aside className="w-60 bg-sidebar text-sidebar-foreground flex flex-col shrink-0 print:hidden">
         <div className="p-4 border-b border-sidebar-border">
           <Link href={isWarehouse ? '/dashboard/orders' : '/'} className="flex items-center gap-2">
             <img
@@ -114,8 +114,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-6">{children}</div>
+      <main className="flex-1 overflow-y-auto print:overflow-visible">
+        <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-[0.5in]">{children}</div>
       </main>
     </div>
   )
