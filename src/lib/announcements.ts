@@ -12,11 +12,19 @@ export const SLOT_FOR_FORMAT: Record<AnnouncementFormat, AnnouncementSlot> = {
   bottom: 'bottom',
 }
 
-// Normalize a path for comparison: drop the trailing slash (except root) and any
-// query/hash so "/products/" and "/products" match the same rule.
-function normalizePath(p: string): string {
-  const path = (p.split('?')[0] ?? '').split('#')[0] ?? p
-  if (path.length > 1 && path.endsWith('/')) return path.slice(0, -1)
+// Normalize a path (or full URL) for comparison: strip a pasted origin
+// ("https://example.com/carports" → "/carports"), drop the trailing slash
+// (except root) and any query/hash so "/products/" and "/products" match the
+// same rule, and guarantee a leading slash.
+export function normalizePath(p: string): string {
+  let raw = p.trim()
+  // Admins paste full URLs from the address bar — compare by pathname.
+  if (/^https?:\/\//i.test(raw)) {
+    try { raw = new URL(raw).pathname } catch { /* fall through with the raw string */ }
+  }
+  let path = (raw.split('?')[0] ?? '').split('#')[0] ?? raw
+  if (path && !path.startsWith('/')) path = '/' + path
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1)
   return path || '/'
 }
 

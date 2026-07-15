@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import {
   Plus, Pencil, Trash2, Loader2, Play, Pause, ImagePlus, X, Link2, Target, BarChart3, Clock, Eye, MousePointerClick,
 } from 'lucide-react'
-import type { AnnouncementStatus } from '@/lib/announcements'
+import { normalizePath, type AnnouncementStatus } from '@/lib/announcements'
 import type {
   Announcement, Database,
   AnnouncementFormat, AnnouncementBgStyle, AnnouncementTargetMode,
@@ -191,9 +191,15 @@ export default function AnnouncementManager({ initial }: { initial: Announcement
     }
   }
 
+  // Accept "/carports", "/products/*", or a full URL pasted from the address
+  // bar — everything is stored as a normalized path so the matcher can compare
+  // it against the browser location.
   const addPath = () => {
-    const p = pathInput.trim()
-    if (!p) return
+    const t = pathInput.trim()
+    if (!t) return
+    const wildcard = t.endsWith('*')
+    const base = normalizePath(wildcard ? t.slice(0, -1) : t)
+    const p = wildcard ? (base === '/' ? '/*' : `${base}/*`) : base
     if (!form.target_paths.includes(p)) set('target_paths', [...form.target_paths, p])
     setPathInput('')
   }
