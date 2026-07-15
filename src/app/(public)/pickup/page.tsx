@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { MapPin, Clock, Phone, AlertCircle, CheckCircle, Package } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/button-link'
+import { createClient } from '@/lib/supabase/server'
+import { getSiteContent } from '@/lib/site-content'
+import BusinessHoursDisplay from '@/components/shared/BusinessHours'
 
 export const metadata: Metadata = {
   title: 'Pickup Info | United Metal Components',
@@ -25,7 +28,12 @@ const steps = [
   },
 ]
 
-export default function PickupPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function PickupPage() {
+  const supabase = await createClient()
+  const { hours } = await getSiteContent(supabase)
+  const todayIso = new Date().toISOString().slice(0, 10)
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="mb-12">
@@ -75,20 +83,7 @@ export default function PickupPage() {
                 <p className="text-sm text-slate-400">When you can pick up</p>
               </div>
             </div>
-            <div className="space-y-2 text-sm text-slate-300">
-              <div className="flex justify-between">
-                <span>Monday – Friday</span>
-                <span className="text-white font-medium">7:00 AM – 5:00 PM</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Saturday</span>
-                <span className="text-white font-medium">8:00 AM – 12:00 PM</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Sunday</span>
-                <span className="text-slate-500">Closed</span>
-              </div>
-            </div>
+            <BusinessHoursDisplay hours={hours} todayIso={todayIso} variant="list" className="space-y-2 text-sm text-slate-300" />
           </div>
         </div>
       </div>

@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import { MapPin, Phone, Mail, Clock, Award, Users, Package, ShieldCheck } from 'lucide-react'
 import { ButtonLink } from '@/components/ui/button-link'
+import { createClient } from '@/lib/supabase/server'
+import { getSiteContent } from '@/lib/site-content'
+import BusinessHoursDisplay from '@/components/shared/BusinessHours'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'About Us | United Metal Components',
@@ -30,7 +35,10 @@ const values = [
   },
 ]
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const supabase = await createClient()
+  const { hours } = await getSiteContent(supabase)
+  const todayIso = new Date().toISOString().slice(0, 10)
   return (
     <div>
       {/* Hero */}
@@ -85,11 +93,7 @@ export default function AboutPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm mb-0.5">Pickup Hours</p>
-                  <p className="text-sm text-muted-foreground">
-                    Monday – Friday: 7:00 AM – 5:00 PM<br />
-                    Saturday: 8:00 AM – 12:00 PM<br />
-                    Sunday: Closed
-                  </p>
+                  <BusinessHoursDisplay hours={hours} todayIso={todayIso} variant="plain" className="text-sm text-muted-foreground space-y-0.5" />
                 </div>
               </div>
               <div className="flex items-start gap-4">

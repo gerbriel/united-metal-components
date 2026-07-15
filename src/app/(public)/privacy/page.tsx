@@ -1,5 +1,9 @@
 import type { Metadata } from 'next'
 import { ButtonLink } from '@/components/ui/button-link'
+import { createClient } from '@/lib/supabase/server'
+import { getSiteContent } from '@/lib/site-content'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | United Metal Components',
@@ -12,7 +16,24 @@ const ADDRESS = '9191 W Whitesbridge Ave, Fresno, CA 93706'
 const EMAIL = 'sales@unitedmetalcomponents.com'
 const PHONE = '(559) 567-9117'
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const supabase = await createClient()
+  const { privacyHtml } = await getSiteContent(supabase)
+
+  // Admin-authored override takes over the body; otherwise the built-in default
+  // policy below renders unchanged.
+  if (privacyHtml) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="mb-10">
+          <span className="text-xs font-semibold uppercase tracking-widest text-orange-500 mb-3 block">Legal</span>
+          <h1 className="text-4xl font-bold mb-3">Privacy Policy</h1>
+        </div>
+        <div className="site-content-html text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: privacyHtml }} />
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
       <div className="mb-10">

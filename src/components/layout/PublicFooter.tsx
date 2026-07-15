@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import { Mail, Phone, MapPin, ArrowRight } from 'lucide-react'
 import type { NavCategory } from '@/lib/nav-categories'
+import { createClient } from '@/lib/supabase/server'
+import { getSiteContent } from '@/lib/site-content'
+import BusinessHoursDisplay from '@/components/shared/BusinessHours'
 
 const companyLinks = [
   ['About Us', '/about'],
@@ -10,7 +13,10 @@ const companyLinks = [
   ['Terms of Service', '/terms'],
 ]
 
-export default function PublicFooter({ categories }: { categories: NavCategory[] }) {
+export default async function PublicFooter({ categories }: { categories: NavCategory[] }) {
+  const supabase = await createClient()
+  const { hours } = await getSiteContent(supabase)
+  const todayIso = new Date().toISOString().slice(0, 10)
   return (
     <footer className="bg-slate-950 text-slate-400">
       {/* Top bar */}
@@ -95,10 +101,7 @@ export default function PublicFooter({ categories }: { categories: NavCategory[]
                 </a>
               </li>
             </ul>
-            <div className="mt-5 pt-5 border-t border-white/5">
-              <p className="text-xs text-slate-600">Mon – Fri: 7am – 5pm</p>
-              <p className="text-xs text-slate-600">Sat: 8am – 12pm</p>
-            </div>
+            <BusinessHoursDisplay hours={hours} todayIso={todayIso} variant="plain" className="mt-5 pt-5 border-t border-white/5 space-y-0.5 text-xs text-slate-600" />
           </div>
         </div>
       </div>
