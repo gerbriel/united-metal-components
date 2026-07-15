@@ -206,6 +206,7 @@ export default function AnnouncementManager({ initial }: { initial: Announcement
   const removePath = (p: string) => set('target_paths', form.target_paths.filter((x) => x !== p))
 
   const buildPayload = (): AnnInsert => {
+    const usesTrigger = form.format === 'modal' || form.format === 'corner'
     const utm: Record<string, string> = {}
     if (form.utm_source.trim())   utm.source = form.utm_source.trim()
     if (form.utm_medium.trim())   utm.medium = form.utm_medium.trim()
@@ -224,8 +225,10 @@ export default function AnnouncementManager({ initial }: { initial: Announcement
       target_paths: form.target_mode === 'all' ? [] : form.target_paths,
       audience: form.audience,
       frequency: form.frequency,
-      trigger: form.trigger,
-      delay_seconds: form.trigger === 'delay' ? Math.max(0, Math.round(form.delay_seconds) || 0) : 0,
+      // Only modal/corner expose a reveal control; every other format must show
+      // on load, so never let a stale 'delay'/'exit' trigger leak through.
+      trigger: usesTrigger ? form.trigger : 'load',
+      delay_seconds: usesTrigger && form.trigger === 'delay' ? Math.max(0, Math.round(form.delay_seconds) || 0) : 0,
       dismissible: form.dismissible,
       priority: Math.round(form.priority) || 0,
       utm,

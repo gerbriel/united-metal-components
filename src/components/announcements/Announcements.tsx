@@ -33,16 +33,19 @@ export default function Announcements({ items }: { items: Announcement[] }) {
 
   // Auth state gates the audience filter and stamps logged events. Resolved on
   // the client, so nothing renders during SSR / first paint (avoids mismatch).
+  // Re-resolved on auth changes (e.g. sign-out) so audience targeting and event
+  // attribution never go stale within a single-page session.
   const [auth, setAuth] = useState<Auth | null>(null)
   useEffect(() => {
     let cancelled = false
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (cancelled) return
-      if (!user) { setAuth({ authed: false, userId: null, role: 'anonymous' }); return }
+    const resolve = async (user: { id: string } | null) => {
+      if (!user) { if (!cancelled) setAuth({ authed: false, userId: null, role: 'anonymous' }); return }
       const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single()
       if (!cancelled) setAuth({ authed: true, userId: user.id, role: (data as { role?: string } | null)?.role ?? 'customer' })
-    })
-    return () => { cancelled = true }
+    }
+    supabase.auth.getUser().then(({ data: { user } }) => resolve(user))
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => { resolve(session?.user ?? null) })
+    return () => { cancelled = true; sub.subscription.unsubscribe() }
   }, [supabase])
 
   // The chosen promotion per slot — the highest-priority eligible match. Derived
@@ -65,7 +68,7 @@ export default function Announcements({ items }: { items: Announcement[] }) {
 
   const [revealed, setRevealed] = useState<Set<number>>(() => new Set())
   const [dismissed, setDismissed] = useState<Set<number>>(() => new Set())
-  const loggedRef = useRef<Set<number>>(new Set())
+  const loggedRef = useRef<Set<string>>(new Set())
   const reveal = useCallback((id: number) => {
     setRevealed((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
   }, [])
@@ -100,17 +103,21 @@ export default function Announcements({ items }: { items: Announcement[] }) {
     }).then(() => {}, () => {})
   }, [supabase, pathname, auth])
 
-  // Log one impression the first time each unit is actually on screen.
+  // Log one impression per (unit, page) the first time it's on screen. Keyed by
+  // pathname because the (public) layout persists across SPA navigation — without
+  // the page in the key a bar shown on every page would log only once, pinned to
+  // the first URL.
   useEffect(() => {
     for (const a of Object.values(units)) {
       if (!a) continue
       const onScreen = !needsDefer(a) || revealed.has(a.id)
-      if (!onScreen || loggedRef.current.has(a.id)) continue
-      loggedRef.current.add(a.id)
+      const key = `${a.id}::${pathname}`
+      if (!onScreen || loggedRef.current.has(key)) continue
+      loggedRef.current.add(key)
       recordSeen(a)
       logEvent(a, 'impression')
     }
-  }, [units, revealed, logEvent])
+  }, [units, revealed, pathname, logEvent])
 
   const handleDismiss = useCallback((a: Announcement) => {
     recordDismiss(a)
@@ -125,19 +132,22 @@ export default function Announcements({ items }: { items: Announcement[] }) {
 
   if (!auth) return null
 
+  const isVisible = (a?: Announcement): a is Announcement =>
+    !!a && (!needsDefer(a) || revealed.has(a.id)) && !dismissed.has(a.id)
+  const bottomVisible = isVisible(units.bottom)
+
   return (
     <>
       {SLOTS.map((slot) => {
         const a = units[slot]
-        if (!a) return null
-        const onScreen = !needsDefer(a) || revealed.has(a.id)
-        if (!onScreen || dismissed.has(a.id)) return null
+        if (!isVisible(a)) return null
         return (
           <AnnouncementView
             key={a.id}
             a={a}
             imageUrl={imageUrl(a.image_path)}
             href={ctaHref(a)}
+            stackAbove={slot === 'corner' && bottomVisible}
             onCta={() => logEvent(a, 'click')}
             onDismiss={() => handleDismiss(a)}
           />

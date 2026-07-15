@@ -28,15 +28,17 @@ export function normalizePath(p: string): string {
   return path || '/'
 }
 
-// A single rule matches a path. A trailing "*" is a prefix match
-// ("/products/*" matches "/products" and anything under it); otherwise exact.
+// A single rule matches a path. A trailing "*" is a path-segment prefix match
+// ("/products/*" matches "/products" and anything under it) — NOT a raw string
+// prefix, so "/term/*" does not match "/terms".
 function ruleMatches(rule: string, pathname: string): boolean {
   const r = rule.trim()
   if (!r) return false
   const path = normalizePath(pathname)
   if (r.endsWith('*')) {
     const prefix = normalizePath(r.slice(0, -1))
-    return path === prefix || path.startsWith(prefix === '/' ? '/' : prefix + '/') || path.startsWith(prefix)
+    if (prefix === '/') return true // "/*" targets every page
+    return path === prefix || path.startsWith(prefix + '/')
   }
   return path === normalizePath(r)
 }
@@ -61,7 +63,11 @@ export function matchesAudience(a: Announcement, isAuthed: boolean): boolean {
 // "daily"   → shows once per calendar day
 // "once"    → shows once, ever
 const KEY = (id: number) => `umc_ann_${id}`
-const today = () => new Date().toISOString().slice(0, 10)
+// Local calendar day (not UTC) so "once per day" resets at the visitor's midnight.
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 function safeGet(store: Storage | undefined, k: string): string | null {
   try { return store?.getItem(k) ?? null } catch { return null }
@@ -108,9 +114,14 @@ export function recordDismiss(a: Announcement): void {
 export function ctaHref(a: Announcement): string | null {
   const url = (a.cta_url ?? '').trim()
   if (!url) return null
+  // Never render an executable-scheme link (defense in depth on admin input).
+  if (/^\s*(javascript|data|vbscript):/i.test(url)) return null
   const utm = a.utm ?? {}
   const hasUtm = !!(utm.source?.trim() || utm.medium?.trim() || utm.campaign?.trim())
-  if (!hasUtm) return url
+  // Only append UTM to http(s) or same-site paths — appending to mailto:/tel:
+  // would corrupt them.
+  const appendable = /^https?:\/\//i.test(url) || url.startsWith('/')
+  if (!hasUtm || !appendable) return url
 
   const params: string[] = []
   const add = (key: string, val?: string) => {

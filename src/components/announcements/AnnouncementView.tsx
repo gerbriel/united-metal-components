@@ -8,6 +8,7 @@ export interface ViewProps {
   a: Announcement
   imageUrl: string | null
   href: string | null
+  stackAbove?: boolean     // corner card: lift above a simultaneously-shown bottom bar
   onCta: () => void        // fire-and-forget click logging (navigation proceeds via the anchor)
   onDismiss: () => void
 }
@@ -85,17 +86,19 @@ function HeroView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
 // ── 3. Center modal ───────────────────────────────────────────
 function ModalView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
+  const ctaRef = useRef<HTMLAnchorElement>(null)
 
   useEffect(() => {
-    closeRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onDismiss() }
+    // Focus the close button if present, else the CTA — keeps focus inside the modal.
+    ;(closeRef.current ?? ctaRef.current)?.focus()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && a.dismissible) onDismiss() }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
-  }, [onDismiss])
+  }, [onDismiss, a.dismissible])
 
-  const onBackdrop = (e: MouseEvent) => { if (e.target === e.currentTarget) onDismiss() }
+  const onBackdrop = (e: MouseEvent) => { if (a.dismissible && e.target === e.currentTarget) onDismiss() }
 
   return (
     <div
@@ -110,17 +113,19 @@ function ModalView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
             ? { backgroundImage: `url(${imageUrl})` }
             : { backgroundImage: 'linear-gradient(135deg, #2C5286, #EC6A2B)' }}
         />
-        <button
-          ref={closeRef} type="button" onClick={onDismiss} aria-label="Close"
-          className="absolute right-2.5 top-2.5 grid h-8 w-8 place-items-center rounded-full bg-black/30 text-white hover:bg-black/50"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {a.dismissible && (
+          <button
+            ref={closeRef} type="button" onClick={onDismiss} aria-label="Close"
+            className="absolute right-2.5 top-2.5 grid h-8 w-8 place-items-center rounded-full bg-black/30 text-white hover:bg-black/50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
         <div className="px-6 py-5 text-center">
           {a.title && <h2 className="text-lg font-bold tracking-tight">{a.title}</h2>}
           {a.body && <p className="mx-auto mt-2 max-w-[34ch] text-sm text-muted-foreground">{a.body}</p>}
           {href && (
-            <a href={href} onClick={onCta}
+            <a ref={ctaRef} href={href} onClick={onCta}
               className="mt-4 block rounded-lg bg-[#EC6A2B] px-4 py-2.5 text-sm font-bold text-[#0E1B30] transition-transform hover:-translate-y-0.5">
               {a.cta_label || 'Learn more'}
             </a>
@@ -132,9 +137,9 @@ function ModalView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
 }
 
 // ── 4. Corner card ────────────────────────────────────────────
-function CornerView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
+function CornerView({ a, imageUrl, href, stackAbove, onCta, onDismiss }: ViewProps) {
   return (
-    <div className="fixed bottom-4 right-4 z-[90] w-[290px] max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-4 duration-300 motion-reduce:animate-none">
+    <div className={`fixed right-4 z-40 w-[290px] max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-4 duration-300 motion-reduce:animate-none ${stackAbove ? 'bottom-24' : 'bottom-4'}`}>
       <div className="relative flex overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-2xl">
         <div
           className="w-20 shrink-0 bg-cover bg-center"
@@ -160,7 +165,7 @@ function CornerView({ a, imageUrl, href, onCta, onDismiss }: ViewProps) {
 // ── 5. Sticky bottom bar ──────────────────────────────────────
 function BottomView({ a, href, onCta, onDismiss }: ViewProps) {
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[90] mx-auto max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300 motion-reduce:animate-none">
+    <div className="fixed inset-x-3 bottom-3 z-40 mx-auto max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300 motion-reduce:animate-none">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-card-foreground shadow-2xl">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#FCEBDF] text-[#EC6A2B] dark:bg-[#38260f]">
           <Megaphone className="w-4 h-4" />
