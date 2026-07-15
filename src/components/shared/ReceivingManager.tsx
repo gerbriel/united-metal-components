@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle2 } from 'lucide-react'
+import { Loader2, CheckCircle2, Upload, FileText, X } from 'lucide-react'
 import { COLORS } from '@/lib/product-config'
 
 interface TubeProduct { id: number; name: string }
@@ -113,6 +113,13 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
   const [poId, setPoId]         = useState('')
   const [creatingPo, setCreatingPo] = useState(false)
 
+  // Receipt / load sheet — one scanned doc applied to every item received in
+  // this shipment (like vendor/PO). Stored in the private receiving-docs bucket;
+  // its path rides along on each coil / bundle record.
+  const [receiptPath, setReceiptPath] = useState('')
+  const [receiptName, setReceiptName] = useState('')
+  const [uploadingReceipt, setUploadingReceipt] = useState(false)
+
   const supabase = createClient()
 
   // POs selectable for the chosen vendor (or all open POs if no vendor picked).
@@ -149,6 +156,30 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
     setPoId((data as OpenPo).id)
     toast.success('Draft PO created — link items to it as you receive')
     setCreatingPo(false)
+  }
+
+  // Upload the scanned load sheet / receipt to the private bucket. Keep only its
+  // storage path — a photo (camera on mobile) or a PDF are both accepted.
+  const handleReceiptUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow re-selecting the same file after a remove
+    if (!file) return
+    setUploadingReceipt(true)
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`
+    const { error } = await supabase.storage.from('receiving-docs').upload(path, file, { upsert: false })
+    if (error) { toast.error(`Upload failed: ${error.message}`); setUploadingReceipt(false); return }
+    setReceiptPath(path)
+    setReceiptName(file.name)
+    setUploadingReceipt(false)
+    toast.success('Document attached')
+  }
+
+  const clearReceipt = async () => {
+    const path = receiptPath
+    setReceiptPath('')
+    setReceiptName('')
+    if (path) await supabase.storage.from('receiving-docs').remove([path])
   }
 
   const setC = (k: keyof typeof EMPTY_COIL) => (v: string | null) =>
@@ -189,6 +220,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       notes:               coilForm.notes || null,
       vendor_id:           vendorId || null,
       po_id:               poId || null,
+      ...(receiptPath ? { receipt_path: receiptPath } : {}),
     })
     if (error) { toast.error(error.message); setCoilLoading(false); return }
     const label = coilForm.coil_identifier
@@ -236,6 +268,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       notes:             bundleForm.notes || null,
       vendor_id:         vendorId || null,
       po_id:             poId || null,
+      ...(receiptPath ? { receipt_path: receiptPath } : {}),
     })
     if (error) { toast.error(error.message); setBundleLoading(false); return }
     const pcs = total * parseInt(bundleForm.pieces_per_bundle)
@@ -317,6 +350,38 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Receipt / load sheet — scan or attach a document for this shipment */}
+        <div className="space-y-1.5">
+          <Label>Receipt / Load Sheet <span className="text-muted-foreground font-normal">(optional)</span></Label>
+          {receiptName ? (
+            <div className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm">
+              <FileText className="w-4 h-4 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">{receiptName}</span>
+              <button
+                type="button"
+                onClick={clearReceipt}
+                aria-label="Remove document"
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed bg-white px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground">
+              {uploadingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploadingReceipt ? 'Uploading…' : 'Scan or attach a document (photo or PDF)'}
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                className="hidden"
+                disabled={uploadingReceipt}
+                onChange={handleReceiptUpload}
+              />
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">Attaches to every item you log for this shipment.</p>
         </div>
       </div>
 
