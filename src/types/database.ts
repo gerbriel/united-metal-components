@@ -309,6 +309,25 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['announcement_events']['Row'], 'id' | 'created_at'>
         Update: never
       }
+      testimonials: {
+        Row: {
+          id: number
+          name: string
+          role: string | null
+          company: string | null
+          content: string
+          rating: number
+          sort_order: number
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: Partial<Omit<Database['public']['Tables']['testimonials']['Row'], 'id' | 'created_at' | 'updated_at'>> & {
+          name: string
+          content: string
+        }
+        Update: Partial<Omit<Database['public']['Tables']['testimonials']['Row'], 'id' | 'created_at'>>
+      }
     }
     Views: {
       announcement_stats: {
@@ -349,6 +368,7 @@ export type AnalyticsEvent = Database['public']['Tables']['analytics_events']['R
 export type Announcement = Database['public']['Tables']['announcements']['Row']
 export type AnnouncementEvent = Database['public']['Tables']['announcement_events']['Row']
 export type AnnouncementStats = Database['public']['Views']['announcement_stats']['Row']
+export type Testimonial = Database['public']['Tables']['testimonials']['Row']
 
 export type NewsletterCampaignRecipient = Database['public']['Tables']['newsletter_campaign_recipients']['Row']
 
@@ -364,6 +384,9 @@ export function isWarehouseRole(role: string): boolean {
 }
 export function isAdminRole(role: string): boolean {
   return role === 'admin'
+}
+export function isOfficeOrAdminRole(role: string): boolean {
+  return role === 'office_employee' || role === 'admin'
 }
 
 // Status display helpers

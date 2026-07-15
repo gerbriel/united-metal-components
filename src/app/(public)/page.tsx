@@ -8,6 +8,7 @@ import TestimonialsSection from '@/components/home/TestimonialsSection'
 import FeaturedProducts from '@/components/home/FeaturedProducts'
 import CtaBanner from '@/components/home/CtaBanner'
 import { SITE_URL } from '@/lib/site'
+import type { Testimonial } from '@/types/database'
 
 // Organization + WebSite structured data so search engines and AI agents can
 // resolve the business entity, contact, and search endpoint.
@@ -56,8 +57,19 @@ async function getFeaturedProducts() {
   return data ?? []
 }
 
+async function getTestimonials(): Promise<Testimonial[]> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('testimonials')
+    .select('*')
+    .eq('active', true)
+    .order('sort_order')
+    .order('id')
+  return (data ?? []) as Testimonial[]
+}
+
 export default async function HomePage() {
-  const featured = await getFeaturedProducts()
+  const [featured, testimonials] = await Promise.all([getFeaturedProducts(), getTestimonials()])
 
   return (
     <>
@@ -68,7 +80,7 @@ export default async function HomePage() {
       <FeaturesSection />
       <HowItWorks />
       <FeaturedProducts products={featured as any} />
-      <TestimonialsSection />
+      <TestimonialsSection items={testimonials} />
       <CtaBanner />
     </>
   )
