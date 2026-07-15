@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import ProductOrderForm, { type Availability, type CoilAvailability } from '@/components/shared/ProductOrderForm'
 import { PANEL_SKUS, isOverstockSku } from '@/lib/product-config'
 import ProductViewer from '@/components/product3d/ProductViewer'
@@ -9,29 +9,50 @@ import VariantSelect, { type VariantOption } from '@/components/shared/VariantSe
 import { isRollupDoor, doorLineKey, sortDoorProducts, parseDoorSize, isCommonDoorSize } from '@/lib/doorLines'
 import { variantGroupFor } from '@/lib/product-config'
 import { applyProductOverrides } from '@/lib/product-overrides'
+import { SITE_URL } from '@/lib/site'
 import { Badge } from '@/components/ui/badge'
 import { Weight, Ruler } from 'lucide-react'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 
-interface Props { params: Promise<{ id: string }>; searchParams: Promise<{ o?: string }> }
+interface Props { params: Promise<{ slug: string }>; searchParams: Promise<{ o?: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params
+  const { slug } = await params
   const supabase = await createClient()
-  const { data } = await supabase.from('products').select('name, sku').eq('id', id).single()
-  return { title: data ? applyProductOverrides(data).name : 'Product' }
+  const col = /^\d+$/.test(slug) ? 'id' : 'slug'
+  const { data } = await supabase.from('products').select('name, sku, slug, description').eq(col, slug).single()
+  if (!data) return { title: 'Product' }
+  const p = applyProductOverrides(data)
+  const canonical = `/products/${(data as { slug: string }).slug}`
+  const description = data.description
+    ?? `${p.name}${data.sku ? ` (SKU ${data.sku})` : ''} — metal building components available from United Metal Components in Fresno, CA.`
+  return {
+    title: p.name,
+    description,
+    alternates: { canonical },
+    openGraph: { title: p.name, description, type: 'website', url: canonical },
+  }
 }
 
 export default async function ProductDetailPage({ params, searchParams }: Props) {
-  const { id } = await params
+  const { slug } = await params
   const { o } = await searchParams
-  // Overstock listing to preselect (?o=), when arriving from an overstock card.
-  const preselectOverstockId = o && /^\d+$/.test(o) ? Number(o) : undefined
   const supabase = await createClient()
 
+  // Legacy numeric URL (/products/67) → 308 to the canonical slug so old links,
+  // bookmarks, and indexed pages keep working.
+  if (/^\d+$/.test(slug)) {
+    const { data } = await supabase.from('products').select('slug').eq('id', slug).single()
+    if (data?.slug) permanentRedirect(`/products/${data.slug}${o ? `?o=${o}` : ''}`)
+    notFound()
+  }
+
+  // Overstock listing to preselect (?o=), when arriving from an overstock card.
+  const preselectOverstockId = o && /^\d+$/.test(o) ? Number(o) : undefined
+
   const [{ data: rawProduct }, { data: { user } }] = await Promise.all([
-    supabase.from('products').select('*, product_categories(name, slug)').eq('id', id).single(),
+    supabase.from('products').select('*, product_categories(name, slug)').eq('slug', slug).single(),
     supabase.auth.getUser(),
   ])
 
@@ -71,7 +92,7 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
 
   const { data: relatedRaw } = await supabase
     .from('products')
-    .select('id, name, sku, price, unit')
+    .select('id, name, sku, slug, price, unit')
     .eq('category_id', product.category_id ?? 0)
     .neq('id', product.id)
     .eq('active', true)
@@ -152,8 +173,28 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
     }
   }
 
+  // Product structured data (JSON-LD) so search engines and AI agents can read
+  // the catalog. Prices are quote-only, so we advertise availability, not price.
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: displayName,
+    ...(product.sku ? { sku: product.sku, mpn: product.sku } : {}),
+    ...(product.description ? { description: product.description } : {}),
+    ...(cat?.name ? { category: cat.name } : {}),
+    brand: { '@type': 'Brand', name: 'United Metal Components' },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'USD',
+      availability: product.stock_qty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      seller: { '@type': 'Organization', name: 'United Metal Components' },
+      url: `${SITE_URL}/products/${product.slug}`,
+    },
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
         <Link href="/products" className="hover:text-primary">Products</Link>
@@ -232,7 +273,7 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
           <h2 className="text-xl font-bold mb-6">More in {cat?.name}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {related.map((r) => (
-              <Link key={r.id} href={`/products/${r.id}`} className="p-4 border rounded-lg hover:border-primary hover:shadow-sm transition-all">
+              <Link key={r.id} href={`/products/${r.slug}`} className="p-4 border rounded-lg hover:border-primary hover:shadow-sm transition-all">
                 <p className="font-medium text-sm leading-tight">{r.name}</p>
                 <p className="text-xs text-muted-foreground italic mt-2">Contact for pricing{r.unit && ` · per ${r.unit}`}</p>
               </Link>

@@ -51,14 +51,14 @@ export default function VariantGroupCard({
 
   return (
     <Card className="group hover:shadow-lg transition-shadow h-full flex flex-col">
-      <Link href={`/products/${selected.id}`} className="block aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
+      <Link href={`/products/${selected.slug}`} className="block aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
         <ProductThumb product={selected} />
       </Link>
       <CardContent className="p-4 flex flex-col flex-1">
         {products[0].product_categories && (
           <Badge variant="secondary" className="w-fit mb-2 text-xs">{products[0].product_categories.name}</Badge>
         )}
-        <Link href={`/products/${selected.id}`}>
+        <Link href={`/products/${selected.slug}`}>
           <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors line-clamp-2">
             {group.name}
           </h3>
@@ -90,7 +90,7 @@ export default function VariantGroupCard({
             {selected.unit ? `Sold per ${selected.unit}` : 'Contact for pricing'}
           </span>
           {needsConfig ? (
-            <ButtonLink href={`/products/${selected.id}`} size="sm" variant="outline" className="gap-1">
+            <ButtonLink href={`/products/${selected.slug}`} size="sm" variant="outline" className="gap-1">
               <SlidersHorizontal className="w-3 h-3" /> Select options
             </ButtonLink>
           ) : selected.stock_qty > 0 ? (

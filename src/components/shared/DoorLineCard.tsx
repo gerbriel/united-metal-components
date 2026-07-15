@@ -50,14 +50,14 @@ export default function DoorLineCard({ products }: { products: ProductWithCatego
 
   return (
     <Card className="group hover:shadow-lg transition-shadow h-full flex flex-col">
-      <Link href={`/products/${selected.id}`} className="block aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
+      <Link href={`/products/${selected.slug}`} className="block aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
         <ProductThumb product={rendered} />
       </Link>
       <CardContent className="p-4 flex flex-col flex-1">
         {products[0].product_categories && (
           <Badge variant="secondary" className="w-fit mb-2 text-xs">{products[0].product_categories.name}</Badge>
         )}
-        <Link href={`/products/${selected.id}`}>
+        <Link href={`/products/${selected.slug}`}>
           <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors line-clamp-2">
             {doorLineName(products[0].name)}
           </h3>

@@ -59,7 +59,7 @@ export default function ProductGrid({
         // can tell these apart from direct-add products at a glance.
         const needsConfig = requiresConfiguration(p.sku, p.name)
         return (
-        <Link key={p.id} href={`/products/${p.id}`}>
+        <Link key={p.id} href={`/products/${p.slug}`}>
           <Card className="group hover:shadow-lg transition-shadow h-full flex flex-col">
             <div className="aspect-video bg-gradient-to-b from-slate-50 to-slate-200 rounded-t-lg overflow-hidden">
               <ProductThumb product={p} />

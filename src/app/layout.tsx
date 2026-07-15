@@ -2,11 +2,14 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
+import { SITE_URL } from '@/lib/site'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
 export const metadata: Metadata = {
+  // Resolves canonical/OG relative URLs to absolute for SEO + social/AI crawlers.
+  metadataBase: new URL(SITE_URL),
   title: { default: 'United Metal Components', template: '%s | United Metal Components' },
   description: 'Premium metal building components — sheet metal panels, carport kits, doors, trusses, and more.',
   keywords: ['sheet metal', 'carport', 'metal building', 'panels', 'trusses', 'garage doors'],

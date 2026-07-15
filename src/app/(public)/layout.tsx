@@ -13,10 +13,10 @@ export default async function PublicLayout({ children }: { children: React.React
   // search autocomplete — present on every public page.
   const [categories, { data: rawProducts }] = await Promise.all([
     getNavCategories(),
-    supabase.from('products').select('id, name, sku').eq('active', true).order('name'),
+    supabase.from('products').select('id, name, sku, slug').eq('active', true).order('name'),
   ])
   const productIndex = applyAllProductOverrides(rawProducts ?? []).map((p) => ({
-    id: p.id, name: p.name, sku: p.sku,
+    id: p.id, name: p.name, sku: p.sku, slug: (p as { slug: string }).slug,
   }))
 
   return (

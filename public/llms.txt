@@ -1,0 +1,25 @@
+# United Metal Components
+
+> Metal building components supplier in Fresno, California. We stock roofing/wall
+> panels, trim, square tubing, hat channel, braces, fasteners, roll-up and walk-in
+> doors, anchors, insulation, and carport/metal-building materials. Pricing is
+> quote-based — customers request a quote on the site or by phone rather than
+> seeing list prices.
+
+## Key pages
+- Product catalog: https://www.unitedmetalcomponents.com/products
+- Overstock panels (limited, pre-made): https://www.unitedmetalcomponents.com/overstock
+- Carport material calculator: https://www.unitedmetalcomponents.com/dashboard/calculator
+- About: https://www.unitedmetalcomponents.com/about
+- Contact: https://www.unitedmetalcomponents.com/contact
+- Pickup & location: https://www.unitedmetalcomponents.com/pickup
+
+## Contact
+- Phone: (559) 567-9117
+- Email: sales@unitedmetalcomponents.com
+- Pickup: 9191 W Whitesbridge Ave, Fresno, CA 93706
+
+## Notes for agents
+- Product URLs are slug-based, e.g. https://www.unitedmetalcomponents.com/products/29-gauge-panel
+- Prices are provided on request; the storefront does not publish list prices.
+- Full URL list: https://www.unitedmetalcomponents.com/sitemap.xml

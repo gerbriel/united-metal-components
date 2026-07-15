@@ -7,6 +7,7 @@ import ProductThumb from '@/components/product3d/ProductThumb'
 type Product = {
   id: string
   sku?: string | null
+  slug: string
   name: string
   description: string | null
   price: number
@@ -40,7 +41,7 @@ export default function FeaturedProducts({ products }: { products: Product[] }) 
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((p) => (
-            <Link key={p.id} href={`/products/${p.id}`} className="group block">
+            <Link key={p.id} href={`/products/${p.slug}`} className="group block">
               <Card className="h-full border-slate-200 hover:border-primary hover:shadow-xl transition-all duration-300 overflow-hidden">
                 {/* Rotating 3D preview (icon placeholder until near-viewport) */}
                 <div className="aspect-[16/9] bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">

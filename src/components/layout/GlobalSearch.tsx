@@ -24,6 +24,7 @@ export interface ProductSearchItem {
   id: number
   name: string
   sku: string | null
+  slug: string
 }
 
 export default function GlobalSearch({
@@ -98,9 +99,9 @@ export default function GlobalSearch({
     onSubmitted?.()
   }
 
-  const pickSuggestion = (id: number) => {
+  const pickSuggestion = (slug: string) => {
     setOpenSuggest(false)
-    router.push(`/products/${id}`)
+    router.push(`/products/${slug}`)
     onSubmitted?.()
   }
 
@@ -148,7 +149,7 @@ export default function GlobalSearch({
                 <li key={s.id}>
                   <button
                     type="button"
-                    onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s.id) }}
+                    onMouseDown={(e) => { e.preventDefault(); pickSuggestion(s.slug) }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
                   >
                     <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />

@@ -56,7 +56,7 @@ export default function OverstockGrid({ listings }: { listings: OverstockListing
         const entry = l.color ? COLORS.find((c) => c.name === l.color) : null
         const colorLabel = l.color ?? 'Bare'
         // Link to the parent product with this exact listing preselected (?o=id).
-        const href = `/products/${l.product.id}?o=${l.id}`
+        const href = `/products/${l.product.slug}?o=${l.id}`
         return (
           <Card key={l.id} className="group hover:shadow-lg transition-shadow h-full flex flex-col">
             <Link
