@@ -23,3 +23,11 @@
 - Product URLs are slug-based, e.g. https://www.unitedmetalcomponents.com/products/29-gauge-panel
 - Prices are provided on request; the storefront does not publish list prices.
 - Full URL list: https://www.unitedmetalcomponents.com/sitemap.xml
+
+## Español
+United Metal Components es un proveedor de componentes para edificios metálicos en
+Fresno, California: paneles de techo y pared, molduras, tubería cuadrada, canal
+tipo sombrero, refuerzos, tornillería, puertas enrollables y de acceso, anclas,
+aislamiento y materiales para cocheras (carports). Atendemos a clientes de habla
+hispana. Los precios se cotizan a pedido. Teléfono: (559) 567-9117 · Recoger en:
+9191 W Whitesbridge Ave, Fresno, CA 93706.
