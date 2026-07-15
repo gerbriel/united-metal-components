@@ -232,24 +232,31 @@ export function calculateBom(
   // Actual justified spacing once every frame is placed at equal centers.
   const actualSpacingFt = bays > 0 ? length / bays : frameSpacingFt
 
-  // ---- Diagonal sway bracing (Table / plan bracing rules) ------------------
-  // A CERTIFIED build always carries diagonal sway braces, and the plans force them
-  // whenever the design wind speed is ≥ 140 mph — so either auto-triggers bracing.
-  // Otherwise it follows the user's choice (still recommended on wide/tall/snowy builds).
+  // ---- Diagonal sway bracing (lateral / sway resistance) -------------------
+  // Sway braces resist LATERAL demand — wind and tall/wide geometry — not the
+  // vertical snow load. They are MANDATORY (and locked) on a certified build or
+  // at ≥ 140 mph wind, and auto-applied (but overridable) on a wide (widespan)
+  // or tall (≥ 11′ eave) build. A plain, short, low-wind carport carries none by
+  // default. `input.bracing`, when set, is the user's explicit override.
   const highWind = windSpeed >= 140
   const bracingMandatory = certified || highWind
-  const bracingRecommended = widespan || legHeight >= 11 || groundSnow >= 30
+  const bracingRecommended = widespan || legHeight >= 11
   const bracing: 'none' | 'diagonal' =
-    bracingMandatory || input.bracing === 'diagonal' ? 'diagonal' : 'none'
+    bracingMandatory     ? 'diagonal'     // required
+    : input.bracing      ? input.bracing  // explicit user choice ('none' | 'diagonal')
+    : bracingRecommended ? 'diagonal'     // auto-applied at the geometry thresholds
+    : 'none'
   const bracingReason =
     bracing === 'diagonal'
       ? highWind
         ? `required (${windSpeed} mph ≥ 140)`
         : certified
           ? 'required (certified)'
-          : 'selected'
+          : input.bracing === 'diagonal'
+            ? 'selected'
+            : 'auto — wide/tall build'
       : bracingRecommended
-        ? 'off — recommended'
+        ? 'off — overridden'
         : 'not required'
 
   // ---- Roof panels ---------------------------------------------------------

@@ -66,10 +66,9 @@ const DEFAULT_INPUT: CarportInput = {
   roofColor: 'Forest Green',
   wallColor: 'Forest Green',
   trimColor: 'Hawaiian Blue',
-  certification: 'local_code', // certified by default
-  bracing: 'diagonal',         // diagonal braces by default
-  extraTrusses: 0,
-  extraPurlins: false,
+  certification: 'uncertified',
+  // bracing intentionally unset → auto-derived from the build (wide/tall/high-
+  // wind/certified) rather than forced on every carport. See calc.ts thresholds.
   gauge: 12, // 12ga is the standard frame tube (mirrors the builder's default)
   legStyle: 'auto',
   walkDoors: 0,
@@ -226,7 +225,7 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
         </Button>
       </div>
 
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-6">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-6 print:block">
         {/* ------- Inputs ------- */}
         <div className="space-y-4 print:hidden">
           <Card>
@@ -414,8 +413,10 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                             ? 'Required while certified — set Uncertified to remove braces.'
                             : `Required at ${input.windSpeed} mph (≥ 140).`
                           : result.meta.bracingRecommended
-                            ? 'Recommended for this size / loads.'
-                            : 'Optional.'}
+                            ? result.meta.bracing === 'diagonal'
+                              ? 'Auto-applied for this width/height — toggle off to override.'
+                              : 'Recommended for this width/height — currently overridden off.'
+                            : 'Optional — off unless the build calls for it.'}
                       </p>
                     </div>
                   )
@@ -455,17 +456,6 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                     </p>
                   )}
                 </div>
-
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="accent-primary w-4 h-4"
-                    checked={!!input.extraPurlins}
-                    onChange={(e) => set('extraPurlins', e.target.checked)}
-                  />
-                  Extra purlins
-                  <span className="text-xs text-muted-foreground">tightens roof purlins to ≤18″ o.c.</span>
-                </label>
 
                 {/* Auto-derived engineering package */}
                 <div className="rounded-lg border bg-muted/30 p-3">
@@ -547,6 +537,82 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
 
         {/* ------- Results ------- */}
         <div className="space-y-4">
+          {/* Loading sheet — print only. Reads like a warehouse pick/load list:
+              tick each item as it goes on the truck. */}
+          <div className="hidden print:block text-black">
+            <div className="mb-4 border-b-2 border-black pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-bold leading-tight">Loading Sheet</h1>
+                  <p className="text-sm">
+                    {input.width}′ × {input.length}′ {ROOF_STYLES.find((s) => s.value === input.roofStyle)?.label}
+                    {' '}· peak {result.meta.peakHeightLabel}
+                  </p>
+                </div>
+                <div className="text-right text-[11px] leading-snug">
+                  <p>Roof <strong>{input.roofColor}</strong> · Sides <strong>{input.wallColor}</strong> · Trim <strong>{input.trimColor}</strong></p>
+                  <p>
+                    {input.groundSnow ?? 30} psf · {input.windSpeed ?? 105} mph
+                    {result.meta.certified ? ' · Certified' : ''}
+                    {result.meta.bracing === 'diagonal' ? ' · Braced' : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-4 gap-3 text-xs">
+                <span>Order #: ____________</span>
+                <span>Customer: ____________</span>
+                <span>Loaded by: ____________</span>
+                <span>Date: __________</span>
+              </div>
+            </div>
+
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr className="border-b-2 border-black text-left">
+                  <th className="w-7 py-1 pr-1 text-center">✓</th>
+                  <th className="py-1 pr-2">Product</th>
+                  <th className="w-28 py-1 pr-2">Color</th>
+                  <th className="w-24 py-1 pr-2">Size</th>
+                  <th className="w-16 py-1 text-right">Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CATEGORY_ORDER.map((cat) => {
+                  const rows = result.lines.filter((l) => l.category === cat)
+                  if (rows.length === 0) return null
+                  return (
+                    <Fragment key={`ls-${cat}`}>
+                      <tr>
+                        <td colSpan={5} className="border-b border-black pt-2.5 pb-0.5 text-[11px] font-bold uppercase tracking-wide">
+                          {cat}
+                        </td>
+                      </tr>
+                      {rows.map((l, i) => (
+                        <tr key={`ls-${cat}-${i}`} className="break-inside-avoid border-b border-slate-300">
+                          <td className="py-1 pr-1 text-center align-top">
+                            <span className="inline-block h-3.5 w-3.5 border border-black" />
+                          </td>
+                          <td className="py-1 pr-2 align-top">
+                            <span className="font-medium">{l.item}</span>
+                            {l.detail && <span className="text-slate-600"> — {l.detail}</span>}
+                          </td>
+                          <td className="py-1 pr-2 align-top">{l.color ?? '—'}</td>
+                          <td className="py-1 pr-2 align-top tabular-nums">{l.size ?? '—'}</td>
+                          <td className="py-1 text-right align-top tabular-nums font-semibold">{l.qty} {l.unit}</td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+
+            <div className="mt-3 flex justify-between text-[11px] text-slate-600">
+              <span>{result.lines.length} line items · {result.meta.totalPanels} panels total</span>
+              <span>Received / verified by: __________________</span>
+            </div>
+          </div>
+
           {result.warnings.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-1 print:hidden">
               {result.warnings.map((w, i) => (
@@ -555,7 +621,7 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
             </div>
           )}
 
-          <Card>
+          <Card className="print:hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
                 {input.width}′ × {input.length}′ {ROOF_STYLES.find((s) => s.value === input.roofStyle)?.label}
@@ -566,10 +632,7 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
                 {[
                   { label: 'Peak height', value: result.meta.peakHeightLabel },
                   { label: 'Roof panels', value: result.meta.roofPanelCount },
-                  {
-                    label: result.meta.extraTrusses > 0 ? `Trusses (+${result.meta.extraTrusses})` : 'Trusses',
-                    value: result.meta.trusses,
-                  },
+                  { label: 'Trusses', value: result.meta.trusses },
                   {
                     label: result.meta.frameChart ? `Frame o.c. (${result.meta.frameChart}′ chart)` : 'Frame o.c. (est.)',
                     value: `${Math.round(result.meta.frameSpacingFt * 12)}″`,
@@ -585,7 +648,7 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="print:hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Bill of Materials</CardTitle>
             </CardHeader>
@@ -661,7 +724,7 @@ export default function CarportCalculator({ variant = 'dashboard' }: Props) {
           </Card>
 
           {/* Install access fees */}
-          <Card>
+          <Card className="print:hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
                 <Truck className="w-4 h-4" /> Install Access
