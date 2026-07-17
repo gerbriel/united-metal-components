@@ -1,10 +1,9 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
-import { Card } from '@/components/ui/card'
 import InventoryActions from '@/components/shared/InventoryActions'
 import InventoryNav from '@/components/shared/InventoryNav'
 import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
-import InventoryAccordion from '@/components/shared/InventoryAccordion'
+import CategoryProductManager from '@/components/shared/CategoryProductManager'
 import type { TrimVariant, HatBraceVariant } from '@/components/shared/InventoryAccordion'
 import InventoryCategoryNav from '@/components/shared/InventoryCategoryNav'
 import { isWarehouseRole, isAdminRole, isOfficeRole } from '@/types/database'
@@ -124,19 +123,23 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       <InventoryNav active="products" />
       <InventoryCategoryNav categories={navCategories} active={activeCat} />
 
-      <Card className="p-2">
-        <InventoryAccordion
-          groups={shownGroups}
-          isWarehouse={isWarehouse}
-          isAdmin={isAdmin}
-          isOffice={isOffice}
-          categories={categories ?? []}
-          overstockStats={overstockStats}
-          tierPrices={tierPrices}
-          trimStock={trimStock}
-          hatBraceStock={hatBraceStock}
-        />
-      </Card>
+      <div className="space-y-5">
+        {shownGroups.map((g) => (
+          <CategoryProductManager
+            key={g.id}
+            category={{ id: g.id, name: g.name, icon: g.icon }}
+            products={g.items}
+            isWarehouse={isWarehouse}
+            isAdmin={isAdmin}
+            isOffice={isOffice}
+            categories={categories ?? []}
+            overstockStats={overstockStats}
+            tierPrices={tierPrices}
+            trimStock={trimStock}
+            hatBraceStock={hatBraceStock}
+          />
+        ))}
+      </div>
     </div>
   )
 }
