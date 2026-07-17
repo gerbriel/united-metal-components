@@ -236,7 +236,7 @@ export default function CategoryProductManager({
                         })()}
                         <td className="p-3">
                           <div className="flex items-center justify-end gap-1.5">
-                            {hasVariants && (
+                            {isVariantProduct && (
                               <button
                                 onClick={() => toggleExpand(p.id)}
                                 aria-expanded={isRowExpanded}
@@ -251,11 +251,12 @@ export default function CategoryProductManager({
                           </div>
                         </td>
                       </tr>
-                      {hasVariants && isRowExpanded && (
+                      {isVariantProduct && isRowExpanded && (
                         <tr className="bg-slate-50/60">
                           <td colSpan={colSpan} className="p-0">
                             <div className="pl-9 pr-3 py-2">
                               <div className="rounded-lg border bg-white overflow-hidden">
+                                {hasVariants ? (
                                 <table className="w-full text-xs">
                                   <thead className="bg-slate-50 text-muted-foreground border-b">
                                     <tr>
@@ -313,6 +314,9 @@ export default function CategoryProductManager({
                                     })}
                                   </tbody>
                                 </table>
+                                ) : (
+                                  <p className="px-3 py-2 text-xs text-muted-foreground">No stock lines recorded yet.</p>
+                                )}
                                 <div className="flex justify-end border-t bg-slate-50/60 px-3 py-1.5">
                                   <Link
                                     href={isTrim ? '/dashboard/inventory/trim' : '/dashboard/inventory/hat-brace'}

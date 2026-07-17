@@ -1,20 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { Package, Layers, Cylinder, PackageOpen, Frame, Rows3, Truck, CheckSquare, FileText } from 'lucide-react'
+import { Package, Layers, Cylinder, PackageOpen, Truck, CheckSquare, FileText } from 'lucide-react'
 
+// Trim and Hat/Brace are managed from the Products category views (Trim / Bracing),
+// so they're intentionally NOT top-level tabs — their per-color / per-length stock
+// managers are reached via each product's "Manage" link there.
 const TABS = [
   { key: 'products',   href: '/dashboard/inventory',             label: 'Products',   icon: Package     },
   { key: 'coils',      href: '/dashboard/inventory/coils',       label: 'Coils',      icon: Layers      },
   { key: 'tubes',      href: '/dashboard/inventory/tubes',       label: 'Tubes',      icon: Cylinder    },
   { key: 'overstock',  href: '/dashboard/inventory/overstock',   label: 'Overstock',  icon: PackageOpen },
-  { key: 'trim',       href: '/dashboard/inventory/trim',        label: 'Trim',       icon: Frame       },
-  { key: 'hat-brace',  href: '/dashboard/inventory/hat-brace',   label: 'Hat/Brace',  icon: Rows3       },
   { key: 'receiving',  href: '/dashboard/inventory/receiving',   label: 'Receiving',  icon: Truck       },
   { key: 'astm',       href: '/dashboard/inventory/astm',        label: 'ASTM',       icon: FileText    },
   { key: 'approvals',  href: '/dashboard/inventory/approvals',   label: 'Approvals',  icon: CheckSquare },
 ]
 
+// 'trim' and 'hat-brace' stay in the union so their (now nav-hidden) manager pages
+// still typecheck; those tools are reached from the Products category views instead.
 type ActiveTab = 'products' | 'coils' | 'tubes' | 'overstock' | 'trim' | 'hat-brace' | 'receiving' | 'astm' | 'approvals'
 
 export default function InventoryNav({ active }: { active: ActiveTab }) {
