@@ -92,6 +92,7 @@ export interface Database {
           unit: string | null
           weight_lbs: number | null
           price: number
+          price_metric: 'per_foot' | 'per_piece'
           stock_qty: number
           image_url: string | null
           active: boolean

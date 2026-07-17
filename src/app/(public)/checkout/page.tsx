@@ -16,6 +16,7 @@ import { Loader2, ShoppingBag, LogIn, MapPin, Clock } from 'lucide-react'
 import { checkoutSchema } from '@/lib/validate'
 import { sanitizeText, sanitizePhone } from '@/lib/sanitize'
 import { fetchTaxRates, taxForOrder, DEFAULT_TAX_RATES, type TaxRates } from '@/lib/tax'
+import { finishIdByName, finishIdFor, type FinishRow } from '@/lib/finishes'
 
 export default function CheckoutPage() {
   const { items, total, clearCart } = useCartStore()
@@ -24,11 +25,15 @@ export default function CheckoutPage() {
   const [form, setForm] = useState({ name: '', phone: '', notes: '' })
   const [tier, setTier] = useState<string | null>(null)
   const [rates, setRates] = useState<TaxRates>(DEFAULT_TAX_RATES)
+  const [finishes, setFinishes] = useState<Pick<FinishRow, 'id' | 'name'>[]>([])
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     fetchTaxRates(supabase).then(setRates)
+    supabase.from('finishes').select('id, name').eq('active', true).then(({ data }) => {
+      setFinishes((data as Pick<FinishRow, 'id' | 'name'>[] | null) ?? [])
+    })
     ;(supabase.auth.getUser() as Promise<{ data: { user: any } }>).then(async ({ data }) => {
       const user = data.user
       setUser(user)
@@ -97,6 +102,8 @@ export default function CheckoutPage() {
       return parts.length ? parts.join(' · ') : undefined
     }
 
+    const byName = finishIdByName(finishes)
+
     await supabase.from('order_items').insert(
       items.map((i) => {
         const unit = itemUnitPrice(i)
@@ -111,6 +118,7 @@ export default function CheckoutPage() {
           total_price:           unit * i.quantity,
           notes:                 buildNotes(i),
           item_color:            i.color ?? null,
+          finish_id:             finishIdFor(byName, i.color),
           linear_feet:           totalFt,
           length_feet:           i.length ?? null,
           panel_overstock_id:    i.overstockId ?? null,

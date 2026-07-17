@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, X } from 'lucide-react'
 import CreateCustomerDialog from '@/components/shared/CreateCustomerDialog'
-import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku } from '@/lib/product-config'
+import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku, finishClassOf, type PriceMetric } from '@/lib/product-config'
 import { ORDER_STATUS_LABEL } from '@/types/database'
 import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
 import { priceBasisTier } from '@/lib/pricing-tiers'
+import { resolveUnitPrice, extendUnitPrice, finishIdByName, finishIdFor, type FinishPriceMap, type FinishRow } from '@/lib/finishes'
 
 // Contractor / Retail per-item overrides, keyed by product id (blank → base).
 export type OrderTierPriceMap = Record<number, { retail?: number; contractor?: number }>
@@ -26,7 +27,7 @@ interface CustomerRow {
   phone: string | null
   pricing_tier: string | null
 }
-interface ProductRow { id: number; name: string; sku: string | null; price: number; unit: string | null }
+interface ProductRow { id: number; name: string; sku: string | null; price: number; unit: string | null; price_metric: PriceMetric }
 interface Line {
   key: string
   product: ProductRow
@@ -46,7 +47,7 @@ const needsColor = (sku?: string | null) => !!sku && (COLOR_SKUS.has(sku) || isO
 
 const custName = (c: CustomerRow) => c.full_name || c.company_name || c.email || 'Customer'
 
-export default function OrderBuilder({ customers, products, rates, tierPrices }: { customers: CustomerRow[]; products: ProductRow[]; rates: TaxRates; tierPrices: OrderTierPriceMap }) {
+export default function OrderBuilder({ customers, products, rates, tierPrices, finishPrices, finishes }: { customers: CustomerRow[]; products: ProductRow[]; rates: TaxRates; tierPrices: OrderTierPriceMap; finishPrices: FinishPriceMap; finishes: Pick<FinishRow, 'id' | 'name'>[] }) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -77,23 +78,25 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
     return products.filter((p) => `${p.name} ${p.sku ?? ''}`.toLowerCase().includes(q)).slice(0, 8)
   }, [products, prodSearch])
 
-  // The unit price to default a line to: the customer's tier price for the
-  // product (Contractor/Retail override, else base), from the tier's price
-  // basis. No customer selected yet → the product's base price.
-  const defaultUnitFor = (product: ProductRow, cust: CustomerRow | null): number => {
-    if (!cust) return product.price ?? 0
-    const basis = priceBasisTier(cust.pricing_tier ?? '')
-    const over =
-      basis === 'contractor' ? tierPrices[product.id]?.contractor
-      : basis === 'retail'   ? tierPrices[product.id]?.retail
-      : undefined
-    return over ?? product.price ?? 0
-  }
+  // The unit price to default a line to: the finish-class price for the chosen
+  // color (Galvalume / Pattern), else the customer's tier price, else the
+  // product's base price — keyed to the customer's price basis. Mirrors the SQL
+  // finish_class_price() resolver (see resolveUnitPrice). No customer yet, or an
+  // uncolored line, falls straight through to the base price.
+  const defaultUnitFor = (product: ProductRow, cust: CustomerRow | null, color: string): number =>
+    resolveUnitPrice({
+      productId: product.id,
+      basisTierKey: cust ? priceBasisTier(cust.pricing_tier ?? '') : '',
+      finishClass: finishClassOf(color),
+      finishPrices,
+      tierPrices,
+      basePrice: product.price ?? 0,
+    })
 
   const addProduct = (p: ProductRow) => {
     setLines((ls) => [
       ...ls,
-      { key: `${p.id}-${Date.now()}`, product: p, qty: '1', unitPrice: String(defaultUnitFor(p, customer)), lengthFt: '', lengthIn: '', color: '', auto: true },
+      { key: `${p.id}-${Date.now()}`, product: p, qty: '1', unitPrice: String(defaultUnitFor(p, customer, '')), lengthFt: '', lengthIn: '', color: '', auto: true },
     ])
     setProdSearch('')
   }
@@ -101,16 +104,34 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
     setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)))
   const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key))
 
+  // Changing a line's color re-prices it while the price is still automatic, so a
+  // Galvalume/Pattern finish price takes effect the instant the color is picked.
+  // A line whose price staff already edited (auto = false) is left untouched.
+  const setColor = (key: string, color: string) =>
+    setLines((ls) => ls.map((l) =>
+      l.key === key
+        ? { ...l, color, unitPrice: l.auto ? String(defaultUnitFor(l.product, customer, color)) : l.unitPrice }
+        : l,
+    ))
+
   // Select (or clear) the customer and re-price still-automatic lines to the new
   // tier; lines whose price staff already edited are left as-is. `cust` can be
   // passed explicitly for a just-created customer not yet in allCustomers.
   const selectCustomer = (id: string | null, cust?: CustomerRow | null) => {
     setCustomerId(id)
     const c = cust !== undefined ? cust : id ? allCustomers.find((x) => x.id === id) ?? null : null
-    setLines((ls) => ls.map((l) => (l.auto ? { ...l, unitPrice: String(defaultUnitFor(l.product, c)) } : l)))
+    setLines((ls) => ls.map((l) => (l.auto ? { ...l, unitPrice: String(defaultUnitFor(l.product, c, l.color)) } : l)))
   }
 
-  const lineTotal = (l: Line) => (parseFloat(l.unitPrice) || 0) * (parseFloat(l.qty) || 0)
+  // Per-foot products (panels, hat channel, braces) charge rate × cut length × qty;
+  // per-piece products charge rate × qty. The editable unit price stays the RATE.
+  const perFoot = (p: ProductRow) => (p.price_metric ?? 'per_piece') === 'per_foot'
+  const lineFeet = (l: Line) => (parseFloat(l.lengthFt) || 0) + (parseFloat(l.lengthIn) || 0) / 12
+  const lineTotal = (l: Line) => {
+    const rate = parseFloat(l.unitPrice) || 0
+    const qty = parseFloat(l.qty) || 0
+    return perFoot(l.product) ? rate * lineFeet(l) * qty : rate * qty
+  }
   const subtotal = lines.reduce((s, l) => s + lineTotal(l), 0)
   const tax = taxForOrder(subtotal, customer?.pricing_tier, rates)
   const total = subtotal + tax
@@ -139,10 +160,16 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
     if (error || !order) { toast.error(error?.message ?? 'Failed to create order'); setSaving(false); return }
 
     const orderId = (order as { id: number }).id
+    const byName = finishIdByName(finishes)
     const { error: itemsErr } = await supabase.from('order_items').insert(
       valid.map((l) => {
         const qty = parseFloat(l.qty) || 0
-        const unit = parseFloat(l.unitPrice) || 0
+        const rate = parseFloat(l.unitPrice) || 0
+        const feet = (parseFloat(l.lengthFt) || 0) + (parseFloat(l.lengthIn) || 0) / 12
+        const pf = perFoot(l.product)
+        // Stored unit price is the extended per-piece price; per-foot lines fold the
+        // cut length into the unit so total_price === unit_price × quantity holds.
+        const unit = pf ? extendUnitPrice(rate, 'per_foot', feet) : rate
         const ft = parseInt(l.lengthFt) || 0
         const inch = parseInt(l.lengthIn) || 0
         const detail: string[] = []
@@ -155,7 +182,11 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
           unit_price: unit,
           total_price: unit * qty,
           item_color: l.color || null,
+          finish_id: finishIdFor(byName, l.color),
           length_feet: ft || null,
+          // Per-foot lines record coil footage drawn (qty × cut length), matching
+          // the storefront checkout; per-piece lines record none.
+          linear_feet: pf ? feet * qty : null,
           notes: detail.length ? detail.join(' · ') : null,
         }
       }),
@@ -259,7 +290,7 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
                     {needsColor(l.product.sku) && (
                       <div className="space-y-1 min-w-[140px]">
                         <Label className="text-xs">Color</Label>
-                        <Select value={l.color} onValueChange={(v) => setLine(l.key, { color: v ?? '' })}>
+                        <Select value={l.color} onValueChange={(v) => setColor(l.key, v ?? '')}>
                           <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="">— None —</SelectItem>
@@ -269,7 +300,7 @@ export default function OrderBuilder({ customers, products, rates, tierPrices }:
                       </div>
                     )}
                     <div className="space-y-1">
-                      <Label className="text-xs">Unit price</Label>
+                      <Label className="text-xs">Unit price{perFoot(l.product) ? ' /ft' : ''}</Label>
                       <Input type="number" step="0.01" className="h-8 w-24" value={l.unitPrice} onChange={(e) => setLine(l.key, { unitPrice: e.target.value, auto: false })} />
                     </div>
                     <div className="ml-auto text-right">

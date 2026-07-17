@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { isStaffRole, isWarehouseRole } from '@/types/database'
 import OrderBuilder from '@/components/shared/OrderBuilder'
 import { fetchTaxRates } from '@/lib/tax'
+import { buildFinishPriceMap } from '@/lib/finishes'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = { title: 'New Order — Dashboard' }
@@ -16,7 +17,7 @@ export default async function NewOrderPage() {
   const role = (profile as { role?: string } | null)?.role ?? ''
   if (!isStaffRole(role) || isWarehouseRole(role)) redirect('/dashboard/orders')
 
-  const [{ data: customers }, { data: products }, { data: tierRows }, rates] = await Promise.all([
+  const [{ data: customers }, { data: products }, { data: tierRows }, { data: finishRows }, { data: finishes }, rates] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, full_name, company_name, email, phone, pricing_tier')
@@ -24,10 +25,14 @@ export default async function NewOrderPage() {
       .order('full_name'),
     supabase
       .from('products')
-      .select('id, name, sku, price, unit')
+      .select('id, name, sku, price, unit, price_metric')
       .eq('active', true)
       .order('name'),
     supabase.from('product_tier_prices').select('product_id, tier_key, price').in('tier_key', ['contractor', 'retail']),
+    // Per-(product, tier, finish class) overrides for Galvalume / Pattern lines.
+    supabase.from('product_finish_prices').select('product_id, tier_key, finish_class, price').in('tier_key', ['contractor', 'retail']),
+    // Active finishes, so a saved line can carry its finish_id FK alongside item_color.
+    supabase.from('finishes').select('id, name').eq('active', true),
     fetchTaxRates(supabase),
   ])
 
@@ -40,6 +45,10 @@ export default async function NewOrderPage() {
     else if (r.tier_key === 'retail') e.retail = Number(r.price)
   }
 
+  // `${productId}:${tierKey}:${finishClass}` → price, resolved before the tier
+  // price in OrderBuilder (see resolveUnitPrice).
+  const finishPrices = buildFinishPriceMap(finishRows as never)
+
   return (
     <div className="space-y-5">
       <div>
@@ -51,6 +60,8 @@ export default async function NewOrderPage() {
         products={(products ?? []) as never}
         rates={rates}
         tierPrices={tierPrices}
+        finishPrices={finishPrices}
+        finishes={(finishes ?? []) as never}
       />
     </div>
   )

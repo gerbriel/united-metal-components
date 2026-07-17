@@ -1,9 +1,20 @@
 import type { CSSProperties } from 'react'
 
+// Finish class = the pricing bucket a color belongs to. Mirrors finishes.finish_class
+// (migration 055): galvalume (bare metal, cheapest), solid (painted, base price),
+// pattern (printed Dark Stone / Light Rock, premium). Drives per-color pricing.
+export type FinishClass = 'galvalume' | 'solid' | 'pattern'
+
+// How a product's price is metered (products.price_metric, migration 060):
+//   per_foot  → charge the rate × cut length (ft) — panels, hat channel, braces
+//   per_piece → charge the rate once per piece — everything else
+export type PriceMetric = 'per_foot' | 'per_piece'
+
 type ColorEntry = {
   name: string
   hex: string
   textDark: boolean
+  finishClass: FinishClass
   // Optional CSS background (e.g. a gradient) for the swatch preview ONLY — used
   // to fake the sheen of a bare metallic finish. The 3D viewer always renders
   // from `hex` (see product3d/geom.ts), so keep `hex` representative too.
@@ -20,24 +31,36 @@ type ColorEntry = {
 // the 3D finish. Galvalume is bare metal, so it also gets a brushed-metal sheen
 // gradient on its swatch.
 export const COLORS: ColorEntry[] = [
-  { name: 'White',         hex: '#F0F0EA', textDark: true  },
-  { name: 'Light Stone',   hex: '#CFC6AF', textDark: true  },
-  { name: 'Pebble Beige',  hex: '#D0BE97', textDark: true  },
-  { name: 'Mocha Tan',     hex: '#A5825A', textDark: true  },
-  { name: 'Taupe',         hex: '#877564', textDark: true  },
-  { name: 'Clay',          hex: '#A96C46', textDark: true  },
-  { name: 'Brown',         hex: '#4A3223', textDark: false },
-  { name: 'Zinc Gray',     hex: '#6C7176', textDark: false },
-  { name: 'Pewter Gray',   hex: '#93938D', textDark: true  },
-  { name: 'Galvalume',     hex: '#C6C8C5', textDark: true,
+  { name: 'White',         hex: '#F0F0EA', textDark: true,  finishClass: 'solid'     },
+  { name: 'Light Stone',   hex: '#CFC6AF', textDark: true,  finishClass: 'solid'     },
+  { name: 'Pebble Beige',  hex: '#D0BE97', textDark: true,  finishClass: 'solid'     },
+  { name: 'Mocha Tan',     hex: '#A5825A', textDark: true,  finishClass: 'solid'     },
+  { name: 'Taupe',         hex: '#877564', textDark: true,  finishClass: 'solid'     },
+  { name: 'Clay',          hex: '#A96C46', textDark: true,  finishClass: 'solid'     },
+  { name: 'Brown',         hex: '#4A3223', textDark: false, finishClass: 'solid'     },
+  { name: 'Zinc Gray',     hex: '#6C7176', textDark: false, finishClass: 'solid'     },
+  { name: 'Pewter Gray',   hex: '#93938D', textDark: true,  finishClass: 'solid'     },
+  { name: 'Galvalume',     hex: '#C6C8C5', textDark: true,  finishClass: 'galvalume',
     gradient: 'linear-gradient(135deg, #E2E4E0 0%, #BFC2BE 42%, #D6D8D4 52%, #AEB1AD 100%)' },
-  { name: 'Hawaiian Blue', hex: '#3670C0', textDark: false },
-  { name: 'Forest Green',  hex: '#2C4E27', textDark: false },
-  { name: 'Barn Red',      hex: '#7C2A24', textDark: false },
-  { name: 'Black',         hex: '#1C1C1C', textDark: false },
-  { name: 'Light Rock',    hex: '#9E9384', textDark: true,  texture: '/textures/light-rock.jpg' },
-  { name: 'Dark Stone',    hex: '#4E453E', textDark: false, texture: '/textures/dark-stone.jpg' },
+  { name: 'Hawaiian Blue', hex: '#3670C0', textDark: false, finishClass: 'solid'     },
+  { name: 'Forest Green',  hex: '#2C4E27', textDark: false, finishClass: 'solid'     },
+  { name: 'Barn Red',      hex: '#7C2A24', textDark: false, finishClass: 'solid'     },
+  { name: 'Black',         hex: '#1C1C1C', textDark: false, finishClass: 'solid'     },
+  { name: 'Light Rock',    hex: '#9E9384', textDark: true,  finishClass: 'pattern',  texture: '/textures/light-rock.jpg' },
+  { name: 'Dark Stone',    hex: '#4E453E', textDark: false, finishClass: 'pattern',  texture: '/textures/dark-stone.jpg' },
 ]
+
+// Color NAME → finish class, mirroring the seeded `finishes` table. An unknown or
+// empty name (legacy strings, "no color") returns null → the caller falls back to
+// the product's base price. Match is case-insensitive and trimmed, like the
+// migration-056 finish_id backfill.
+const FINISH_CLASS_BY_NAME = new Map<string, FinishClass>(
+  COLORS.map((c) => [c.name.toLowerCase(), c.finishClass]),
+)
+export function finishClassOf(name?: string | null): FinishClass | null {
+  if (!name) return null
+  return FINISH_CLASS_BY_NAME.get(name.trim().toLowerCase()) ?? null
+}
 
 export type ColorName = string
 

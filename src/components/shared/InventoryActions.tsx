@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Pencil, Loader2, Archive, ArchiveRestore, Trash2, Info } from 'lucide-react'
-import { isOverstockSku } from '@/lib/product-config'
+import { isOverstockSku, type PriceMetric } from '@/lib/product-config'
 import { submitInventoryRequest } from '@/lib/inventory/requests'
 import type { Product, ProductCategory } from '@/types/database'
 
@@ -36,6 +36,7 @@ export default function InventoryActions({ product, categories, mode = 'add', is
     price: product?.price?.toString() ?? '',
     stock_qty: product?.stock_qty?.toString() ?? '0',
     weight_lbs: product?.weight_lbs?.toString() ?? '',
+    price_metric: product?.price_metric ?? 'per_piece',
     active: product?.active ?? true,
   })
   const supabase = createClient()
@@ -89,6 +90,7 @@ export default function InventoryActions({ product, categories, mode = 'add', is
       price: form.price ? parseFloat(form.price) : 0,
       stock_qty: parseInt(form.stock_qty) || 0,
       weight_lbs: form.weight_lbs ? parseFloat(form.weight_lbs) : null,
+      price_metric: form.price_metric,
       active: form.active,
     }
 
@@ -261,6 +263,19 @@ export default function InventoryActions({ product, categories, mode = 'add', is
               <div className="space-y-1.5">
                 <Label>Unit (per)</Label>
                 <Input value={form.unit} onChange={set('unit')} placeholder="Foot / Each / Bundle" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Priced</Label>
+                <Select
+                  value={form.price_metric}
+                  onValueChange={(v: string | null) => setForm((f) => ({ ...f, price_metric: (v as PriceMetric) ?? 'per_piece' }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per_foot">Per foot</SelectItem>
+                    <SelectItem value="per_piece">Per piece</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>Stock Quantity</Label>

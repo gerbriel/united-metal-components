@@ -6,6 +6,7 @@ import PricingTierManager, { type PricingTierRow } from '@/components/shared/Pri
 import TierPriceMatrix, { type MatrixProduct, type TierPriceMap } from '@/components/shared/TierPriceMatrix'
 import TaxRateSettings from '@/components/shared/TaxRateSettings'
 import { getPricingTiers } from '@/lib/pricing-tiers.server'
+import { buildFinishPriceMap } from '@/lib/finishes'
 import { fetchTaxRates } from '@/lib/tax'
 import type { Metadata } from 'next'
 
@@ -21,11 +22,12 @@ export default async function PricingTiersPage() {
   if (!isStaffRole(role)) redirect('/')
   if (!isAdminRole(role)) redirect('/dashboard')
 
-  const [{ data: tiers }, { data: profiles }, { data: products }, { data: overrides }, activeTiers, taxRates] = await Promise.all([
+  const [{ data: tiers }, { data: profiles }, { data: products }, { data: overrides }, { data: finishOverrides }, activeTiers, taxRates] = await Promise.all([
     supabase.from('pricing_tiers').select('*').order('sort_order').order('label'),
     supabase.from('profiles').select('pricing_tier'),
-    supabase.from('products').select('id, name, sku, price, unit').eq('active', true).order('name'),
+    supabase.from('products').select('id, name, sku, price, unit, price_metric').eq('active', true).order('name'),
     supabase.from('product_tier_prices').select('product_id, tier_key, price'),
+    supabase.from('product_finish_prices').select('product_id, tier_key, finish_class, price'),
     getPricingTiers({ activeOnly: true }),
     fetchTaxRates(supabase),
   ])
@@ -46,6 +48,8 @@ export default async function PricingTiersPage() {
     const row = o as { product_id: number; tier_key: string; price: number | string }
     priceMap[`${row.product_id}:${row.tier_key}`] = Number(row.price)
   }
+  // Per-finish overrides (Galvalume/Pattern), keyed `${productId}:${tierKey}:${finishClass}`.
+  const finishPriceMap = buildFinishPriceMap(finishOverrides)
   const matrixProducts = (products ?? []) as MatrixProduct[]
 
   return (
@@ -62,9 +66,10 @@ export default async function PricingTiersPage() {
       <div className="pt-4 border-t">
         <h2 className="text-lg font-bold">Item Prices by Tier</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Set a per-tier price for any product. Blank cells charge the product&apos;s base price.
+          Set a per-tier price for any product. Blank cells charge the product&apos;s base price. For
+          colorable products you can also set Galvalume and Pattern prices (Solid uses the base tier price).
         </p>
-        <TierPriceMatrix products={matrixProducts} tiers={activeTiers} initialPrices={priceMap} />
+        <TierPriceMatrix products={matrixProducts} tiers={activeTiers} initialPrices={priceMap} initialFinishPrices={finishPriceMap} />
       </div>
 
       <div className="pt-4 border-t">

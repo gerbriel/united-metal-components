@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Product } from '@/types/database'
+import { extendUnitPrice } from '@/lib/finishes'
 
 export interface CartItem {
   product:  Product
@@ -23,18 +24,19 @@ export const itemKey = (
 export const cartItemKey = (i: CartItem) =>
   itemKey(i.product.id, i.length, i.lengthIn, i.color, i.overstockId)
 
-// Unit price for a single piece (handles per-foot × length)
+// Unit price for a single piece. Per-foot products charge the rate × cut length;
+// per-piece products charge the rate once (see product price_metric, migration 060).
 export const itemUnitPrice = (i: CartItem): number => {
   // Overstock panels are priced per-listing (staff-only) — NOT from the parent
   // product's per-foot price. The storefront never sees the listing price, so an
   // overstock line records 0 here and staff apply the listing's own unit_price
   // (reachable via panel_overstock_id) when they review the order.
   if (i.overstockId != null) return 0
-  if (i.length !== undefined) {
-    const totalFt = i.length + (i.lengthIn ?? 0) / 12
-    return i.product.price * totalFt
-  }
-  return i.product.price
+  const totalFt = i.length !== undefined ? i.length + (i.lengthIn ?? 0) / 12 : 0
+  // Fall back to "a length implies per-foot" for cart items persisted before the
+  // price_metric field existed, so old carts keep their prior pricing.
+  const metric = i.product.price_metric ?? (i.length !== undefined ? 'per_foot' : 'per_piece')
+  return extendUnitPrice(i.product.price, metric, totalFt)
 }
 
 interface CartStore {
