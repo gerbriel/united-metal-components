@@ -166,9 +166,21 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
       availability = { kind: 'panel', byColor }
     } else {
       const poolRow = list.find((r) => r.category === 'pool')
+      // Pre-cut hat/brace pieces per length (hat_brace_stock), net of open orders —
+      // staff-only, so read through the SECURITY DEFINER public_hat_brace_availability
+      // RPC (migration 063). Without these, an empty coil pool read as out of stock
+      // even when pieces were on hand.
+      const { data: hbRows } = await (supabase.rpc as any)('public_hat_brace_availability')
+      const byLength: Record<number, number> = {}
+      for (const r of (hbRows ?? []) as { product_id: number; length_ft: number; available_qty: number }[]) {
+        if (Number(r.product_id) === product.id && Number(r.available_qty) > 0) {
+          byLength[Number(r.length_ft)] = Number(r.available_qty)
+        }
+      }
       availability = {
         kind: 'pool',
         pool: { netFeet: Number(poolRow?.net_feet ?? 0), onOrderFeet: 0, hasUnweighed: poolRow?.has_unweighed ?? false },
+        byLength,
       }
     }
   } else if (isTrimSku(sku)) {

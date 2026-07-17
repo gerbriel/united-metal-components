@@ -45,7 +45,7 @@ export interface OverstockItem {
 
 export type Availability =
   | { kind: 'panel'; byColor: Record<string, CoilAvailability> }
-  | { kind: 'pool'; pool: CoilAvailability }
+  | { kind: 'pool'; pool: CoilAvailability; byLength?: Record<number, number> }   // + pre-cut pieces per length (hat_brace_stock)
   | { kind: 'trim'; byColor: Record<string, number> }   // per-color piece counts (no lengths)
   | { kind: 'overstock'; items: OverstockItem[] }
   | { kind: 'static' }
@@ -327,11 +327,24 @@ export default function ProductOrderForm({ product, isContractor, availability, 
     : 0
   const neededFeet = perPieceFt * qty
 
+  // Hat channel / brace: pre-cut pieces on hand for the selected length
+  // (hat_brace_stock), plus what can still be cut from the shared coil footage.
+  // `poolPieces` is null until a length is chosen; it drives a piece-based
+  // availability badge + request threshold (footage alone previously read these
+  // products as out of stock whenever the coil pool was empty).
+  const isPool = availability?.kind === 'pool'
+  const poolPrecut =
+    isPool && selectedLength != null && !useCustom ? (availability.byLength?.[selectedLength] ?? 0) : 0
+  const poolCuttable = isPool && coil && perPieceFt > 0 ? Math.floor(coil.netFeet / perPieceFt) : 0
+  const poolPieces: number | null = isPool && perPieceFt > 0 ? poolPrecut + poolCuttable : null
+
   // When the order can't come off the shelf as-is it becomes a special-order
   // request instead of a cart add: the live coil footage for the chosen
   // color/pool can't cover it, or (non-coil items) the order exceeds stock.
   const isCoilProduct = availability?.kind === 'panel' || availability?.kind === 'pool'
-  const coilShort = coil != null && (coil.netFeet <= 0 || coil.netFeet < neededFeet)
+  const coilShort = isPool
+    ? (poolPieces != null && qty > poolPieces)          // hat/brace: pieces for the chosen length
+    : (coil != null && (coil.netFeet <= 0 || coil.netFeet < neededFeet))
   // Trim draws on its own per-color piece count (not coil footage / stock_qty):
   // asking for more pieces than the selected color has — including a color with 0
   // in stock — turns the add into a special-order request.
@@ -339,7 +352,8 @@ export default function ProductOrderForm({ product, isContractor, availability, 
   const staticShort = !isCoilProduct && !isTrim && qty > product.stock_qty
   const isRequest = coilShort || staticShort || trimShort
   // Nothing available at all, vs. some stock that just can't cover this order.
-  const fullyOut = isCoilProduct ? (coil != null && coil.netFeet <= 0)
+  const fullyOut = isPool ? (poolPieces != null && poolPieces <= 0)
+    : isCoilProduct ? (coil != null && coil.netFeet <= 0)
     : isTrim ? (trimAvail != null && trimAvail <= 0)
     : isOutOfStock
 
@@ -380,6 +394,16 @@ export default function ProductOrderForm({ product, isContractor, availability, 
             trimAvail > 0 ? (
               <Badge className="bg-green-100 text-green-800 border-green-200 gap-1.5">
                 <PackageCheck className="w-3.5 h-3.5" />{trimAvail} available
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />Out of stock
+              </Badge>
+            )
+          ) : isPool && poolPieces != null ? (
+            poolPieces > 0 ? (
+              <Badge className="bg-green-100 text-green-800 border-green-200 gap-1.5">
+                <PackageCheck className="w-3.5 h-3.5" />{coil?.hasUnweighed ? '~' : ''}{poolPieces} available
               </Badge>
             ) : (
               <Badge variant="secondary" className="gap-1.5">
