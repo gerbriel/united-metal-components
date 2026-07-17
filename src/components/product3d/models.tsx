@@ -92,6 +92,24 @@ const PANEL_BACKER = { color: '#EDEAE0', metalness: 0.35, roughness: 0.55 }
 // Stone-look finishes read as matte painted print, not shiny metal.
 const PANEL_PRINT_MAT = { metalness: 0.1, roughness: 0.82 }
 
+// Finish material for a formed steel part (trim, ridge cap, hat channel, …). A
+// printed stone finish (Light Rock, Dark Stone) becomes a matte texture map over a
+// white base so the print shows true; every other finish is the flat painted/bare
+// steel. Trim keeps the extrude's own UVs (small pieces show a crop of the print —
+// developedPanelUV is panel-only, as trim profiles aren't monotonic across x). Built
+// imperatively so the first shader compile picks up USE_MAP (see Panel/insulation).
+function useSteelMaterial(colorName?: string | null, fallbackHex?: string): THREE.MeshStandardMaterial {
+  const steel = useSteel(colorName, fallbackHex)
+  const tex = colorTexture(colorName)
+  return useMemo(
+    () =>
+      tex
+        ? new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide })
+        : new THREE.MeshStandardMaterial({ ...steel, side: THREE.DoubleSide }),
+    [tex, steel],
+  )
+}
+
 function Panel({ colorName }: ModelProps) {
   const len = 5
   // Developed-surface UVs (regardless of finish — free, unused when there's no map)
@@ -156,16 +174,16 @@ function extrudedTrim(center: [number, number][], len: number, thickness = 0.02)
 function TrimL({ colorName }: ModelProps) {
   const F = 4 / 12, len = 4
   const geo = useMemo(() => extrudedTrim([[F, 0], [0, 0], [0, F]], len), [])
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function TrimJ({ colorName }: ModelProps) {
   // J-channel: deep back leg, bottom, short front return lip.
   const D = 2 / 12, W = 1.4 / 12, lip = 0.7 / 12, len = 4
   const geo = useMemo(() => extrudedTrim([[0, D], [0, 0], [W, 0], [W, lip]], len), [])
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function TrimCorner({ colorName }: ModelProps) {
@@ -175,8 +193,8 @@ function TrimCorner({ colorName }: ModelProps) {
     () => extrudedTrim([[F - H * k, H * k], [F, 0], [0, 0], [0, F], [H * k, F - H * k]], len),
     [],
   )
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function TrimSideVert({ colorName }: ModelProps) {
@@ -186,8 +204,8 @@ function TrimSideVert({ colorName }: ModelProps) {
     () => extrudedTrim([[leg, -leg], [0, 0], [0, face], [leg, face + leg * 0]], len),
     [],
   )
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function TrimFlashing({ colorName }: ModelProps) {
@@ -197,8 +215,8 @@ function TrimFlashing({ colorName }: ModelProps) {
     () => extrudedTrim([[-drip * 0.6, -drip], [0, 0], [W, 0], [W, up]], len),
     [],
   )
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function TrimBoxEve({ colorName }: ModelProps) {
@@ -208,8 +226,8 @@ function TrimBoxEve({ colorName }: ModelProps) {
     () => extrudedTrim([[WT, H], [0, H], [0, 0], [WB, 0], [WB + HK * 0.6, -HK]], len, 0.024),
     [],
   )
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function RidgeCap({ colorName }: ModelProps) {
@@ -225,8 +243,8 @@ function RidgeCap({ colorName }: ModelProps) {
     ]
     return extrudedTrim(center, len, 0.024)
   }, [])
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 function HatChannel({ colorName }: ModelProps) {
@@ -236,8 +254,8 @@ function HatChannel({ colorName }: ModelProps) {
     () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len, 0.01),
     [],
   )
-  const steel = useSteel(colorName)
-  return <mesh geometry={geo} castShadow receiveShadow><meshStandardMaterial {...steel} side={THREE.DoubleSide} /></mesh>
+  const mat = useSteelMaterial(colorName)
+  return <mesh geometry={geo} material={mat} castShadow receiveShadow />
 }
 
 // ── C-channel brace ─────────────────────────────────────────────────────────────

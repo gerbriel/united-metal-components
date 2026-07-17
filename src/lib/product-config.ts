@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 type ColorEntry = {
   name: string
   hex: string
@@ -38,6 +40,21 @@ export const COLORS: ColorEntry[] = [
 ]
 
 export type ColorName = string
+
+// Inline style for a color swatch chip. A printed finish (Light Rock, Dark Stone)
+// shows its texture photo; a metallic finish shows its gradient; everything else is
+// the flat hex. `null`/undefined (the "no color" chip) falls back to a neutral gray.
+// Used by every color picker so panels and trim render swatches the same way.
+export function swatchStyle(
+  color?: Pick<ColorEntry, 'hex' | 'gradient' | 'texture'> | null,
+): CSSProperties {
+  if (!color) return { backgroundColor: '#e2e8f0' }
+  if (color.texture) {
+    return { backgroundImage: `url(${color.texture})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  }
+  if (color.gradient) return { backgroundImage: color.gradient }
+  return { backgroundColor: color.hex }
+}
 
 // Roofing screws come in two variants:
 //  • WITH a bonded EPDM sealing washer → painted hex head + colored rubber washer,

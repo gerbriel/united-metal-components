@@ -20,6 +20,7 @@ import {
   PANEL_SKUS,
   isWasherScrew,
   variantGroupFor,
+  swatchStyle,
 } from '@/lib/product-config'
 
 // Live coil availability for one color (panels) or the shared pool (hat/brace).
@@ -220,11 +221,7 @@ export default function ProductOrderForm({ product, isContractor, availability, 
                       ? 'border-primary scale-110 shadow-md ring-2 ring-primary/30'
                       : 'border-white shadow-sm hover:scale-105 hover:border-primary/60',
                   ].join(' ')}
-                  style={
-                    entry?.gradient ? { backgroundImage: entry.gradient }
-                    : entry ? { backgroundColor: entry.hex }
-                    : { backgroundColor: '#e2e8f0' }
-                  }
+                  style={swatchStyle(entry)}
                 />
               )
             })}
@@ -481,11 +478,7 @@ export default function ProductOrderForm({ product, isContractor, availability, 
                     ? 'border-primary scale-110 shadow-md ring-2 ring-primary/30'
                     : 'border-white shadow-sm hover:scale-105 hover:border-primary/60',
                 ].join(' ')}
-                style={
-                  c.gradient
-                    ? { backgroundImage: c.gradient }
-                    : { backgroundColor: c.hex }
-                }
+                style={swatchStyle(c)}
               />
             ))}
           </div>
