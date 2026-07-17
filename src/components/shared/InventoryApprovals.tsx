@@ -11,7 +11,7 @@ import { CheckCircle, XCircle, Loader2, ClipboardList } from 'lucide-react'
 
 type EntryType = 'stock_qty' | 'coil_weight' | 'tube_bundle_qty' | 'record'
 type TargetTable =
-  | 'products' | 'product_coils' | 'tube_specs' | 'tube_bundles' | 'panel_overstock' | 'astm_codes' | 'trim_stock'
+  | 'products' | 'product_coils' | 'tube_specs' | 'tube_bundles' | 'panel_overstock' | 'astm_codes' | 'trim_stock' | 'hat_brace_stock'
 type Operation = 'create' | 'update' | 'archive' | 'restore'
 
 export interface InventoryEntry {
@@ -52,6 +52,7 @@ const TABLE_LABEL: Record<TargetTable, string> = {
   panel_overstock: 'Overstock Listing',
   astm_codes:      'ASTM Code',
   trim_stock:      'Trim Stock',
+  hat_brace_stock: 'Hat/Brace Stock',
 }
 
 const OP_LABEL: Record<Operation, string> = {

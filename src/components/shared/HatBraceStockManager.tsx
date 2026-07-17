@@ -9,49 +9,42 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, Pencil, Loader2, Package, Trash2 } from 'lucide-react'
-import { swatchStyle } from '@/lib/product-config'
+import { hatBraceLengthsFor } from '@/lib/product-config'
 import { submitInventoryRequest } from '@/lib/inventory/requests'
 
-interface TrimProduct { id: number; name: string; sku: string | null }
-// The finish_id picker source — carries the ids trim_stock keys by, plus enough
-// swatch info (gradient/texture) to render the chip exactly like other pickers.
-interface FinishOption { id: number; name: string; hex: string; gradient?: string | null; texture?: string | null }
-// Panel coils — trim is cut from these, so they're the optional source-coil
-// picker options (trim piece → coil → PO → vendor traceability).
-interface CoilOption { id: number; coil_identifier: string; color: string | null }
+interface HatBraceProduct { id: number; name: string; sku: string | null }
+// The coil_id picker source — the shared hat_channel_brace coil pool these
+// pieces are cut from. Only enough to render the option + traceability chip.
+interface CoilOption { id: number; coil_identifier: string }
 
-export interface TrimStockRow {
+export interface HatBraceStockRow {
   id: number
   product_id: number
-  finish_id: number
+  length_ft: number
   qty: number
-  notes: string | null
   coil_id: number | null
+  notes: string | null
   updated_at: string
   products?: { name: string; sku: string | null } | null
-  finishes?: { name: string; hex: string } | null
   product_coils?: { coil_identifier: string } | null
 }
 
 interface Props {
-  initialRows:  TrimStockRow[]
-  trimProducts: TrimProduct[]
-  // Full finishes list (with ids) for the color picker. NOT useFinishes(), which
-  // omits finish ids — and trim_stock keys by finish_id.
-  finishes:     FinishOption[]
-  // Panel coils for the optional source-coil picker.
-  coils:        CoilOption[]
-  isAdmin:      boolean
+  initialRows:      HatBraceStockRow[]
+  hatBraceProducts: HatBraceProduct[]
+  // The hat_channel_brace coils, for the optional source-coil picker.
+  coils:            CoilOption[]
+  isAdmin:          boolean
   // Office employees manage stock, but their changes route to the approval queue
-  // instead of writing trim_stock directly.
-  isOffice?:    boolean
+  // instead of writing hat_brace_stock directly.
+  isOffice?:        boolean
 }
 
-const EMPTY_FORM = { product_id: '', finish_id: '', qty: '', notes: '', coil_id: '' }
+const EMPTY_FORM = { product_id: '', length_ft: '', coil_id: '', qty: '', notes: '' }
 
-export default function TrimStockManager({ initialRows, trimProducts, finishes, coils, isAdmin, isOffice = false }: Props) {
+export default function HatBraceStockManager({ initialRows, hatBraceProducts, coils, isAdmin, isOffice = false }: Props) {
   const canManage = isAdmin || isOffice
-  const [rows, setRows] = useState<TrimStockRow[]>(initialRows)
+  const [rows, setRows] = useState<HatBraceStockRow[]>(initialRows)
 
   const [open, setOpen] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -69,76 +62,82 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
   const setF = (k: keyof typeof EMPTY_FORM) => (v: string | null) =>
     setForm((f) => ({ ...f, [k]: v ?? '' }))
 
-  const finishById = (id: number) => finishes.find((f) => f.id === id)
-  // Swatch style for a row's finish — prefer the full finishes prop (gradient /
-  // texture aware); fall back to the joined hex if the finish is no longer active.
-  const rowSwatch = (r: TrimStockRow) => {
-    const f = finishById(r.finish_id)
-    return swatchStyle(
-      f ? { hex: f.hex, gradient: f.gradient ?? undefined, texture: f.texture ?? undefined }
-        : r.finishes ? { hex: r.finishes.hex } : null,
-    )
-  }
-  const finishLabel = (r: TrimStockRow) => finishById(r.finish_id)?.name ?? r.finishes?.name ?? `Finish ${r.finish_id}`
-  const productLabel = (r: TrimStockRow) => r.products?.name ?? `#${r.product_id}`
+  const productById = (id: number) => hatBraceProducts.find((p) => p.id === id)
+  // Preset cut lengths offered for the product picked in the add dialog.
+  const lengthOptions = form.product_id
+    ? hatBraceLengthsFor(productById(parseInt(form.product_id))?.sku)
+    : []
+
+  const productLabel = (r: HatBraceStockRow) => r.products?.name ?? `#${r.product_id}`
+  const lengthLabel  = (r: HatBraceStockRow) => `${r.length_ft} ft`
+  const coilLabel    = (r: HatBraceStockRow) => r.product_coils?.coil_identifier ?? '—'
 
   const fetchAll = useCallback(async () => {
     const { data } = await supabase
-      .from('trim_stock')
-      .select('*, products(name, sku), finishes(name, hex), product_coils(coil_identifier)')
+      .from('hat_brace_stock')
+      .select('*, products(name, sku), product_coils(coil_identifier)')
       .order('updated_at', { ascending: false })
-    if (data) setRows(data as TrimStockRow[])
+    if (data) setRows(data as HatBraceStockRow[])
   }, [])
 
   // Keep the list live so admins see office-approved changes as they land.
   useEffect(() => {
     const ch = supabase
-      .channel('trim-stock-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'trim_stock' }, fetchAll)
+      .channel('hat-brace-stock-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hat_brace_stock' }, fetchAll)
       .subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [fetchAll])
 
   const closeDialog = () => { setOpen(false); setEditingId(null); setForm(EMPTY_FORM) }
   const openAdd  = () => { setEditingId(null); setForm(EMPTY_FORM) }
-  const openEdit = (r: TrimStockRow) => {
+  const openEdit = (r: HatBraceStockRow) => {
     setEditingId(r.id)
-    setForm({ product_id: String(r.product_id), finish_id: String(r.finish_id), qty: String(r.qty), notes: r.notes ?? '', coil_id: r.coil_id != null ? String(r.coil_id) : '' })
+    setForm({
+      product_id: String(r.product_id),
+      length_ft:  String(r.length_ft),
+      coil_id:    r.coil_id != null ? String(r.coil_id) : '',
+      qty:        String(r.qty),
+      notes:      r.notes ?? '',
+    })
     setOpen(true)
   }
 
+  // Picking a product in add mode resets the length — the preset lengths differ
+  // per SKU (hat channel vs brace), so a carried-over length may be invalid.
+  const onProductChange = (v: string | null) =>
+    setForm((f) => ({ ...f, product_id: v ?? '', length_ft: '' }))
+
   const editing = editingId != null ? rows.find((r) => r.id === editingId) ?? null : null
 
-  // Create (add mode) or update (edit mode) a trim_stock row from the shared form.
+  // Create (add mode) or update (edit mode) a hat_brace_stock row from the form.
   const handleSave = async () => {
     const qty = parseInt(form.qty)
     if (isNaN(qty) || qty < 0) { toast.error('Enter a valid quantity'); return }
 
-    // Product + finish are fixed to the row in edit mode (they form the unique key).
+    // Product + length are fixed to the row in edit mode (they form the unique key).
     const product_id = editing ? editing.product_id : parseInt(form.product_id)
-    const finish_id  = editing ? editing.finish_id  : parseInt(form.finish_id)
-    if (!product_id || isNaN(product_id)) { toast.error('Pick a trim product'); return }
-    if (!finish_id  || isNaN(finish_id))  { toast.error('Pick a color'); return }
+    const length_ft  = editing ? editing.length_ft  : parseInt(form.length_ft)
+    if (!product_id || isNaN(product_id)) { toast.error('Pick a hat/brace product'); return }
+    if (!length_ft  || isNaN(length_ft))  { toast.error('Pick a length'); return }
 
-    // (product, finish) is UNIQUE — adding a pair that already exists is an edit.
-    const existing = editing ?? rows.find((r) => r.product_id === product_id && r.finish_id === finish_id) ?? null
-    const notes = form.notes || null
-    // Optional source coil (traceability); null clears the link.
+    // (product, length) is UNIQUE — adding a pair that already exists is an edit.
+    const existing = editing ?? rows.find((r) => r.product_id === product_id && r.length_ft === length_ft) ?? null
     const coil_id = form.coil_id ? parseInt(form.coil_id) : null
+    const notes = form.notes || null
 
-    const pName = editing?.products?.name ?? trimProducts.find((p) => p.id === product_id)?.name ?? `#${product_id}`
-    const fName = finishById(finish_id)?.name ?? editing?.finishes?.name ?? `finish ${finish_id}`
-    const label = `${pName} · ${fName}`
+    const pName = editing?.products?.name ?? productById(product_id)?.name ?? `#${product_id}`
+    const label = `${pName} · ${length_ft} ft`
 
     // Office: route through the approval queue.
     if (isOffice && !isAdmin) {
       setAdding(true)
       const { error } = await submitInventoryRequest(supabase, {
-        targetTable: 'trim_stock',
+        targetTable: 'hat_brace_stock',
         operation: existing ? 'update' : 'create',
         targetId: existing ? existing.id : null,
-        payload: existing ? { qty, notes, coil_id } : { product_id, finish_id, qty, notes, coil_id },
-        summary: `${existing ? 'Set' : 'Add'} trim stock — ${label} × ${qty}`,
+        payload: existing ? { qty, coil_id, notes } : { product_id, length_ft, qty, coil_id, notes },
+        summary: `${existing ? 'Set' : 'Add'} hat/brace stock — ${label} × ${qty}`,
       })
       if (error) { toast.error(error.message); setAdding(false); return }
       toast.success('Submitted for admin approval')
@@ -150,33 +149,33 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
     // Admin / warehouse: write directly.
     setAdding(true)
     if (existing) {
-      const { error } = await supabase.from('trim_stock').update({ qty, notes, coil_id }).eq('id', existing.id)
+      const { error } = await supabase.from('hat_brace_stock').update({ qty, coil_id, notes }).eq('id', existing.id)
       if (error) { toast.error(error.message); setAdding(false); return }
-      toast.success('Trim stock updated')
+      toast.success('Hat/brace stock updated')
     } else {
       const { error } = await supabase
-        .from('trim_stock')
-        .upsert({ product_id, finish_id, qty, notes, coil_id }, { onConflict: 'product_id,finish_id' })
+        .from('hat_brace_stock')
+        .upsert({ product_id, length_ft, qty, coil_id, notes }, { onConflict: 'product_id,length_ft' })
       if (error) { toast.error(error.message); setAdding(false); return }
-      toast.success('Trim stock added')
+      toast.success('Hat/brace stock added')
     }
     closeDialog()
     await fetchAll()
     setAdding(false)
   }
 
-  const handleUpdateQty = async (r: TrimStockRow) => {
+  const handleUpdateQty = async (r: HatBraceStockRow) => {
     const q = parseInt(qtyForm)
     if (isNaN(q) || q < 0) { toast.error('Enter a valid quantity'); return }
     setQtyLoading(true)
-    const label = `${productLabel(r)} · ${finishLabel(r)}`
+    const label = `${productLabel(r)} · ${lengthLabel(r)}`
     if (isOffice && !isAdmin) {
       const { error } = await submitInventoryRequest(supabase, {
-        targetTable: 'trim_stock',
+        targetTable: 'hat_brace_stock',
         operation: 'update',
         targetId: r.id,
         payload: { qty: q },
-        summary: `Set trim ${label} qty to ${q}`,
+        summary: `Set hat/brace ${label} qty to ${q}`,
       })
       if (error) { toast.error(error.message); setQtyLoading(false); return }
       toast.success('Submitted for admin approval')
@@ -184,7 +183,7 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
       setQtyLoading(false)
       return
     }
-    const { error } = await supabase.from('trim_stock').update({ qty: q }).eq('id', r.id)
+    const { error } = await supabase.from('hat_brace_stock').update({ qty: q }).eq('id', r.id)
     if (error) { toast.error(error.message); setQtyLoading(false); return }
     toast.success('Quantity updated')
     setQtyEditing(null)
@@ -192,13 +191,13 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
     setQtyLoading(false)
   }
 
-  // trim_stock has no `archived` column, so admins remove a row outright. Office
-  // employees instead zero out the qty through the queue (the inline Qty editor).
-  const deleteRow = async (r: TrimStockRow) => {
-    const label = `${productLabel(r)} · ${finishLabel(r)}`
-    if (!confirm(`Permanently delete trim stock for ${label}? This cannot be undone.`)) return
+  // hat_brace_stock has no `archived` column, so admins remove a row outright.
+  // Office employees instead zero out the qty through the queue (inline Qty editor).
+  const deleteRow = async (r: HatBraceStockRow) => {
+    const label = `${productLabel(r)} · ${lengthLabel(r)}`
+    if (!confirm(`Permanently delete hat/brace stock for ${label}? This cannot be undone.`)) return
     setRowBusy(r.id)
-    const { error } = await supabase.from('trim_stock').delete().eq('id', r.id)
+    const { error } = await supabase.from('hat_brace_stock').delete().eq('id', r.id)
     if (error) toast.error(error.message)
     else { toast.success('Deleted'); await fetchAll() }
     setRowBusy(null)
@@ -206,14 +205,14 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
 
   const displayed = [...rows].sort((a, b) =>
     productLabel(a).localeCompare(productLabel(b)) ||
-    finishLabel(a).localeCompare(finishLabel(b)))
+    a.length_ft - b.length_ft)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-base font-semibold">Trim Stock</h2>
-          <p className="text-xs text-muted-foreground">Pre-cut trim pieces on hand, counted per color</p>
+          <h2 className="text-base font-semibold">Hat / Brace Stock</h2>
+          <p className="text-xs text-muted-foreground">Pre-cut hat-channel and brace pieces on hand, counted per length</p>
         </div>
         {canManage && (
           <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(EMPTY_FORM) } }}>
@@ -222,27 +221,27 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                 onClick={openAdd}
                 className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors"
               >
-                <Plus className="w-4 h-4" />Add Trim Stock
+                <Plus className="w-4 h-4" />Add Hat/Brace Stock
               </button>
             } />
             <DialogContent className="max-w-md">
-              <DialogHeader><DialogTitle>{editingId != null ? 'Edit' : 'Add'} Trim Stock</DialogTitle></DialogHeader>
-              {editingId == null && trimProducts.length === 0 && (
-                <p className="text-sm text-red-600">No trim products are configured. Add one in Products first.</p>
+              <DialogHeader><DialogTitle>{editingId != null ? 'Edit' : 'Add'} Hat/Brace Stock</DialogTitle></DialogHeader>
+              {editingId == null && hatBraceProducts.length === 0 && (
+                <p className="text-sm text-red-600">No hat/brace products are configured. Add one in Products first.</p>
               )}
               <div className="grid gap-4 py-2">
                 <div className="space-y-1.5">
-                  <Label>Trim Product *</Label>
+                  <Label>Hat/Brace Product *</Label>
                   {editing ? (
                     <p className="text-sm font-medium">
                       {editing.products?.name ?? `#${editing.product_id}`}
                       {editing.products?.sku ? <span className="text-muted-foreground font-normal"> ({editing.products.sku})</span> : null}
                     </p>
                   ) : (
-                    <Select value={form.product_id} onValueChange={setF('product_id')}>
-                      <SelectTrigger><SelectValue placeholder="Select trim…" /></SelectTrigger>
+                    <Select value={form.product_id} onValueChange={onProductChange}>
+                      <SelectTrigger><SelectValue placeholder="Select product…" /></SelectTrigger>
                       <SelectContent>
-                        {trimProducts.map((p) => (
+                        {hatBraceProducts.map((p) => (
                           <SelectItem key={p.id} value={String(p.id)}>
                             {p.name}{p.sku ? ` (${p.sku})` : ''}
                           </SelectItem>
@@ -253,37 +252,18 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Color *</Label>
+                  <Label>Length *</Label>
                   {editing ? (
-                    <span className="inline-flex items-center gap-1.5 text-sm">
-                      <span className="w-4 h-4 rounded-full border border-slate-200 shrink-0" style={rowSwatch(editing)} />
-                      {finishLabel(editing)}
-                    </span>
+                    <p className="text-sm font-medium">{editing.length_ft} ft</p>
                   ) : (
-                    <>
-                      <div className="flex flex-wrap gap-2">
-                        {finishes.map((f) => (
-                          <button
-                            key={f.id}
-                            type="button"
-                            title={f.name}
-                            onClick={() => setF('finish_id')(String(f.id))}
-                            className={[
-                              'w-9 h-9 rounded-full border-2 transition-all overflow-hidden',
-                              form.finish_id === String(f.id)
-                                ? 'border-primary scale-110 shadow-md ring-2 ring-primary/30'
-                                : 'border-white shadow-sm hover:scale-105 hover:border-primary/60',
-                            ].join(' ')}
-                            style={swatchStyle({ hex: f.hex, gradient: f.gradient ?? undefined, texture: f.texture ?? undefined })}
-                          />
+                    <Select value={form.length_ft} onValueChange={setF('length_ft')} disabled={!form.product_id}>
+                      <SelectTrigger><SelectValue placeholder={form.product_id ? 'Select length…' : 'Pick a product first'} /></SelectTrigger>
+                      <SelectContent>
+                        {lengthOptions.map((len) => (
+                          <SelectItem key={len} value={String(len)}>{len} ft</SelectItem>
                         ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {form.finish_id
-                          ? <>Selected: <span className="font-medium text-foreground">{finishById(parseInt(form.finish_id))?.name ?? form.finish_id}</span></>
-                          : 'Pick a color'}
-                      </p>
-                    </>
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
 
@@ -298,6 +278,19 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                 </div>
 
                 <div className="space-y-1.5">
+                  <Label>Source Coil (optional — traceability)</Label>
+                  <Select value={form.coil_id} onValueChange={setF('coil_id')}>
+                    <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">— None —</SelectItem>
+                      {coils.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>{c.coil_identifier}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
                   <Label>Notes</Label>
                   <Input
                     value={form.notes}
@@ -305,30 +298,15 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                     placeholder="Optional"
                   />
                 </div>
-
-                <div className="space-y-1.5">
-                  <Label>Source coil (optional — traceability)</Label>
-                  <Select value={form.coil_id} onValueChange={setF('coil_id')}>
-                    <SelectTrigger><SelectValue placeholder="— None —" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">— None —</SelectItem>
-                      {coils.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.coil_identifier}{c.color ? ` · ${c.color}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={closeDialog}>Cancel</Button>
                 <Button
                   onClick={handleSave}
-                  disabled={adding || (editingId == null && (!form.product_id || !form.finish_id))}
+                  disabled={adding || (editingId == null && (!form.product_id || !form.length_ft))}
                 >
                   {adding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {editingId != null ? 'Save Changes' : 'Add Trim Stock'}
+                  {editingId != null ? 'Save Changes' : 'Add Hat/Brace Stock'}
                 </Button>
               </div>
             </DialogContent>
@@ -337,16 +315,17 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
       </div>
 
       {displayed.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4">No trim stock recorded yet.</p>
+        <p className="text-sm text-muted-foreground py-4">No hat/brace stock recorded yet.</p>
       ) : (
         <div className="border rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs text-muted-foreground border-b">
                 <tr>
-                  <th className="text-left p-3">Trim</th>
-                  <th className="text-left p-3">Color</th>
+                  <th className="text-left p-3">Product</th>
+                  <th className="text-left p-3">Length</th>
                   <th className="text-right p-3">On Hand</th>
+                  <th className="text-left p-3">Source Coil</th>
                   <th className="text-left p-3">Actions</th>
                 </tr>
               </thead>
@@ -360,13 +339,7 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                         {r.products?.sku ? <span className="text-xs text-muted-foreground ml-1.5 font-mono">{r.products.sku}</span> : null}
                       </td>
                       <td className="p-3">
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className="w-4 h-4 rounded-full border border-slate-200 shrink-0" style={rowSwatch(r)} />
-                          <span>{finishLabel(r)}</span>
-                        </span>
-                        {r.product_coils?.coil_identifier && (
-                          <span className="block text-xs text-muted-foreground font-mono mt-0.5">{r.product_coils.coil_identifier}</span>
-                        )}
+                        <span className="font-medium">{lengthLabel(r)}</span>
                       </td>
                       <td className="p-3 text-right">
                         {isEditing ? (
@@ -381,6 +354,11 @@ export default function TrimStockManager({ initialRows, trimProducts, finishes, 
                             {r.qty}
                           </span>
                         )}
+                      </td>
+                      <td className="p-3">
+                        {r.product_coils?.coil_identifier
+                          ? <span className="font-mono text-xs text-muted-foreground">{coilLabel(r)}</span>
+                          : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
                       <td className="p-3">
                         {isEditing ? (

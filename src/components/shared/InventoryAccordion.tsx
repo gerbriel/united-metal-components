@@ -1,14 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
+import type { CSSProperties } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import InventoryActions from '@/components/shared/InventoryActions'
 import { iconFor } from '@/lib/nav-categories'
-import { isOverstockSku } from '@/lib/product-config'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { isOverstockSku, isTrimSku, isHatBraceSku, swatchStyle } from '@/lib/product-config'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
+import { ChevronDown, ChevronUp, ChevronRight, Pencil, Loader2, ArrowRight } from 'lucide-react'
 import type { Product, ProductCategory } from '@/types/database'
 
 export interface InventoryGroup {
@@ -26,6 +31,27 @@ export type OverstockStats = Record<number, { pieces: number; totalValue: number
 // missing value means that tier charges the product's base price.
 export type TierPriceMap = Record<number, { contractor?: number; retail?: number }>
 
+// One per-COLOR trim stock line (trim_stock), with its finish swatch and any
+// linked source coil. Grouped by product id for the expandable trim rows.
+export interface TrimVariant {
+  id: number
+  finish_id: number
+  qty: number
+  coil_id: number | null
+  finishes: { name: string; hex: string } | null
+  product_coils: { coil_identifier: string } | null
+}
+
+// One per-LENGTH hat-channel / brace stock line (hat_brace_stock), with any
+// linked source coil. Grouped by product id for the expandable hat/brace rows.
+export interface HatBraceVariant {
+  id: number
+  length_ft: number
+  qty: number
+  coil_id: number | null
+  product_coils: { coil_identifier: string } | null
+}
+
 interface Props {
   groups: InventoryGroup[]
   isWarehouse: boolean
@@ -35,6 +61,22 @@ interface Props {
   categories: ProductCategory[]
   overstockStats?: OverstockStats
   tierPrices?: TierPriceMap
+  // Per-variation stock lines for trim (per color) and hat/brace (per length),
+  // keyed by product id. Drive the expandable sub-rows under those products.
+  trimStock?: Record<number, TrimVariant[]>
+  hatBraceStock?: Record<number, HatBraceVariant[]>
+}
+
+// A trim/hat-brace stock line normalized for a uniform sub-row render.
+interface VariantRow {
+  table: 'trim_stock' | 'hat_brace_stock'
+  id: number
+  swatch?: CSSProperties
+  name: string
+  coil: string | null
+  qty: number
+  // Human label for the approval summary / toast, e.g. "J-Trim · White".
+  summaryLabel: string
 }
 
 // One tier-price cell: the explicit override in bold, or the base-price fallback
@@ -48,7 +90,7 @@ function TierPrice({ override, base }: { override?: number; base: number }) {
   )
 }
 
-export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOffice = false, categories, overstockStats = {}, tierPrices = {} }: Props) {
+export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOffice = false, categories, overstockStats = {}, tierPrices = {}, trimStock = {}, hatBraceStock = {} }: Props) {
   // Track collapsed sections (default: all expanded). Kept in a Set of category
   // ids; survives router.refresh()/realtime updates since state isn't remounted.
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
@@ -58,6 +100,54 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
   const supabase = createClient()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
+
+  // Trim / hat-brace products whose per-variation stock lines are expanded.
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const toggleExpand = (id: number) =>
+    setExpanded((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  // Inline per-variation qty edit. Keyed by table+id since trim_stock and
+  // hat_brace_stock ids can collide.
+  const [qtyEditing, setQtyEditing] = useState<{ table: 'trim_stock' | 'hat_brace_stock'; id: number } | null>(null)
+  const [qtyForm, setQtyForm] = useState('')
+  const [qtySaving, setQtySaving] = useState(false)
+  // Everyone on this staff-only screen may adjust piece counts; office edits
+  // route through the approval queue (see saveQty), admin/warehouse write live.
+  const canEditQty = isAdmin || isWarehouse || isOffice
+
+  // Persist a new qty for one variation. Admin/warehouse write trim_stock /
+  // hat_brace_stock directly; office (isOffice && !isAdmin) proposes the change
+  // to the approval queue instead. Mirrors TrimStockManager.handleUpdateQty.
+  const saveQty = async (table: 'trim_stock' | 'hat_brace_stock', id: number, summaryLabel: string) => {
+    const q = parseInt(qtyForm, 10)
+    if (isNaN(q) || q < 0) { toast.error('Enter a valid quantity'); return }
+    setQtySaving(true)
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: table,
+        operation: 'update',
+        targetId: id,
+        payload: { qty: q },
+        summary: `Set ${summaryLabel} qty to ${q}`,
+      })
+      if (error) { toast.error(error.message); setQtySaving(false); return }
+      toast.success('Submitted for approval')
+      setQtyEditing(null)
+      setQtySaving(false)
+      return
+    }
+    const { error } = await supabase.from(table).update({ qty: q } as never).eq('id', id)
+    if (error) { toast.error(error.message); setQtySaving(false); return }
+    toast.success('Quantity updated')
+    setQtyEditing(null)
+    setQtySaving(false)
+    router.refresh()
+  }
 
   // Local copy of the grouped rows so admin reordering feels instant. Resync
   // when the server sends fresh data (router.refresh / realtime) — render-time
@@ -148,8 +238,36 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                   </button>
                 </td>
               </tr>
-              {isOpen && g.items.map((p, i) => (
-                <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+              {isOpen && g.items.map((p, i) => {
+                // Trim → per-color lines; hat/brace → per-length lines. Only these
+                // product kinds get an expandable region, and only when they have
+                // variation stock rows to show. Normalize both into VariantRow[].
+                const isTrim = isTrimSku(p.sku)
+                const variants: VariantRow[] = isTrim
+                  ? (trimStock[p.id] ?? []).map((v): VariantRow => ({
+                      table: 'trim_stock',
+                      id: v.id,
+                      swatch: swatchStyle(v.finishes ? { hex: v.finishes.hex } : null),
+                      name: v.finishes?.name ?? `Finish ${v.finish_id}`,
+                      coil: v.product_coils?.coil_identifier ?? null,
+                      qty: v.qty,
+                      summaryLabel: `${p.name} · ${v.finishes?.name ?? `Finish ${v.finish_id}`}`,
+                    }))
+                  : isHatBraceSku(p.sku)
+                  ? (hatBraceStock[p.id] ?? []).map((v): VariantRow => ({
+                      table: 'hat_brace_stock',
+                      id: v.id,
+                      name: `${v.length_ft} ft`,
+                      coil: v.product_coils?.coil_identifier ?? null,
+                      qty: v.qty,
+                      summaryLabel: `${p.name} · ${v.length_ft} ft`,
+                    }))
+                  : []
+                const hasVariants = variants.length > 0
+                const isRowExpanded = expanded.has(p.id)
+                return (
+                <Fragment key={p.id}>
+                <tr className="hover:bg-slate-50 transition-colors">
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       {isAdmin && (
@@ -173,7 +291,20 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="font-medium">{p.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          {hasVariants && (
+                            <button
+                              onClick={() => toggleExpand(p.id)}
+                              aria-expanded={isRowExpanded}
+                              aria-label={isRowExpanded ? 'Hide variations' : 'Show variations'}
+                              title={isRowExpanded ? 'Hide variations' : 'Show variations'}
+                              className="text-muted-foreground hover:text-foreground shrink-0"
+                            >
+                              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isRowExpanded ? 'rotate-90' : ''}`} />
+                            </button>
+                          )}
+                          <p className="font-medium">{p.name}</p>
+                        </div>
                         {p.sku && <p className="text-xs text-muted-foreground">{p.sku}</p>}
                       </div>
                     </div>
@@ -223,7 +354,85 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                     <InventoryActions product={p} categories={categories} mode="edit" isAdmin={isAdmin} isOffice={isOffice} />
                   </td>
                 </tr>
-              ))}
+                {hasVariants && isRowExpanded && (
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={colSpan} className="p-0">
+                      <div className="pl-9 pr-3 py-2">
+                        <div className="rounded-lg border bg-white overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead className="bg-slate-50 text-muted-foreground border-b">
+                              <tr>
+                                <th className="text-left px-3 py-1.5 font-medium">{isTrim ? 'Color' : 'Length'}</th>
+                                <th className="text-left px-3 py-1.5 font-medium">Coil</th>
+                                <th className="text-right px-3 py-1.5 font-medium">On Hand</th>
+                                {canEditQty && <th className="text-right px-3 py-1.5 font-medium">Edit</th>}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                              {variants.map((v) => {
+                                const editing = qtyEditing?.table === v.table && qtyEditing?.id === v.id
+                                return (
+                                  <tr key={`${v.table}:${v.id}`} className="hover:bg-slate-50/60">
+                                    <td className="px-3 py-1.5">
+                                      <span className="inline-flex items-center gap-1.5">
+                                        {v.swatch && <span className="w-4 h-4 rounded-full border border-slate-200 shrink-0" style={v.swatch} />}
+                                        <span className="font-medium">{v.name}</span>
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-1.5 font-mono text-muted-foreground">{v.coil ?? '—'}</td>
+                                    <td className="px-3 py-1.5 text-right">
+                                      {editing ? (
+                                        <Input
+                                          type="number" min={0}
+                                          className="h-7 w-20 text-xs text-right ml-auto"
+                                          value={qtyForm}
+                                          onChange={(e) => setQtyForm(e.target.value)}
+                                        />
+                                      ) : (
+                                        <span className={`font-mono font-semibold ${v.qty === 0 ? 'text-red-600' : 'text-green-700'}`}>{v.qty}</span>
+                                      )}
+                                    </td>
+                                    {canEditQty && (
+                                      <td className="px-3 py-1.5 text-right">
+                                        {editing ? (
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <Button size="sm" className="h-7 text-xs" disabled={qtySaving} onClick={() => saveQty(v.table, v.id, v.summaryLabel)}>
+                                              {qtySaving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+                                            </Button>
+                                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setQtyEditing(null)}>Cancel</button>
+                                          </div>
+                                        ) : (
+                                          <Button
+                                            size="sm" variant="outline" className="h-7 text-xs"
+                                            onClick={() => { setQtyEditing({ table: v.table, id: v.id }); setQtyForm(String(v.qty)) }}
+                                          >
+                                            <Pencil className="w-3 h-3 mr-1" />Qty
+                                          </Button>
+                                        )}
+                                      </td>
+                                    )}
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                          <div className="flex justify-end border-t bg-slate-50/60 px-3 py-1.5">
+                            <Link
+                              href={isTrim ? '/dashboard/inventory/trim' : '/dashboard/inventory/hat-brace'}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                            >
+                              Manage in {isTrim ? 'Trim' : 'Hat/Brace'}
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
+                )
+              })}
             </tbody>
           )
         })}

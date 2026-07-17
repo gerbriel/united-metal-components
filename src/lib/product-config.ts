@@ -268,6 +268,25 @@ export function isTrimSku(sku?: string | null): boolean {
   return !!sku && TRIM_SKUS.has(sku.toUpperCase())
 }
 
+// Hat channel + brace (C-channel): per-FOOT products cut from the shared colorless
+// hat_channel_brace coil pool. Their pre-cut piece stock (hat_brace_stock,
+// migration 062) is counted per LENGTH, not per color. Preset lengths live in
+// HAT_CHANNEL_LENGTHS / BRACE_LENGTHS above.
+export const HAT_BRACE_SKUS = new Set(['HAT-CHANNEL', 'BRACE'])
+
+export function isHatBraceSku(sku?: string | null): boolean {
+  return !!sku && HAT_BRACE_SKUS.has(sku.toUpperCase())
+}
+
+// Preset cut lengths offered for a hat/brace SKU's per-length stock (empty for
+// anything else). Drives the length picker in the hat/brace stock manager.
+export function hatBraceLengthsFor(sku?: string | null): number[] {
+  const s = (sku ?? '').toUpperCase()
+  if (s === 'HAT-CHANNEL') return HAT_CHANNEL_LENGTHS
+  if (s === 'BRACE') return BRACE_LENGTHS
+  return []
+}
+
 // A product that can't be meaningfully added to the cart straight from a grid
 // card because it first needs a color, a cut length, or a specific in-stock
 // piece — the storefront card links to the product page ("Select options")

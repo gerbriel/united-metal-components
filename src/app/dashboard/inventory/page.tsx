@@ -5,6 +5,7 @@ import InventoryActions from '@/components/shared/InventoryActions'
 import InventoryNav from '@/components/shared/InventoryNav'
 import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
 import InventoryAccordion from '@/components/shared/InventoryAccordion'
+import type { TrimVariant, HatBraceVariant } from '@/components/shared/InventoryAccordion'
 import { isWarehouseRole, isAdminRole, isOfficeRole } from '@/types/database'
 import type { Product } from '@/types/database'
 import type { Metadata } from 'next'
@@ -29,7 +30,7 @@ export default async function InventoryPage() {
   const isAdmin = isAdminRole(role)
   const isOffice = isOfficeRole(role)
 
-  const [{ data: products }, { data: categories }, { data: overRows }, { data: tierRows }] = await Promise.all([
+  const [{ data: products }, { data: categories }, { data: overRows }, { data: tierRows }, { data: trimRows }, { data: hatBraceRows }] = await Promise.all([
     supabase
       .from('products')
       .select('*, product_categories(id, name, slug, sort_order, icon)')
@@ -42,6 +43,12 @@ export default async function InventoryPage() {
     // Per-item Contractor / Retail overrides for the inventory price columns.
     // A blank tier price falls back to the product's base price in the accordion.
     supabase.from('product_tier_prices').select('product_id, tier_key, price').in('tier_key', ['contractor', 'retail']),
+    // Per-COLOR trim piece stock — one line per finish (+ optional source coil).
+    // Grouped by product_id below into the expandable trim sub-rows.
+    supabase.from('trim_stock').select('id, product_id, finish_id, qty, coil_id, finishes(name, hex), product_coils(coil_identifier)'),
+    // Per-LENGTH hat-channel / brace piece stock — one line per cut length (+ coil).
+    // Grouped by product_id below into the expandable hat/brace sub-rows.
+    supabase.from('hat_brace_stock').select('id, product_id, length_ft, qty, coil_id, product_coils(coil_identifier)'),
   ])
 
   // productId → { contractor?, retail? } explicit tier-price overrides.
@@ -59,6 +66,21 @@ export default async function InventoryPage() {
     const q = Number(r.quantity) || 0
     s.pieces += q
     s.totalValue += (Number(r.unit_price) || 0) * q
+  }
+
+  // productId → per-variation stock lines for the expandable trim / hat-brace
+  // rows. Trim keys by finish (color); hat/brace keys by cut length. Same reduce
+  // shape as overstockStats above; [] fallback if the tables aren't there yet.
+  // Supabase infers the many-to-one joins as arrays; at runtime they're single
+  // objects (or null), which is what TrimVariant/HatBraceVariant model — hence the
+  // cast through unknown.
+  const trimStock: Record<number, TrimVariant[]> = {}
+  for (const r of (trimRows ?? []) as unknown as (TrimVariant & { product_id: number })[]) {
+    (trimStock[r.product_id] ??= []).push(r)
+  }
+  const hatBraceStock: Record<number, HatBraceVariant[]> = {}
+  for (const r of (hatBraceRows ?? []) as unknown as (HatBraceVariant & { product_id: number })[]) {
+    (hatBraceStock[r.product_id] ??= []).push(r)
   }
 
   // Group products under their category (category sort_order). Within each group
@@ -99,6 +121,8 @@ export default async function InventoryPage() {
           categories={categories ?? []}
           overstockStats={overstockStats}
           tierPrices={tierPrices}
+          trimStock={trimStock}
+          hatBraceStock={hatBraceStock}
         />
       </Card>
     </div>

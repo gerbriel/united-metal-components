@@ -13,6 +13,7 @@ export type InventoryTargetTable =
   | 'astm_codes'
   | 'trim_stock'
   | 'finishes'
+  | 'hat_brace_stock'
 
 export type InventoryOperation = 'create' | 'update' | 'archive' | 'restore'
 
