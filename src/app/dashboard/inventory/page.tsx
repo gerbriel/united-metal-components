@@ -6,6 +6,7 @@ import InventoryNav from '@/components/shared/InventoryNav'
 import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
 import InventoryAccordion from '@/components/shared/InventoryAccordion'
 import type { TrimVariant, HatBraceVariant } from '@/components/shared/InventoryAccordion'
+import InventoryCategoryNav from '@/components/shared/InventoryCategoryNav'
 import { isWarehouseRole, isAdminRole, isOfficeRole } from '@/types/database'
 import type { Product } from '@/types/database'
 import type { Metadata } from 'next'
@@ -15,8 +16,10 @@ export const metadata: Metadata = { title: 'Inventory — Dashboard' }
 type JoinedCategory = { id: number; name: string; slug: string; sort_order: number; icon: string | null } | null
 type InvProduct = Product & { product_categories: JoinedCategory }
 
-export default async function InventoryPage() {
+export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
   const supabase = await createClient()
+  const { cat } = await searchParams
+  const activeCat = cat ?? 'all'
 
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
@@ -93,11 +96,17 @@ export default async function InventoryPage() {
     else byCat.set(cid, [p])
   }
 
-  const groups = (categories ?? [])
-    .map((c) => ({ id: c.id, name: c.name, icon: c.icon as string | null, items: byCat.get(c.id) ?? [] }))
+  const allGroups = (categories ?? [])
+    .map((c) => ({ id: c.id, name: c.name, slug: c.slug as string, icon: c.icon as string | null, items: byCat.get(c.id) ?? [] }))
     .filter((g) => g.items.length > 0)
   const uncategorized = byCat.get(-1)
-  if (uncategorized?.length) groups.push({ id: -1, name: 'Uncategorized', icon: null, items: uncategorized })
+  if (uncategorized?.length) allGroups.push({ id: -1, name: 'Uncategorized', slug: 'uncategorized', icon: null, items: uncategorized })
+
+  // Category sub-nav items (only categories that actually hold products).
+  const navCategories = allGroups.map((g) => ({ slug: g.slug, name: g.name, icon: g.icon, count: g.items.length }))
+  // Show every category, or just the one selected via ?cat=<slug>.
+  const shownGroups = activeCat === 'all' ? allGroups : allGroups.filter((g) => g.slug === activeCat)
+  const activeName = navCategories.find((c) => c.slug === activeCat)?.name
 
   return (
     <div className="space-y-5">
@@ -105,16 +114,19 @@ export default async function InventoryPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Inventory</h1>
-          <p className="text-sm text-muted-foreground">Standard products — grouped by storefront category</p>
+          <p className="text-sm text-muted-foreground">
+            {activeCat === 'all' ? 'Products — grouped by category' : `${activeName ?? 'Category'} — products & variant stock`}
+          </p>
         </div>
         <InventoryActions categories={categories ?? []} isAdmin={isAdmin} isOffice={isOffice} />
       </div>
 
       <InventoryNav active="products" />
+      <InventoryCategoryNav categories={navCategories} active={activeCat} />
 
       <Card className="p-2">
         <InventoryAccordion
-          groups={groups}
+          groups={shownGroups}
           isWarehouse={isWarehouse}
           isAdmin={isAdmin}
           isOffice={isOffice}
