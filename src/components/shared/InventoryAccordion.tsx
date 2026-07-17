@@ -265,6 +265,10 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                   : []
                 const hasVariants = variants.length > 0
                 const isRowExpanded = expanded.has(p.id)
+                // Trim / hat-brace parent stock = the SUM of its per-variation lines
+                // (the source of truth), not the stale colorless products.stock_qty.
+                const isVariantProduct = isTrim || isHatBraceSku(p.sku)
+                const variantTotal = variants.reduce((s, v) => s + v.qty, 0)
                 return (
                 <Fragment key={p.id}>
                 <tr className="hover:bg-slate-50 transition-colors">
@@ -315,7 +319,7 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                     // count — not the shell product's stale per-foot fields.
                     const over = isOverstockSku(p.sku)
                     const stats = over ? overstockStats[p.id] ?? { pieces: 0, totalValue: 0 } : null
-                    const stock = stats ? stats.pieces : p.stock_qty
+                    const stock = stats ? stats.pieces : isVariantProduct ? variantTotal : p.stock_qty
                     return (
                       <>
                         {!isWarehouse && (
@@ -336,7 +340,7 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOff
                             </>
                           )
                         )}
-                        <td className="p-3 text-right text-muted-foreground">{over ? 'Total' : p.unit ?? '—'}</td>
+                        <td className="p-3 text-right text-muted-foreground">{over || isVariantProduct ? 'Total' : p.unit ?? '—'}</td>
                         <td className="p-3 text-right font-mono">
                           <span className={stock < 10 && !over ? 'text-red-600 font-bold' : ''}>{stock}</span>
                         </td>
