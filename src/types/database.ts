@@ -385,6 +385,9 @@ export function isWarehouseRole(role: string): boolean {
 export function isAdminRole(role: string): boolean {
   return role === 'admin'
 }
+export function isOfficeRole(role: string): boolean {
+  return role === 'office_employee'
+}
 export function isOfficeOrAdminRole(role: string): boolean {
   return role === 'office_employee' || role === 'admin'
 }

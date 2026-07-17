@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { isAdminRole, isWarehouseRole, STAFF_ROLES } from '@/types/database'
+import { isAdminRole, isWarehouseRole, isOfficeRole, STAFF_ROLES } from '@/types/database'
 import CoilManager from '@/components/shared/CoilManager'
 import InventoryNav from '@/components/shared/InventoryNav'
 import { OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, openPoCoilFlags, allocationsByColor } from '@/lib/coilSupply'
@@ -27,6 +27,7 @@ export default async function CoilsPage() {
 
   const isAdmin     = isAdminRole(role)
   const isWarehouse = isWarehouseRole(role)
+  const isOffice    = isOfficeRole(role)
 
   const [{ data: coils }, { data: vendors }, { data: openPos }, { data: demandRows }, { data: poLines }] = await Promise.all([
     supabase.from('product_coils').select('*').order('received_at', { ascending: false }),
@@ -83,6 +84,7 @@ export default async function CoilsPage() {
       <CoilManager
         initialCoils={(coils ?? []) as any}
         isAdmin={isAdmin}
+        isOffice={isOffice}
         vendors={(vendors ?? []) as any}
         openPos={(openPos ?? []) as any}
         demand={(demandRows ?? []) as any}

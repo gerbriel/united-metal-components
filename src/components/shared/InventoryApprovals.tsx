@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -9,11 +9,16 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle, XCircle, Loader2, ClipboardList } from 'lucide-react'
 
+type EntryType = 'stock_qty' | 'coil_weight' | 'tube_bundle_qty' | 'record'
+type TargetTable =
+  | 'products' | 'product_coils' | 'tube_specs' | 'tube_bundles' | 'panel_overstock' | 'astm_codes'
+type Operation = 'create' | 'update' | 'archive' | 'restore'
+
 export interface InventoryEntry {
   id: string
-  entry_type: 'stock_qty' | 'coil_weight' | 'tube_bundle_qty'
+  entry_type: EntryType
   old_value: number | null
-  new_value: number
+  new_value: number | null
   status: 'pending' | 'approved' | 'rejected'
   submitted_at: string
   notes: string | null
@@ -21,6 +26,12 @@ export interface InventoryEntry {
   product_id: number | null
   coil_id: number | null
   tube_bundle_id: number | null
+  // Generic record-change fields (entry_type === 'record').
+  target_table: TargetTable | null
+  operation: Operation | null
+  target_id: number | null
+  payload: Record<string, unknown> | null
+  summary: string | null
   products?: { name: string; sku: string | null } | null
   product_coils?: { coil_identifier: string; color: string | null } | null
   tube_bundles?: { bundle_identifier: string | null; gauge: string } | null
@@ -31,6 +42,36 @@ const TYPE_LABEL: Record<string, string> = {
   stock_qty:       'Stock Quantity',
   coil_weight:     'Coil Weight (lbs)',
   tube_bundle_qty: 'Tube Bundle Qty',
+}
+
+const TABLE_LABEL: Record<TargetTable, string> = {
+  products:        'Product',
+  product_coils:   'Coil',
+  tube_specs:      'Tube Spec',
+  tube_bundles:    'Tube Bundle',
+  panel_overstock: 'Overstock Listing',
+  astm_codes:      'ASTM Code',
+}
+
+const OP_LABEL: Record<Operation, string> = {
+  create:  'Add',
+  update:  'Edit',
+  archive: 'Archive',
+  restore: 'Restore',
+}
+
+const SELECT = `
+  *,
+  products(name, sku),
+  product_coils(coil_identifier, color),
+  tube_bundles(bundle_identifier, gauge),
+  submitter:submitted_by(full_name)
+`
+
+// The archive/restore patch differs per table: products carry an `active` flag
+// (archive = active:false); every other inventory table uses `archived`.
+function archivePatch(table: TargetTable, archived: boolean): Record<string, unknown> {
+  return table === 'products' ? { active: !archived } : { archived }
 }
 
 export default function InventoryApprovals({ initialEntries }: { initialEntries: InventoryEntry[] }) {
@@ -44,30 +85,68 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
   const pending = entries.filter((e) => e.status === 'pending')
   const displayed = filter === 'pending' ? pending : entries
 
-  const handleApprove = async (entry: InventoryEntry) => {
-    setLoading(entry.id)
-    // Apply the inventory change
-    let applyError: any = null
-    if (entry.entry_type === 'stock_qty' && entry.product_id) {
-      const { error } = await supabase
-        .from('products')
-        .update({ stock_qty: entry.new_value })
-        .eq('id', entry.product_id)
-      applyError = error
-    } else if (entry.entry_type === 'coil_weight' && entry.coil_id) {
-      const { error } = await supabase
-        .from('product_coils')
+  // Keep the queue live so an admin sees office submissions as they arrive.
+  const fetchEntries = useCallback(async () => {
+    const { data } = await supabase
+      .from('inventory_entries')
+      .select(SELECT)
+      .order('submitted_at', { ascending: false })
+      .limit(100)
+    if (data) setEntries(data as unknown as InventoryEntry[])
+  }, [])
+
+  useEffect(() => {
+    const ch = supabase
+      .channel('inventory-entries-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_entries' }, fetchEntries)
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [fetchEntries])
+
+  // Apply a change to its live table. Numeric entries update a single field;
+  // record entries insert/update/archive/restore the whole row. Admins have
+  // is_staff() write access, so this runs as a plain authenticated write.
+  const applyEntry = async (entry: InventoryEntry): Promise<{ message: string } | null> => {
+    if (entry.entry_type === 'stock_qty' && entry.product_id != null) {
+      const { error } = await supabase.from('products')
+        .update({ stock_qty: entry.new_value }).eq('id', entry.product_id)
+      return error
+    }
+    if (entry.entry_type === 'coil_weight' && entry.coil_id != null) {
+      const { error } = await supabase.from('product_coils')
         .update({ current_weight_lbs: entry.new_value, last_weighed_at: new Date().toISOString() })
         .eq('id', entry.coil_id)
-      applyError = error
-    } else if (entry.entry_type === 'tube_bundle_qty' && entry.tube_bundle_id) {
-      const { error } = await supabase
-        .from('tube_bundles')
-        .update({ available_bundles: entry.new_value })
-        .eq('id', entry.tube_bundle_id)
-      applyError = error
+      return error
     }
+    if (entry.entry_type === 'tube_bundle_qty' && entry.tube_bundle_id != null) {
+      const { error } = await supabase.from('tube_bundles')
+        .update({ available_bundles: entry.new_value }).eq('id', entry.tube_bundle_id)
+      return error
+    }
+    if (entry.entry_type === 'record' && entry.target_table && entry.operation) {
+      const table = entry.target_table
+      if (entry.operation === 'create') {
+        const { error } = await supabase.from(table).insert((entry.payload ?? {}) as never)
+        return error
+      }
+      if (entry.target_id == null) return { message: 'Missing target row for this change' }
+      if (entry.operation === 'update') {
+        const { error } = await supabase.from(table)
+          .update((entry.payload ?? {}) as never).eq('id', entry.target_id)
+        return error
+      }
+      // archive / restore
+      const { error } = await supabase.from(table)
+        .update(archivePatch(table, entry.operation === 'archive') as never)
+        .eq('id', entry.target_id)
+      return error
+    }
+    return { message: 'Unsupported or malformed change request' }
+  }
 
+  const handleApprove = async (entry: InventoryEntry) => {
+    setLoading(entry.id)
+    const applyError = await applyEntry(entry)
     if (applyError) {
       toast.error('Failed to apply change: ' + applyError.message)
       setLoading(null)
@@ -80,10 +159,10 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
         status:      'approved',
         reviewed_at: new Date().toISOString(),
         admin_notes: adminNotes[entry.id] || null,
-      })
+      } as never)
       .eq('id', entry.id)
 
-    if (error) toast.error('Approved but failed to record: ' + error.message)
+    if (error) toast.error('Applied but failed to record: ' + error.message)
     else {
       toast.success('Approved and applied')
       setEntries((es) => es.map((e) => e.id === entry.id ? { ...e, status: 'approved' } : e))
@@ -100,7 +179,7 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
         status:      'rejected',
         reviewed_at: new Date().toISOString(),
         admin_notes: adminNotes[entry.id] || null,
-      })
+      } as never)
       .eq('id', entry.id)
 
     if (error) toast.error('Failed to reject')
@@ -111,11 +190,27 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
     setLoading(null)
   }
 
+  const typeBadge = (e: InventoryEntry) => {
+    if (e.entry_type === 'record' && e.target_table && e.operation) {
+      return `${OP_LABEL[e.operation]} · ${TABLE_LABEL[e.target_table]}`
+    }
+    return TYPE_LABEL[e.entry_type] ?? e.entry_type
+  }
+
   const targetLabel = (e: InventoryEntry) => {
+    if (e.entry_type === 'record') return e.summary ?? typeBadge(e)
     if (e.product_id && e.products) return `${e.products.name}${e.products.sku ? ` (${e.products.sku})` : ''}`
     if (e.coil_id && e.product_coils) return `Coil ${e.product_coils.coil_identifier}${e.product_coils.color ? ` — ${e.product_coils.color}` : ''}`
     if (e.tube_bundle_id && e.tube_bundles) return `Bundle ${e.tube_bundles.bundle_identifier ?? e.tube_bundle_id} (${e.tube_bundles.gauge}GA)`
     return 'Unknown'
+  }
+
+  // Compact key/value preview of a record entry's proposed values.
+  const payloadRows = (e: InventoryEntry): [string, string][] => {
+    if (e.entry_type !== 'record' || !e.payload) return []
+    return Object.entries(e.payload)
+      .filter(([, v]) => v !== null && v !== '' && v !== undefined)
+      .map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : String(v)])
   }
 
   if (entries.length === 0) {
@@ -145,22 +240,39 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
       </div>
 
       <div className="space-y-3">
-        {displayed.map((entry) => (
+        {displayed.map((entry) => {
+          const rows = payloadRows(entry)
+          return (
           <div key={entry.id} className="border rounded-xl p-4 space-y-3 bg-white">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge variant="secondary" className="text-xs">{TYPE_LABEL[entry.entry_type]}</Badge>
+                  <Badge variant="secondary" className="text-xs">{typeBadge(entry)}</Badge>
                   {entry.status === 'pending'  && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200 border">Pending</Badge>}
                   {entry.status === 'approved' && <Badge className="text-xs bg-green-100 text-green-700 border-green-200 border">Approved</Badge>}
                   {entry.status === 'rejected' && <Badge className="text-xs bg-red-100 text-red-600 border-red-200 border">Rejected</Badge>}
                 </div>
                 <p className="font-medium text-sm">{targetLabel(entry)}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {entry.old_value != null ? `${entry.old_value} → ` : ''}<span className="font-semibold text-foreground">{entry.new_value}</span>
-                  {' · '}
+                  {entry.entry_type !== 'record' && (
+                    <>
+                      {entry.old_value != null ? `${entry.old_value} → ` : ''}
+                      <span className="font-semibold text-foreground">{entry.new_value}</span>
+                      {' · '}
+                    </>
+                  )}
                   {entry.submitter?.full_name ?? 'Employee'} · {new Date(entry.submitted_at).toLocaleString()}
                 </p>
+                {rows.length > 0 && (
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+                    {rows.map(([k, v]) => (
+                      <div key={k} className="contents">
+                        <dt className="text-muted-foreground">{k}</dt>
+                        <dd className="font-medium text-foreground">{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
                 {entry.notes && <p className="text-xs text-muted-foreground italic mt-1">{entry.notes}</p>}
               </div>
             </div>
@@ -201,7 +313,8 @@ export default function InventoryApprovals({ initialEntries }: { initialEntries:
               </p>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

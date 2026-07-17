@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, Loader2, Star, Pencil, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
 
 export interface AstmRow {
   id: number
@@ -39,9 +40,12 @@ const EMPTY_FORM = {
 interface Props {
   initialCodes: AstmRow[]
   isAdmin: boolean
+  // Office employees add/edit/archive/favorite ASTM codes, but changes go to the
+  // approval queue instead of writing astm_codes directly.
+  isOffice?: boolean
 }
 
-export default function AstmLibraryManager({ initialCodes, isAdmin }: Props) {
+export default function AstmLibraryManager({ initialCodes, isAdmin, isOffice = false }: Props) {
   const [codes, setCodes]     = useState<AstmRow[]>(initialCodes)
   const [showArchived, setShowArchived] = useState(false)
   const [dialogOpen, setDialogOpen]     = useState(false)
@@ -92,6 +96,21 @@ export default function AstmLibraryManager({ initialCodes, isAdmin }: Props) {
       is_favorite: form.is_favorite,
       sort_order: parseInt(form.sort_order) || 0,
     }
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'astm_codes',
+        operation: editingId ? 'update' : 'create',
+        targetId: editingId ?? null,
+        payload,
+        summary: `${editingId ? 'Edit' : 'Add'} ASTM code ${payload.code}`,
+      })
+      if (error) { toast.error(error.message); setSaving(false); return }
+      toast.success('Submitted for admin approval')
+      setDialogOpen(false)
+      setForm(EMPTY_FORM)
+      setSaving(false)
+      return
+    }
     const { error } = editingId
       ? await supabase.from('astm_codes').update(payload).eq('id', editingId)
       : await supabase.from('astm_codes').insert(payload)
@@ -105,6 +124,19 @@ export default function AstmLibraryManager({ initialCodes, isAdmin }: Props) {
 
   const toggleFavorite = async (c: AstmRow) => {
     setBusyId(c.id)
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'astm_codes',
+        operation: 'update',
+        targetId: c.id,
+        payload: { is_favorite: !c.is_favorite },
+        summary: `${c.is_favorite ? 'Unfavorite' : 'Favorite'} ASTM code ${c.code}`,
+      })
+      if (error) toast.error(error.message)
+      else toast.success('Submitted for admin approval')
+      setBusyId(null)
+      return
+    }
     const { error } = await supabase.from('astm_codes').update({ is_favorite: !c.is_favorite }).eq('id', c.id)
     if (error) toast.error(error.message)
     else await fetchCodes()
@@ -113,6 +145,18 @@ export default function AstmLibraryManager({ initialCodes, isAdmin }: Props) {
 
   const setArchived = async (c: AstmRow, archived: boolean) => {
     setBusyId(c.id)
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'astm_codes',
+        operation: archived ? 'archive' : 'restore',
+        targetId: c.id,
+        summary: `${archived ? 'Archive' : 'Restore'} ASTM code ${c.code}`,
+      })
+      if (error) toast.error(error.message)
+      else toast.success('Submitted for admin approval')
+      setBusyId(null)
+      return
+    }
     const { error } = await supabase.from('astm_codes').update({ archived }).eq('id', c.id)
     if (error) toast.error(error.message)
     else { toast.success(archived ? 'Archived' : 'Restored'); await fetchCodes() }

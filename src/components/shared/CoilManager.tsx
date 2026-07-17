@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { COLORS } from '@/lib/product-config'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 import { panelSupplyByColor, type DemandItem, type OrderAllocation } from '@/lib/coilSupply'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
 
 export interface CoilRow {
   id: number
@@ -37,6 +38,8 @@ export interface CoilRow {
 interface Props {
   initialCoils: CoilRow[]
   isAdmin: boolean
+  // Office employees add/edit/archive coils, but changes go to approval first.
+  isOffice?: boolean
   vendors: Vendor[]
   openPos: OpenPo[]
   demand: DemandItem[]
@@ -94,7 +97,8 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, demand, colorsOnOrder = [], allocations = {} }: Props) {
+export default function CoilManager({ initialCoils, isAdmin, isOffice = false, vendors, openPos, demand, colorsOnOrder = [], allocations = {} }: Props) {
+  const canManage = isAdmin || isOffice
   const [expandedColor, setExpandedColor] = useState<string | null>(null)
   const [coils, setCoils]               = useState<CoilRow[]>(initialCoils)
   const [addOpen, setAddOpen]           = useState(false)
@@ -175,6 +179,25 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
       lbs_per_linear_foot: parseFloat(form.lbs_per_linear_foot),
       notes:               form.notes || null,
     }
+
+    // Office: submit the add/edit for admin approval instead of writing directly.
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'product_coils',
+        operation: editingId ? 'update' : 'create',
+        targetId: editingId ?? null,
+        payload,
+        summary: `${editingId ? 'Edit' : 'Add'} coil ${form.coil_identifier}${form.color ? ` — ${form.color}` : ''}`,
+      })
+      if (error) { toast.error(error.message); setAddLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setAddOpen(false)
+      setForm(EMPTY_FORM)
+      setEditingId(null)
+      setAddLoading(false)
+      return
+    }
+
     const { error } = editingId
       ? await supabase.from('product_coils').update(payload).eq('id', editingId)
       : await supabase.from('product_coils').insert(payload)
@@ -189,6 +212,19 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
 
   const setArchived = async (coilId: number, archived: boolean) => {
     setRowBusy(coilId)
+    if (isOffice && !isAdmin) {
+      const coil = coils.find((c) => c.id === coilId)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'product_coils',
+        operation: archived ? 'archive' : 'restore',
+        targetId: coilId,
+        summary: `${archived ? 'Archive' : 'Restore'} coil ${coil?.coil_identifier ?? coilId}`,
+      })
+      if (error) toast.error(error.message)
+      else toast.success('Submitted for admin approval')
+      setRowBusy(null)
+      return
+    }
     const { error } = await supabase.from('product_coils').update({ archived }).eq('id', coilId)
     if (error) toast.error(error.message)
     else { toast.success(archived ? 'Archived' : 'Restored'); await fetchCoils() }
@@ -393,7 +429,7 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
           </label>
         </div>
 
-        {isAdmin && (
+        {canManage && (
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger render={
               <button
@@ -683,38 +719,42 @@ export default function CoilManager({ initialCoils, isAdmin, vendors, openPos, d
                                 {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Reactivate'}
                               </Button>
                             )}
+                            {canManage && (
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(coil)}>
+                                <Pencil className="w-3 h-3 mr-1" />Edit
+                              </Button>
+                            )}
                             {isAdmin && (
-                              <>
-                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEdit(coil)}>
-                                  <Pencil className="w-3 h-3 mr-1" />Edit
+                              <LinkPoDialog
+                                table="product_coils"
+                                rowId={coil.id}
+                                vendors={vendors}
+                                openPos={openPos}
+                                currentVendorId={coil.vendor_id}
+                                currentPoId={coil.po_id}
+                                onLinked={fetchCoils}
+                              />
+                            )}
+                            {canManage && (
+                              coil.archived ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, false)} disabled={rowBusy === coil.id}>
+                                  <ArchiveRestore className="w-3 h-3 mr-1" />Restore
                                 </Button>
-                                <LinkPoDialog
-                                  table="product_coils"
-                                  rowId={coil.id}
-                                  vendors={vendors}
-                                  openPos={openPos}
-                                  currentVendorId={coil.vendor_id}
-                                  currentPoId={coil.po_id}
-                                  onLinked={fetchCoils}
-                                />
-                                {coil.archived ? (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, false)} disabled={rowBusy === coil.id}>
-                                    <ArchiveRestore className="w-3 h-3 mr-1" />Restore
-                                  </Button>
-                                ) : (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, true)} disabled={rowBusy === coil.id}>
-                                    <Archive className="w-3 h-3 mr-1" />Archive
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm" variant="outline"
-                                  className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                  onClick={() => hardDelete(coil)}
-                                  disabled={rowBusy === coil.id}
-                                >
-                                  <Trash2 className="w-3 h-3 mr-1" />Delete
+                              ) : (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(coil.id, true)} disabled={rowBusy === coil.id}>
+                                  <Archive className="w-3 h-3 mr-1" />Archive
                                 </Button>
-                              </>
+                              )
+                            )}
+                            {isAdmin && (
+                              <Button
+                                size="sm" variant="outline"
+                                className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                onClick={() => hardDelete(coil)}
+                                disabled={rowBusy === coil.id}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />Delete
+                              </Button>
                             )}
                           </>
                         )}

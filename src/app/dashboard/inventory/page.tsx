@@ -5,7 +5,7 @@ import InventoryActions from '@/components/shared/InventoryActions'
 import InventoryNav from '@/components/shared/InventoryNav'
 import RealtimeRefresh from '@/components/shared/RealtimeRefresh'
 import InventoryAccordion from '@/components/shared/InventoryAccordion'
-import { isWarehouseRole, isAdminRole } from '@/types/database'
+import { isWarehouseRole, isAdminRole, isOfficeRole } from '@/types/database'
 import type { Product } from '@/types/database'
 import type { Metadata } from 'next'
 
@@ -27,6 +27,7 @@ export default async function InventoryPage() {
   const role = (profile as { role?: string } | null)?.role ?? ''
   const isWarehouse = isWarehouseRole(role)
   const isAdmin = isAdminRole(role)
+  const isOffice = isOfficeRole(role)
 
   const [{ data: products }, { data: categories }, { data: overRows }, { data: tierRows }] = await Promise.all([
     supabase
@@ -84,7 +85,7 @@ export default async function InventoryPage() {
           <h1 className="text-2xl font-bold">Inventory</h1>
           <p className="text-sm text-muted-foreground">Standard products — grouped by storefront category</p>
         </div>
-        <InventoryActions categories={categories ?? []} />
+        <InventoryActions categories={categories ?? []} isAdmin={isAdmin} isOffice={isOffice} />
       </div>
 
       <InventoryNav active="products" />
@@ -94,6 +95,7 @@ export default async function InventoryPage() {
           groups={groups}
           isWarehouse={isWarehouse}
           isAdmin={isAdmin}
+          isOffice={isOffice}
           categories={categories ?? []}
           overstockStats={overstockStats}
           tierPrices={tierPrices}

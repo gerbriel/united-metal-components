@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner'
 import { Plus, Loader2, Settings, Package, Archive, ArchiveRestore, Trash2 } from 'lucide-react'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
 
 interface TubeProduct {
   id: number
@@ -55,6 +56,9 @@ interface Props {
   initialBundles: TubeBundle[]
   tubeProducts:   TubeProduct[]
   isAdmin:        boolean
+  // Office employees add specs/bundles, archive, and adjust counts, but those
+  // changes go to the approval queue instead of writing directly.
+  isOffice?:      boolean
   vendors:        Vendor[]
   openPos:        OpenPo[]
 }
@@ -81,7 +85,8 @@ const EMPTY_BUNDLE_FORM = {
   notes:            '',
 }
 
-export default function TubeManager({ initialSpecs, initialBundles, tubeProducts, isAdmin, vendors, openPos }: Props) {
+export default function TubeManager({ initialSpecs, initialBundles, tubeProducts, isAdmin, isOffice = false, vendors, openPos }: Props) {
+  const canManage = isAdmin || isOffice
   const [specs,   setSpecs]   = useState<TubeSpec[]>(initialSpecs)
   const [bundles, setBundles] = useState<TubeBundle[]>(initialBundles)
   const [coilOptions, setCoilOptions] = useState<{ id: number; coil_identifier: string; gauge: string }[]>([])
@@ -114,6 +119,19 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
 
   const setBundleArchived = async (id: number, archived: boolean) => {
     setRowBusy(id)
+    if (isOffice && !isAdmin) {
+      const b = bundles.find((x) => x.id === id)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'tube_bundles',
+        operation: archived ? 'archive' : 'restore',
+        targetId: id,
+        summary: `${archived ? 'Archive' : 'Restore'} bundle ${b?.bundle_identifier ?? `#${id}`} (${b?.gauge ?? '?'} GA)`,
+      })
+      if (error) toast.error(error.message)
+      else toast.success('Submitted for admin approval')
+      setRowBusy(null)
+      return
+    }
     const { error } = await supabase.from('tube_bundles').update({ archived }).eq('id', id)
     if (error) toast.error(error.message)
     else { toast.success(archived ? 'Archived' : 'Restored'); await fetchAll() }
@@ -197,13 +215,28 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
       return
     }
     setSpecLoading(true)
-    const { error } = await supabase.from('tube_specs').insert({
+    const specPayload = {
       product_id:                parseInt(specForm.product_id),
       gauge:                     specForm.gauge,
       available_lengths_ft:      specForm.available_lengths_ft,
       default_pieces_per_bundle: specForm.default_pieces_per_bundle ? parseInt(specForm.default_pieces_per_bundle) : null,
       price_per_linear_foot:     parseFloat(specForm.price_per_linear_foot),
-    })
+    }
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'tube_specs',
+        operation: 'create',
+        payload: specPayload,
+        summary: `Add ${specForm.gauge} GA tube spec ($${specPayload.price_per_linear_foot}/ft)`,
+      })
+      if (error) { toast.error(error.message); setSpecLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setSpecOpen(false)
+      setSpecForm(withProduct(EMPTY_SPEC_FORM))
+      setSpecLoading(false)
+      return
+    }
+    const { error } = await supabase.from('tube_specs').insert(specPayload)
     if (error) { toast.error(error.message); setSpecLoading(false); return }
     toast.success('Tube spec added')
     setSpecOpen(false)
@@ -220,7 +253,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     }
     setBundleLoading(true)
     const total = parseInt(bundleForm.total_bundles)
-    const { error } = await supabase.from('tube_bundles').insert({
+    const bundlePayload = {
       product_id:        parseInt(bundleForm.product_id),
       coil_id:           bundleForm.coil_id ? parseInt(bundleForm.coil_id) : null,
       gauge:             bundleForm.gauge,
@@ -232,7 +265,22 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
       available_pieces:  0,
       price_per_bundle:  bundleForm.price_per_bundle ? parseFloat(bundleForm.price_per_bundle) : null,
       notes:             bundleForm.notes || null,
-    })
+    }
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'tube_bundles',
+        operation: 'create',
+        payload: bundlePayload,
+        summary: `Add ${total} bundle${total === 1 ? '' : 's'} · ${bundleForm.gauge} GA · ${bundleForm.length_feet} ft`,
+      })
+      if (error) { toast.error(error.message); setBundleLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setBundleOpen(false)
+      setBundleForm(withProduct(EMPTY_BUNDLE_FORM))
+      setBundleLoading(false)
+      return
+    }
+    const { error } = await supabase.from('tube_bundles').insert(bundlePayload)
     if (error) { toast.error(error.message); setBundleLoading(false); return }
     toast.success('Bundle batch added')
     setBundleOpen(false)
@@ -246,13 +294,29 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
     const pieces  = parseInt(countForm.available_pieces) || 0
     if (isNaN(avail) || avail < 0) { toast.error('Enter a valid bundle count'); return }
     setCountLoading(true)
+    const countPayload = {
+      available_bundles: avail,
+      available_pieces:  pieces,
+      status: avail === 0 && pieces === 0 ? 'depleted' : 'active',
+    }
+    if (isOffice && !isAdmin) {
+      const b = bundles.find((x) => x.id === bundleId)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'tube_bundles',
+        operation: 'update',
+        targetId: bundleId,
+        payload: countPayload,
+        summary: `Set bundle ${b?.bundle_identifier ?? `#${bundleId}`} to ${avail} bundles / ${pieces} loose pcs`,
+      })
+      if (error) { toast.error(error.message); setCountLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setCountEditing(null)
+      setCountLoading(false)
+      return
+    }
     const { error } = await supabase
       .from('tube_bundles')
-      .update({
-        available_bundles: avail,
-        available_pieces:  pieces,
-        status: avail === 0 && pieces === 0 ? 'depleted' : 'active',
-      })
+      .update(countPayload)
       .eq('id', bundleId)
     if (error) { toast.error(error.message); setCountLoading(false); return }
     toast.success('Counts updated')
@@ -282,7 +346,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
             <h2 className="text-base font-semibold">Tube Specs</h2>
             <p className="text-xs text-muted-foreground">Pricing and available lengths per product/gauge</p>
           </div>
-          {isAdmin && (
+          {canManage && (
             <Dialog open={specOpen} onOpenChange={setSpecOpen}>
               <DialogTrigger render={
                 <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border text-sm font-medium hover:bg-muted transition-colors">
@@ -435,7 +499,7 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               Show archived
             </label>
-            {isAdmin && (
+            {canManage && (
               <Dialog open={bundleOpen} onOpenChange={setBundleOpen}>
                 <DialogTrigger render={
                   <button className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors">
@@ -690,34 +754,36 @@ export default function TubeManager({ initialSpecs, initialBundles, tubeProducts
                                 <Package className="w-3 h-3 mr-1" />Update
                               </Button>
                               {isAdmin && (
-                                <>
-                                  <LinkPoDialog
-                                    table="tube_bundles"
-                                    rowId={b.id}
-                                    vendors={vendors}
-                                    openPos={openPos}
-                                    currentVendorId={b.vendor_id}
-                                    currentPoId={b.po_id}
-                                    onLinked={fetchAll}
-                                  />
-                                  {b.archived ? (
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, false)} disabled={rowBusy === b.id}>
-                                      <ArchiveRestore className="w-3 h-3 mr-1" />Restore
-                                    </Button>
-                                  ) : (
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, true)} disabled={rowBusy === b.id}>
-                                      <Archive className="w-3 h-3 mr-1" />Archive
-                                    </Button>
-                                  )}
-                                  <Button
-                                    size="sm" variant="outline"
-                                    className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={() => deleteBundle(b)}
-                                    disabled={rowBusy === b.id}
-                                  >
-                                    <Trash2 className="w-3 h-3 mr-1" />Delete
+                                <LinkPoDialog
+                                  table="tube_bundles"
+                                  rowId={b.id}
+                                  vendors={vendors}
+                                  openPos={openPos}
+                                  currentVendorId={b.vendor_id}
+                                  currentPoId={b.po_id}
+                                  onLinked={fetchAll}
+                                />
+                              )}
+                              {canManage && (
+                                b.archived ? (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, false)} disabled={rowBusy === b.id}>
+                                    <ArchiveRestore className="w-3 h-3 mr-1" />Restore
                                   </Button>
-                                </>
+                                ) : (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setBundleArchived(b.id, true)} disabled={rowBusy === b.id}>
+                                    <Archive className="w-3 h-3 mr-1" />Archive
+                                  </Button>
+                                )
+                              )}
+                              {isAdmin && (
+                                <Button
+                                  size="sm" variant="outline"
+                                  className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                  onClick={() => deleteBundle(b)}
+                                  disabled={rowBusy === b.id}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-1" />Delete
+                                </Button>
                               )}
                             </div>
                           )}

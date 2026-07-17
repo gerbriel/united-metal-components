@@ -30,6 +30,8 @@ interface Props {
   groups: InventoryGroup[]
   isWarehouse: boolean
   isAdmin: boolean
+  // Office employees edit/archive products through the approval queue.
+  isOffice?: boolean
   categories: ProductCategory[]
   overstockStats?: OverstockStats
   tierPrices?: TierPriceMap
@@ -46,7 +48,7 @@ function TierPrice({ override, base }: { override?: number; base: number }) {
   )
 }
 
-export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categories, overstockStats = {}, tierPrices = {} }: Props) {
+export default function InventoryAccordion({ groups, isWarehouse, isAdmin, isOffice = false, categories, overstockStats = {}, tierPrices = {} }: Props) {
   // Track collapsed sections (default: all expanded). Kept in a Set of category
   // ids; survives router.refresh()/realtime updates since state isn't remounted.
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
@@ -218,7 +220,7 @@ export default function InventoryAccordion({ groups, isWarehouse, isAdmin, categ
                     )
                   })()}
                   <td className="p-3 text-right">
-                    <InventoryActions product={p} categories={categories} mode="edit" isAdmin={isAdmin} />
+                    <InventoryActions product={p} categories={categories} mode="edit" isAdmin={isAdmin} isOffice={isOffice} />
                   </td>
                 </tr>
               ))}

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { isAdminRole, STAFF_ROLES } from '@/types/database'
+import { isAdminRole, isOfficeRole, STAFF_ROLES } from '@/types/database'
 import AstmLibraryManager from '@/components/shared/AstmLibraryManager'
 import InventoryNav from '@/components/shared/InventoryNav'
 import type { Metadata } from 'next'
@@ -17,6 +17,7 @@ export default async function AstmPage() {
   const role = (profile as any)?.role ?? ''
   if (!STAFF_ROLES.includes(role)) redirect('/')
   const isAdmin = isAdminRole(role)
+  const isOffice = isOfficeRole(role)
 
   const { data: codes } = await supabase
     .from('astm_codes')
@@ -36,7 +37,7 @@ export default async function AstmPage() {
 
       <InventoryNav active="astm" />
 
-      <AstmLibraryManager initialCodes={(codes ?? []) as any} isAdmin={isAdmin} />
+      <AstmLibraryManager initialCodes={(codes ?? []) as any} isAdmin={isAdmin} isOffice={isOffice} />
     </div>
   )
 }

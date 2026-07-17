@@ -12,6 +12,7 @@ import { Plus, Pencil, Loader2, Package, Archive, ArchiveRestore, Trash2 } from 
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { COLORS } from '@/lib/product-config'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
 
 interface OverstockProduct { id: number; name: string; sku: string | null }
 interface PanelCoil { id: number; coil_identifier: string; color: string | null }
@@ -39,6 +40,9 @@ interface Props {
   overstockProducts: OverstockProduct[]
   panelCoils:        PanelCoil[]
   isAdmin:           boolean
+  // Office employees add/edit/archive listings and adjust quantity, but those
+  // changes go to the approval queue instead of writing panel_overstock.
+  isOffice?:         boolean
   vendors:           Vendor[]
   openPos:           OpenPo[]
 }
@@ -70,7 +74,8 @@ function ColorSwatch({ name }: { name: string | null }) {
   )
 }
 
-export default function OverstockManager({ initialRows, overstockProducts, panelCoils, isAdmin, vendors, openPos }: Props) {
+export default function OverstockManager({ initialRows, overstockProducts, panelCoils, isAdmin, isOffice = false, vendors, openPos }: Props) {
+  const canManage = isAdmin || isOffice
   const [rows, setRows] = useState<PanelOverstock[]>(initialRows)
 
   // Overstock panels sell under a single catalog product, so the form auto-links
@@ -140,6 +145,28 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
       coil_id:    form.coil_id ? parseInt(form.coil_id) : null,
       notes:      form.notes || null,
     }
+    const listLabel = `${form.color || 'no color'} · ${fmtLen(lengthFt, payload.length_in)}`
+
+    // Office: everything routes through the approval queue.
+    if (isOffice && !isAdmin) {
+      if (editingId == null && !productId) { toast.error('No overstock product configured'); setAdding(false); return }
+      setAdding(true)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'panel_overstock',
+        operation: editingId != null ? 'update' : 'create',
+        targetId: editingId ?? null,
+        payload: editingId != null ? payload : { product_id: productId, ...payload },
+        summary: `${editingId != null ? 'Edit' : 'Add'} overstock listing — ${listLabel}`,
+      })
+      if (error) { toast.error(error.message); setAdding(false); return }
+      toast.success('Submitted for admin approval')
+      setOpen(false)
+      setEditingId(null)
+      setForm(EMPTY_FORM)
+      setAdding(false)
+      return
+    }
+
     setAdding(true)
     if (editingId != null) {
       const { error } = await supabase.from('panel_overstock').update(payload).eq('id', editingId)
@@ -162,6 +189,21 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
     const q = parseInt(qtyForm)
     if (isNaN(q) || q < 0) { toast.error('Enter a valid quantity'); return }
     setQtyLoading(true)
+    if (isOffice && !isAdmin) {
+      const r = rows.find((x) => x.id === id)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'panel_overstock',
+        operation: 'update',
+        targetId: id,
+        payload: { quantity: q },
+        summary: `Set overstock ${r ? `${r.color ?? 'no color'} · ${fmtLen(r.length_ft, r.length_in)}` : `#${id}`} qty to ${q}`,
+      })
+      if (error) { toast.error(error.message); setQtyLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setQtyEditing(null)
+      setQtyLoading(false)
+      return
+    }
     const { error } = await supabase.from('panel_overstock').update({ quantity: q }).eq('id', id)
     if (error) { toast.error(error.message); setQtyLoading(false); return }
     toast.success('Quantity updated')
@@ -172,6 +214,19 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
 
   const setArchived = async (id: number, archived: boolean) => {
     setRowBusy(id)
+    if (isOffice && !isAdmin) {
+      const r = rows.find((x) => x.id === id)
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'panel_overstock',
+        operation: archived ? 'archive' : 'restore',
+        targetId: id,
+        summary: `${archived ? 'Archive' : 'Restore'} overstock ${r ? `${r.color ?? 'no color'} · ${fmtLen(r.length_ft, r.length_in)}` : `#${id}`}`,
+      })
+      if (error) toast.error(error.message)
+      else toast.success('Submitted for admin approval')
+      setRowBusy(null)
+      return
+    }
     const { error } = await supabase.from('panel_overstock').update({ archived }).eq('id', id)
     if (error) toast.error(error.message)
     else { toast.success(archived ? 'Archived' : 'Restored'); await fetchAll() }
@@ -216,12 +271,12 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
               triggerLabel="Import from order"
             />
           )}
-          {isAdmin && (
+          {canManage && (
             <button onClick={openAdd} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/80 transition-colors">
               <Plus className="w-4 h-4" />Add Listing
             </button>
           )}
-          {isAdmin && (
+          {canManage && (
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(EMPTY_FORM) } }}>
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>{editingId != null ? 'Edit' : 'Add'} Overstock Listing</DialogTitle></DialogHeader>
@@ -374,41 +429,45 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
                             >
                               <Package className="w-3 h-3 mr-1" />Qty
                             </Button>
+                            {canManage && (
+                              <Button
+                                size="sm" variant="outline" className="h-7 text-xs"
+                                onClick={() => openEdit(r)}
+                              >
+                                <Pencil className="w-3 h-3 mr-1" />Edit
+                              </Button>
+                            )}
                             {isAdmin && (
-                              <>
-                                <Button
-                                  size="sm" variant="outline" className="h-7 text-xs"
-                                  onClick={() => openEdit(r)}
-                                >
-                                  <Pencil className="w-3 h-3 mr-1" />Edit
+                              <LinkPoDialog
+                                table="panel_overstock"
+                                rowId={r.id}
+                                vendors={vendors}
+                                openPos={openPos}
+                                currentVendorId={r.vendor_id}
+                                currentPoId={r.po_id}
+                                onLinked={fetchAll}
+                              />
+                            )}
+                            {canManage && (
+                              r.archived ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(r.id, false)} disabled={rowBusy === r.id}>
+                                  <ArchiveRestore className="w-3 h-3 mr-1" />Restore
                                 </Button>
-                                <LinkPoDialog
-                                  table="panel_overstock"
-                                  rowId={r.id}
-                                  vendors={vendors}
-                                  openPos={openPos}
-                                  currentVendorId={r.vendor_id}
-                                  currentPoId={r.po_id}
-                                  onLinked={fetchAll}
-                                />
-                                {r.archived ? (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(r.id, false)} disabled={rowBusy === r.id}>
-                                    <ArchiveRestore className="w-3 h-3 mr-1" />Restore
-                                  </Button>
-                                ) : (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(r.id, true)} disabled={rowBusy === r.id}>
-                                    <Archive className="w-3 h-3 mr-1" />Archive
-                                  </Button>
-                                )}
-                                <Button
-                                  size="sm" variant="outline"
-                                  className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
-                                  onClick={() => deleteRow(r)}
-                                  disabled={rowBusy === r.id}
-                                >
-                                  <Trash2 className="w-3 h-3 mr-1" />Delete
+                              ) : (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setArchived(r.id, true)} disabled={rowBusy === r.id}>
+                                  <Archive className="w-3 h-3 mr-1" />Archive
                                 </Button>
-                              </>
+                              )
+                            )}
+                            {isAdmin && (
+                              <Button
+                                size="sm" variant="outline"
+                                className="h-7 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                                onClick={() => deleteRow(r)}
+                                disabled={rowBusy === r.id}
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />Delete
+                              </Button>
                             )}
                           </div>
                         )}

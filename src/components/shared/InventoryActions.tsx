@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Pencil, Loader2, Archive, ArchiveRestore, Trash2, Info } from 'lucide-react'
 import { isOverstockSku } from '@/lib/product-config'
+import { submitInventoryRequest } from '@/lib/inventory/requests'
 import type { Product, ProductCategory } from '@/types/database'
 
 interface Props {
@@ -18,9 +19,12 @@ interface Props {
   categories: ProductCategory[]
   mode?: 'add' | 'edit'
   isAdmin?: boolean
+  // Office employees can add/edit/archive, but their changes go to the approval
+  // queue instead of writing the products table directly.
+  isOffice?: boolean
 }
 
-export default function InventoryActions({ product, categories, mode = 'add', isAdmin = true }: Props) {
+export default function InventoryActions({ product, categories, mode = 'add', isAdmin = true, isOffice = false }: Props) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -88,6 +92,23 @@ export default function InventoryActions({ product, categories, mode = 'add', is
       active: form.active,
     }
 
+    // Office: route the whole add/edit through the approval queue.
+    if (isOffice && !isAdmin) {
+      const editing = mode === 'edit' && product
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'products',
+        operation: editing ? 'update' : 'create',
+        targetId: editing ? product!.id : null,
+        payload,
+        summary: `${editing ? 'Edit' : 'Add'} product "${form.name}"`,
+      })
+      if (error) { toast.error('Failed to submit for approval'); setLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setOpen(false)
+      setLoading(false)
+      return
+    }
+
     if (mode === 'edit' && product) {
       const newQty = parseInt(form.stock_qty) || 0
       const qtyChanged = product.stock_qty !== newQty
@@ -126,6 +147,19 @@ export default function InventoryActions({ product, categories, mode = 'add', is
   const handleSetActive = async (active: boolean) => {
     if (!product) return
     setLoading(true)
+    if (isOffice && !isAdmin) {
+      const { error } = await submitInventoryRequest(supabase, {
+        targetTable: 'products',
+        operation: active ? 'restore' : 'archive',
+        targetId: product.id,
+        summary: `${active ? 'Restore' : 'Archive'} product "${product.name}"`,
+      })
+      if (error) { toast.error('Failed to submit for approval'); setLoading(false); return }
+      toast.success('Submitted for admin approval')
+      setOpen(false)
+      setLoading(false)
+      return
+    }
     const { error } = await supabase.from('products').update({ active }).eq('id', product.id)
     if (error) { toast.error('Failed to update product'); setLoading(false); return }
     toast.success(active ? 'Product restored' : 'Product archived')

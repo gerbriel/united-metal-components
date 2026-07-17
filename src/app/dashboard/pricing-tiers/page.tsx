@@ -71,7 +71,7 @@ export default async function PricingTiersPage() {
         <h2 className="text-lg font-bold">Tax Rates</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Standard sales tax applies to retail and contractor orders. Agricultural customers are taxed at
-          federal + state ag on the retail price; tax-exempt tiers pay none.
+          the standard rate minus federal + state ag (a reduced rate) on the retail price; tax-exempt tiers pay none.
         </p>
         <TaxRateSettings initial={taxRates} />
       </div>

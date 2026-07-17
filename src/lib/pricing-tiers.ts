@@ -77,8 +77,8 @@ export function defaultTierForType(tiers: PricingTier[], type: CustomerType): st
 //   • contractor_tax_exempt      → Contractor price, no tax
 //   • contractor_tax_exempt_tbd  → Contractor price, taxed until the exemption
 //                                  is approved (pending)
-//   • ag_tax_exempt              → Retail price, taxed at the agricultural rate
-//                                  (federal + state ag), not standard sales tax
+//   • ag_tax_exempt              → Retail price, taxed at the standard sales rate
+//                                  minus the ag deduction (federal + state ag)
 export type TaxMode = 'sales' | 'exempt' | 'ag'
 
 export interface TierPricing {

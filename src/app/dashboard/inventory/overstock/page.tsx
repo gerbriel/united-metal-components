@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { isAdminRole, STAFF_ROLES } from '@/types/database'
+import { isAdminRole, isOfficeRole, STAFF_ROLES } from '@/types/database'
 import OverstockManager from '@/components/shared/OverstockManager'
 import InventoryNav from '@/components/shared/InventoryNav'
 import { OVERSTOCK_SKUS } from '@/lib/product-config'
@@ -23,6 +23,7 @@ export default async function OverstockPage() {
   const role = (profile as any)?.role ?? ''
   if (!STAFF_ROLES.includes(role)) redirect('/')
   const isAdmin = isAdminRole(role)
+  const isOffice = isOfficeRole(role)
 
   const [
     { data: rows },
@@ -73,6 +74,7 @@ export default async function OverstockPage() {
         overstockProducts={(overstockProducts ?? []) as any}
         panelCoils={(panelCoils ?? []) as any}
         isAdmin={isAdmin}
+        isOffice={isOffice}
         vendors={(vendors ?? []) as any}
         openPos={(openPos ?? []) as any}
       />
