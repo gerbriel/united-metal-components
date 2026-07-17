@@ -156,6 +156,83 @@ export function splitUnderside(src: THREE.BufferGeometry, cutoff = -0.35): THREE
   return geo
 }
 
+// Split a FOLDED trim solid into two material groups by SHEET FACE — 0: the exterior
+// (finish) face, 1: the interior (backer) face — so trim shows the painted/printed
+// finish outside and the off-white backer coat inside, exactly like a panel. Trim
+// bends every which way, so the panel's world-down test doesn't apply; instead we
+// rebuild the ribbon's two offset polylines (one sheet-thickness apart) and assign
+// each triangle to whichever its centroid is nearer. Exterior = the LONGER offset
+// (the convex/outer side of the bends); interior = the shorter (concave) side — the
+// "inside" of the trim. Pass the SAME centreline + thickness used for the ribbon.
+export function splitSheetFaces(
+  src: THREE.BufferGeometry,
+  center: [number, number][],
+  thickness = 0.02,
+): THREE.BufferGeometry {
+  const n = center.length
+  const nrm = center.map((p, i) => {
+    const a = center[Math.max(0, i - 1)]
+    const b = center[Math.min(n - 1, i + 1)]
+    const tx = b[0] - a[0], ty = b[1] - a[1]
+    const l = Math.hypot(tx, ty) || 1
+    return [-ty / l, tx / l] as [number, number]
+  })
+  const off = (sign: number) =>
+    center.map((p, i) => [
+      p[0] + sign * nrm[i][0] * thickness / 2,
+      p[1] + sign * nrm[i][1] * thickness / 2,
+    ] as [number, number])
+  const top = off(1), bot = off(-1)
+  const plen = (poly: [number, number][]) => {
+    let s = 0
+    for (let i = 1; i < poly.length; i++) s += Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1])
+    return s
+  }
+  const ext = plen(top) >= plen(bot) ? top : bot   // convex/outer side → finish
+  const int = ext === top ? bot : top              // concave/inner side → backer
+  const distSq = (x: number, y: number, poly: [number, number][]) => {
+    let best = Infinity
+    for (let i = 1; i < poly.length; i++) {
+      const ax = poly[i - 1][0], ay = poly[i - 1][1]
+      const dx = poly[i][0] - ax, dy = poly[i][1] - ay
+      const len2 = dx * dx + dy * dy || 1
+      let u = ((x - ax) * dx + (y - ay) * dy) / len2
+      u = u < 0 ? 0 : u > 1 ? 1 : u
+      const px = ax + u * dx, py = ay + u * dy
+      const d = (x - px) ** 2 + (y - py) ** 2
+      if (d < best) best = d
+    }
+    return best
+  }
+
+  const flat = src.index ? src.toNonIndexed() : src
+  const pos = flat.getAttribute('position') as THREE.BufferAttribute
+  const uv = flat.getAttribute('uv') as THREE.BufferAttribute | undefined
+  const arr = pos.array as Float32Array
+  const uvArr = uv ? (uv.array as Float32Array) : null
+  const exterior: number[] = [], interior: number[] = []
+  for (let t = 0; t < pos.count / 3; t++) {
+    const cx = (arr[t * 9] + arr[t * 9 + 3] + arr[t * 9 + 6]) / 3   // centroid XY
+    const cy = (arr[t * 9 + 1] + arr[t * 9 + 4] + arr[t * 9 + 7]) / 3
+    ;(distSq(cx, cy, ext) <= distSq(cx, cy, int) ? exterior : interior).push(t)
+  }
+  const out = new Float32Array(arr.length)
+  const uvOut = uvArr ? new Float32Array(uvArr.length) : null
+  let o = 0
+  for (const t of [...exterior, ...interior]) {
+    out.set(arr.subarray(t * 9, t * 9 + 9), o * 9)
+    if (uvOut && uvArr) uvOut.set(uvArr.subarray(t * 6, t * 6 + 6), o * 6)
+    o += 1
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(out, 3))
+  if (uvOut) geo.setAttribute('uv', new THREE.BufferAttribute(uvOut, 2))
+  geo.addGroup(0, exterior.length * 3, 0)
+  geo.addGroup(exterior.length * 3, interior.length * 3, 1)
+  geo.computeVertexNormals()
+  return geo
+}
+
 // ── Bubble-wrap texture (procedural raw-pixel DataTexture, cached per palette) ───
 // An offset grid of soft domes: highlight peak → film background → shaded rim.
 // Built as raw RGBA pixels (no 2D canvas → survives software/headless GL, where
