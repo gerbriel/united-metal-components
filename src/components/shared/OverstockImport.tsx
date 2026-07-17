@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Loader2, PackageOpen, AlertTriangle } from 'lucide-react'
-import { COLORS, PANEL_SKUS, OVERSTOCK_SKUS, isOverstockSku } from '@/lib/product-config'
+import { PANEL_SKUS, OVERSTOCK_SKUS, isOverstockSku } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 
 // Turn a canceled order's panel lines into overstock listings. Two entry points
 // share this dialog: the order detail page passes `orderId` (straight to review),
@@ -49,6 +50,7 @@ export default function OverstockImport({
 }: Props) {
   const router = useRouter()
   const supabase = createClient()
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
 
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<'pick' | 'review'>(orderId ? 'review' : 'pick')
@@ -248,7 +250,7 @@ export default function OverstockImport({
                             <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="">— No color —</SelectItem>
-                              {COLORS.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
+                              {palette.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </td>

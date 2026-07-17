@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Plus, Loader2, Scale, Pencil, Archive, ArchiveRestore, Trash2, ChevronRight, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { COLORS } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 import { panelSupplyByColor, type DemandItem, type OrderAllocation } from '@/lib/coilSupply'
 import { submitInventoryRequest } from '@/lib/inventory/requests'
@@ -98,6 +99,7 @@ const EMPTY_FORM = {
 }
 
 export default function CoilManager({ initialCoils, isAdmin, isOffice = false, vendors, openPos, demand, colorsOnOrder = [], allocations = {} }: Props) {
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
   const canManage = isAdmin || isOffice
   const [expandedColor, setExpandedColor] = useState<string | null>(null)
   const [coils, setCoils]               = useState<CoilRow[]>(initialCoils)
@@ -497,7 +499,7 @@ export default function CoilManager({ initialCoils, isAdmin, isOffice = false, v
                     <Select value={form.color} onValueChange={setF('color')}>
                       <SelectTrigger><SelectValue placeholder="Select color…" /></SelectTrigger>
                       <SelectContent>
-                        {COLORS.map((c) => (
+                        {palette.map((c) => (
                           <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
                         ))}
                       </SelectContent>

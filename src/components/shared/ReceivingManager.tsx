@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle2, Upload, FileText, X } from 'lucide-react'
-import { COLORS } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 
 interface TubeProduct { id: number; name: string }
 
@@ -95,6 +95,7 @@ function defaultAstmFor(codes: AstmCode[], cat: string): string {
 }
 
 export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos }: Props) {
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
   // All tubing is a single product — no product picker; bundles auto-link to it.
   const tubeProductId = tubeProducts[0]?.id ?? null
   const bundleDefaults = { ...EMPTY_BUNDLE, product_id: tubeProductId != null ? String(tubeProductId) : '' }
@@ -438,7 +439,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
                 <Select value={coilForm.color} onValueChange={setC('color')}>
                   <SelectTrigger><SelectValue placeholder="Select color…" /></SelectTrigger>
                   <SelectContent>
-                    {COLORS.map((c) => (
+                    {palette.map((c) => (
                       <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>

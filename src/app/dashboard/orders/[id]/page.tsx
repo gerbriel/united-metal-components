@@ -10,6 +10,7 @@ import { ORDER_STATUS_LABEL, isWarehouseRole, isAdminRole } from '@/types/databa
 import OrderAdminActions from '@/components/shared/OrderAdminActions'
 import OrderPriceEditor, { type EditorItem } from '@/components/shared/OrderPriceEditor'
 import { fetchTaxRates } from '@/lib/tax'
+import { buildFinishPriceMap, type FinishPriceMap, type TierPriceMap } from '@/lib/finishes'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
@@ -51,7 +52,7 @@ export default async function DashboardOrderDetail({ params }: Props) {
 
   const { data: order } = await supabase
     .from('orders')
-    .select('*, profiles(first_name, last_name, full_name, phone, company_name, mailing_address, business_address, pricing_tier), order_items(*, products(name, sku, unit, description, price))')
+    .select('*, profiles(first_name, last_name, full_name, phone, company_name, mailing_address, business_address, pricing_tier), order_items(*, products(name, sku, unit, description, price, price_metric))')
     .eq('id', id)
     .single()
 
@@ -135,6 +136,43 @@ export default async function DashboardOrderDetail({ params }: Props) {
   const taxRates = await fetchTaxRates(supabase)
   const canEditPrices = isAdmin && !isWarehouse && order.status === 'pending'
 
+  // Finish- and tier-aware reference pricing for the editor (admin, pending only):
+  // fetch the base-tier (contractor/retail) and per-finish-class overrides for just
+  // the products on this order, mirroring the new-order builder's loader so the
+  // "expected" unit price accounts for finish class + tier basis (per-foot length
+  // is applied per line in OrderPriceEditor).
+  const tierPrices: TierPriceMap = {}
+  let finishPrices: FinishPriceMap = {}
+  if (canEditPrices) {
+    const productIds = [
+      ...new Set(
+        (order.order_items as { product_id: number | null }[])
+          .map((i) => i.product_id)
+          .filter((v): v is number => v != null),
+      ),
+    ]
+    if (productIds.length) {
+      const [{ data: tierRows }, { data: finishRows }] = await Promise.all([
+        supabase
+          .from('product_tier_prices')
+          .select('product_id, tier_key, price')
+          .in('product_id', productIds)
+          .in('tier_key', ['contractor', 'retail']),
+        supabase
+          .from('product_finish_prices')
+          .select('product_id, tier_key, finish_class, price')
+          .in('product_id', productIds)
+          .in('tier_key', ['contractor', 'retail']),
+      ])
+      for (const r of (tierRows ?? []) as { product_id: number; tier_key: string; price: number | string }[]) {
+        const e = (tierPrices[r.product_id] ??= {})
+        if (r.tier_key === 'contractor') e.contractor = Number(r.price)
+        else if (r.tier_key === 'retail') e.retail = Number(r.price)
+      }
+      finishPrices = buildFinishPriceMap(finishRows as never)
+    }
+  }
+
   const editorItems: EditorItem[] = (order.order_items as any[]).map((i: any) => ({
     id: i.id,
     name: i.products?.name ?? 'Unknown product',
@@ -145,7 +183,10 @@ export default async function DashboardOrderDetail({ params }: Props) {
     total_price: Number(i.total_price),
     length_feet: i.length_feet ?? null,
     linear_feet: i.linear_feet ?? null,
+    product_id: i.product_id,
     product_price: i.products?.price != null ? Number(i.products.price) : null,
+    price_metric: i.products?.price_metric ?? 'per_piece',
+    item_color: i.item_color ?? null,
     is_overstock: i.panel_overstock_id != null,
     detail: i.notes ?? null,
   }))
@@ -253,6 +294,8 @@ export default async function DashboardOrderDetail({ params }: Props) {
                   tier={customerTier}
                   rates={taxRates}
                   storedTotal={order.total}
+                  finishPrices={finishPrices}
+                  tierPrices={tierPrices}
                 />
               </CardContent>
             </Card>

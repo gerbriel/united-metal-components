@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { COLORS } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 import type { Vendor } from './VendorManager'
 
 export interface POItem {
@@ -202,6 +203,7 @@ function MaterialInput({ value, suggestions, placeholder, onChange, onPick }: Ma
 
 export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
   const isEdit = !!existingPO
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     vendor_id:     existingPO?.vendor_id ?? '',
@@ -434,7 +436,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NO_COLOR}>— None —</SelectItem>
-                            {COLORS.map((c) => (
+                            {palette.map((c) => (
                               <SelectItem key={c.name} value={c.name}>
                                 <span className="flex items-center gap-2">
                                   <span

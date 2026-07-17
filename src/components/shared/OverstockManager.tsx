@@ -12,6 +12,7 @@ import { Plus, Pencil, Loader2, Package, Archive, ArchiveRestore, Trash2 } from 
 import LinkPoDialog, { type Vendor, type OpenPo } from '@/components/shared/LinkPoDialog'
 import OverstockImport from '@/components/shared/OverstockImport'
 import { COLORS } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 import { submitInventoryRequest } from '@/lib/inventory/requests'
 
 interface OverstockProduct { id: number; name: string; sku: string | null }
@@ -76,6 +77,7 @@ function ColorSwatch({ name }: { name: string | null }) {
 
 export default function OverstockManager({ initialRows, overstockProducts, panelCoils, isAdmin, isOffice = false, vendors, openPos }: Props) {
   const canManage = isAdmin || isOffice
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
   const [rows, setRows] = useState<PanelOverstock[]>(initialRows)
 
   // Overstock panels sell under a single catalog product, so the form auto-links
@@ -290,7 +292,7 @@ export default function OverstockManager({ initialRows, overstockProducts, panel
                       <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">— No color (bare) —</SelectItem>
-                        {COLORS.map((c) => (
+                        {palette.map((c) => (
                           <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
                         ))}
                       </SelectContent>

@@ -22,6 +22,7 @@ import {
   variantGroupFor,
   swatchStyle,
 } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 
 // Live coil availability for one color (panels) or the shared pool (hat/brace).
 // `onOrderFeet` is footage sitting on open purchase orders, not yet received.
@@ -63,6 +64,9 @@ interface Props {
 
 export default function ProductOrderForm({ product, isContractor, availability, preselectOverstockId }: Props) {
   const addItem = useCartStore((s) => s.addItem)
+  // Live, staff-editable palette (falls back to the COLORS constant before the
+  // fetch resolves), driving the color picker below.
+  const palette = useFinishes()
   const sku = product.sku ?? ''
 
   const tubingConfig = TUBING_CONFIG[sku]
@@ -466,7 +470,7 @@ export default function ProductOrderForm({ product, isContractor, availability, 
         <div className="space-y-3">
           <Label className="text-sm font-semibold">Color</Label>
           <div className="flex flex-wrap gap-2">
-            {COLORS.map((c) => (
+            {palette.map((c) => (
               <button
                 key={c.name}
                 type="button"

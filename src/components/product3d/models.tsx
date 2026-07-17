@@ -18,6 +18,7 @@ import {
   screwThreadGeometry,
   drillPointGeometry,
 } from './geom'
+import { finishClassOf } from '@/lib/product-config'
 import type { Archetype } from './resolve'
 
 // Shared prop shape: every model receives the resolved finish color (by name) and
@@ -122,7 +123,7 @@ function Panel({ colorName }: ModelProps) {
   const steel = useSteel(colorName, '#c8c8c0')
   // Galvalume (and no-color/bare) sheets are the same metal on both faces; every
   // painted color gets the off-white backer underneath.
-  const painted = !!colorName && !colorName.toLowerCase().includes('galvalume')
+  const painted = !!colorName && finishClassOf(colorName) !== 'galvalume'
   const under = painted ? PANEL_BACKER : steel
   // Printed stone finishes (Light Rock, Dark Stone): the artwork IS the surface, so
   // the top face renders the texture over a white base (map shows true color) with a
@@ -179,7 +180,7 @@ function extrudedTrim(center: [number, number][], len: number, thickness = 0.02)
 // galvalume trim is the same metal on both faces (no backer coat), like a bare sheet.
 function TrimMesh({ geo, colorName }: { geo: THREE.BufferGeometry; colorName?: string | null }) {
   const exterior = useSteelMaterial(colorName)
-  const painted = !!colorName && !colorName.toLowerCase().includes('galvalume')
+  const painted = !!colorName && finishClassOf(colorName) !== 'galvalume'
   const backer = useMemo(() => new THREE.MeshStandardMaterial({ ...PANEL_BACKER, side: THREE.DoubleSide }), [])
   const material = useMemo(() => [exterior, painted ? backer : exterior], [exterior, painted, backer])
   return <mesh geometry={geo} material={material} castShadow receiveShadow />

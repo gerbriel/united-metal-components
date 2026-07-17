@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { COLORS } from '@/lib/product-config'
+import { COLORS, finishClassOf } from '@/lib/product-config'
 
 // ── Color resolution ──────────────────────────────────────────────────────────
 // Product colors are stored by NAME (see product-config COLORS). Map a name → hex
@@ -17,10 +17,13 @@ export function colorHex(name?: string | null, fallback = BARE_STEEL): string {
 }
 
 // A name reads as bare/metallic finish (galvalume, zinc, bare steel) → shinier.
+// finishClass is the source of truth (galvalume = bare/metallic); the substring
+// terms stay as a secondary fallback for off-palette names (galvanized/bare/zinc)
+// so nothing regresses.
 export function isMetallicFinish(name?: string | null): boolean {
   if (!name) return true
-  const n = name.toLowerCase()
-  return n.includes('galvalume') || n.includes('galvanized') || n.includes('bare') || n.includes('zinc')
+  const lowerName = name.toLowerCase()
+  return finishClassOf(name) === 'galvalume' || /galvalume|galvanized|bare|zinc/.test(lowerName)
 }
 
 // Standard-material params: painted steel is matte; bare/galvalume is polished.
@@ -75,9 +78,11 @@ export function printedTexture(url: string): THREE.Texture {
   return tex
 }
 
-// Texture for a finish NAME, or null if that finish is a plain solid color.
+// Texture for a finish NAME, or null if that finish isn't a printed pattern.
+// finishClass decides whether the finish is a printed pattern; the image URL still
+// comes from the color's `texture` field via TEXTURE_BY_NAME.
 export function colorTexture(name?: string | null): THREE.Texture | null {
-  if (!name) return null
+  if (!name || finishClassOf(name) !== 'pattern') return null
   const url = TEXTURE_BY_NAME[name.toLowerCase()]
   return url ? printedTexture(url) : null
 }

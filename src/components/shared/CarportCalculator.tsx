@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { COLORS } from '@/lib/product-config'
+import { useFinishes } from '@/lib/useFinishes'
 import { cn } from '@/lib/utils'
 import { calculateBom } from '@/lib/carport/calc'
 import type { BomCategory, CarportInput, RollUpDoor } from '@/lib/carport/types'
@@ -80,7 +81,8 @@ function ColorSelect({
   onChange: (v: string) => void
   label: string
 }) {
-  const selected = COLORS.find((c) => c.name === value)
+  const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
+  const selected = palette.find((c) => c.name === value)
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
@@ -99,7 +101,7 @@ function ColorSelect({
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {COLORS.map((c) => (
+          {palette.map((c) => (
             <SelectItem key={c.name} value={c.name}>
               <span
                 className="inline-block w-3.5 h-3.5 rounded-sm ring-1 ring-black/10"

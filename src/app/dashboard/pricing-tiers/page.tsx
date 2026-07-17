@@ -5,6 +5,7 @@ import { isAdminRole, isStaffRole } from '@/types/database'
 import PricingTierManager, { type PricingTierRow } from '@/components/shared/PricingTierManager'
 import TierPriceMatrix, { type MatrixProduct, type TierPriceMap } from '@/components/shared/TierPriceMatrix'
 import TaxRateSettings from '@/components/shared/TaxRateSettings'
+import FinishesManager, { type FinishRow } from '@/components/shared/FinishesManager'
 import { getPricingTiers } from '@/lib/pricing-tiers.server'
 import { buildFinishPriceMap } from '@/lib/finishes'
 import { fetchTaxRates } from '@/lib/tax'
@@ -22,12 +23,14 @@ export default async function PricingTiersPage() {
   if (!isStaffRole(role)) redirect('/')
   if (!isAdminRole(role)) redirect('/dashboard')
 
-  const [{ data: tiers }, { data: profiles }, { data: products }, { data: overrides }, { data: finishOverrides }, activeTiers, taxRates] = await Promise.all([
+  const [{ data: tiers }, { data: profiles }, { data: products }, { data: overrides }, { data: finishOverrides }, { data: finishes }, activeTiers, taxRates] = await Promise.all([
     supabase.from('pricing_tiers').select('*').order('sort_order').order('label'),
     supabase.from('profiles').select('pricing_tier'),
     supabase.from('products').select('id, name, sku, price, unit, price_metric').eq('active', true).order('name'),
     supabase.from('product_tier_prices').select('product_id, tier_key, price'),
     supabase.from('product_finish_prices').select('product_id, tier_key, finish_class, price'),
+    // All finishes (active + inactive) for the admin editor — RLS lets staff read inactive rows.
+    supabase.from('finishes').select('id, name, slug, hex, text_dark, gradient, texture, finish_class, active, sort').order('sort'),
     getPricingTiers({ activeOnly: true }),
     fetchTaxRates(supabase),
   ])
@@ -79,6 +82,16 @@ export default async function PricingTiersPage() {
           the standard rate minus federal + state ag (a reduced rate) on the retail price; tax-exempt tiers pay none.
         </p>
         <TaxRateSettings initial={taxRates} />
+      </div>
+
+      <div className="pt-4 border-t">
+        <h2 className="text-lg font-bold">Finishes / Colors</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          The color palette customers pick from across the storefront and every staff color picker.
+          Edit a swatch, add a new finish, or archive one to hide it from pickers (archived finishes stay
+          on past orders for labeling). Each finish&apos;s class drives its per-color pricing above.
+        </p>
+        <FinishesManager initial={(finishes ?? []) as FinishRow[]} />
       </div>
     </div>
   )

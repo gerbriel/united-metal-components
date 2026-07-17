@@ -9,6 +9,9 @@ import { toast } from 'sonner'
 import { Loader2, Trash2, AlertTriangle, RotateCcw, Save } from 'lucide-react'
 import { formatOrderQty } from '@/lib/orderUnits'
 import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
+import { resolveUnitPrice, extendUnitPrice, type FinishPriceMap, type TierPriceMap } from '@/lib/finishes'
+import { finishClassOf, type PriceMetric } from '@/lib/product-config'
+import { priceBasisTier } from '@/lib/pricing-tiers'
 
 export interface EditorItem {
   id: number
@@ -20,7 +23,10 @@ export interface EditorItem {
   total_price: number
   length_feet: number | null
   linear_feet: number | null
-  product_price: number | null   // current products.price — pricing reference
+  product_id: number             // for tier / finish price lookup
+  product_price: number | null   // current products.price — base pricing reference
+  price_metric: PriceMetric      // per_foot → rate × cut length; per_piece → rate
+  item_color: string | null      // drives finish-class pricing (Galvalume / Pattern)
   is_overstock: boolean          // priced per listing, not from products.price
   detail: string | null          // color / length line note
 }
@@ -34,15 +40,33 @@ function perPieceFeet(it: EditorItem): number | null {
   return it.length_feet
 }
 
-// Expected unit price implied by the CURRENT product price, so staff can spot a
-// line whose stored price has drifted (product re-priced after the order was
-// placed). Mirrors cart's itemUnitPrice: length lines are priced per piece
-// (price/ft × feet), everything else per unit. Overstock is priced per listing
-// (no products.price reference), so it has no expected value.
-function expectedUnit(it: EditorItem): number | null {
+// Reference unit price the CURRENT price list implies for a line, so staff can
+// spot one whose stored price has drifted (re-priced, or a finish/tier default
+// that changed after the order was placed). Mirrors OrderBuilder's resolver
+// exactly: resolve the per-item RATE from the line's finish class (its color) →
+// customer tier basis → base price, then fold the cut length into per-foot lines
+// (rate × feet) — per-piece lines charge the rate as-is. Returns the resolved
+// rate alongside the extended unit so the mismatch note can show the
+// "rate/ft × feet" breakdown. Overstock is priced per listing (no product-price
+// reference), so it has no reference value.
+function expectedFor(
+  it: EditorItem,
+  ctx: { basisTierKey: string; finishPrices: FinishPriceMap; tierPrices: TierPriceMap },
+): { rate: number; unit: number } | null {
   if (it.is_overstock || it.product_price == null) return null
+  const rate = resolveUnitPrice({
+    productId: it.product_id,
+    basisTierKey: ctx.basisTierKey,
+    finishClass: finishClassOf(it.item_color),
+    finishPrices: ctx.finishPrices,
+    tierPrices: ctx.tierPrices,
+    basePrice: it.product_price,
+  })
   const ppf = perPieceFeet(it)
-  return ppf != null ? it.product_price * ppf : it.product_price
+  // Only a per-foot line with a recorded length multiplies by footage; a per-foot
+  // line missing its length falls back to the bare rate (matching prior behavior).
+  const metric: PriceMetric = it.price_metric === 'per_foot' && ppf != null ? 'per_foot' : 'per_piece'
+  return { rate, unit: extendUnitPrice(rate, metric, ppf ?? 0) }
 }
 
 const money = (n: number) => `$${n.toFixed(2)}`
@@ -59,16 +83,24 @@ export default function OrderPriceEditor({
   tier,
   rates,
   storedTotal,
+  finishPrices,
+  tierPrices,
 }: {
   orderId: number
   items: EditorItem[]
   tier: string | null
   rates: TaxRates
   storedTotal: number
+  finishPrices: FinishPriceMap
+  tierPrices: TierPriceMap
 }) {
   const exempt = taxRateForTier(tier, rates) === 0
   const router = useRouter()
   const supabase = createClient()
+
+  // The reference price for every line resolves against the customer's price
+  // basis (Retail / Contractor), the same key OrderBuilder feeds resolveUnitPrice.
+  const priceCtx = { basisTierKey: priceBasisTier(tier ?? ''), finishPrices, tierPrices }
 
   const [rows, setRows] = useState<Row[]>(
     items.map((it) => ({ ...it, priceInput: it.unit_price.toFixed(2) })),
@@ -157,7 +189,8 @@ export default function OrderPriceEditor({
 
       <div className="space-y-2">
         {present.map((r) => {
-          const exp = expectedUnit(r)
+          const expected = expectedFor(r, priceCtx)
+          const exp = expected?.unit ?? null
           const mismatch = exp != null && !near(exp, unitOf(r))
           return (
             <div key={r.id} className="rounded-lg border p-3 space-y-2">
@@ -201,9 +234,9 @@ export default function OrderPriceEditor({
                 <div className="flex items-center gap-2 rounded-md bg-amber-50 border border-amber-200 px-2.5 py-1.5">
                   <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <p className="text-xs text-amber-800">
-                    Current product price implies <span className="font-semibold">{money(exp)}</span>
-                    {perPieceFeet(r) != null && r.product_price != null
-                      ? ` (${money(r.product_price)}/${r.unit ?? 'ft'} × ${Number(perPieceFeet(r)!.toFixed(2))} ft)`
+                    Current pricing implies <span className="font-semibold">{money(exp)}</span>
+                    {expected != null && r.price_metric === 'per_foot' && perPieceFeet(r) != null
+                      ? ` (${money(expected.rate)}/${r.unit ?? 'ft'} × ${Number(perPieceFeet(r)!.toFixed(2))} ft)`
                       : ''}
                   </p>
                   <Button
