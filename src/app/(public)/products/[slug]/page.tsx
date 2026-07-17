@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, permanentRedirect } from 'next/navigation'
 import ProductOrderForm, { type Availability, type CoilAvailability } from '@/components/shared/ProductOrderForm'
-import { PANEL_SKUS, isOverstockSku } from '@/lib/product-config'
+import { PANEL_SKUS, isOverstockSku, isTrimSku } from '@/lib/product-config'
 import ProductViewer from '@/components/product3d/ProductViewer'
 import DoorSizeSelect from '@/components/shared/DoorSizeSelect'
 import VariantSelect, { type VariantOption } from '@/components/shared/VariantSelect'
@@ -171,6 +171,25 @@ export default async function ProductDetailPage({ params, searchParams }: Props)
         pool: { netFeet: Number(poolRow?.net_feet ?? 0), onOrderFeet: 0, hasUnweighed: poolRow?.has_unweighed ?? false },
       }
     }
+  } else if (isTrimSku(sku)) {
+    // Trim (TRIM-J, RIDGE-CAP, …) is colorable and sold per PIECE — its per-color
+    // stock lives in trim_stock (migration 058), staff-only under RLS. The public
+    // page reads net-available-per-color through the SECURITY DEFINER
+    // `public_trim_availability` RPC (on-hand pieces minus those on open orders),
+    // keyed by finish NAME so it drops straight onto the color picker.
+    const [{ data: rows }, { data: finishRows }] = await Promise.all([
+      (supabase.rpc as any)('public_trim_availability'),
+      supabase.from('finishes').select('id, name').eq('active', true),
+    ])
+    const nameById = new Map(((finishRows ?? []) as { id: number; name: string }[]).map((f) => [f.id, f.name]))
+    const byColor: Record<string, number> = {}
+    for (const r of (rows ?? []) as { product_id: number; finish_id: number; available_qty: number }[]) {
+      if (Number(r.product_id) !== product.id || Number(r.available_qty) <= 0) continue
+      const name = nameById.get(Number(r.finish_id))
+      if (!name) continue // finish inactive / renamed away — no swatch to show it on
+      byColor[name] = Number(r.available_qty)
+    }
+    availability = { kind: 'trim', byColor }
   }
 
   // Product structured data (JSON-LD) so search engines and AI agents can read

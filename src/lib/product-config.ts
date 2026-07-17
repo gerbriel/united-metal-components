@@ -249,6 +249,25 @@ export const COLOR_SKUS = new Set([
   'HAT-CHANNEL',
 ])
 
+// Trim SKUs: colorable, per-PIECE flashing/cap pieces cut from the same painted
+// coils as panels. Their per-color stock lives in trim_stock (migration 058),
+// tracked as discrete piece counts per (product, finish) — NOT coil footage.
+// Keep UPPERCASE; SKUs are admin-editable, so match case-insensitively (like
+// OVERSTOCK_SKUS). RIDGE-CAP is included; HAT-CHANNEL/PANEL are per-foot, not here.
+export const TRIM_SKUS = new Set([
+  'TRIM-BOX-EVE',
+  'TRIM-CORNER',
+  'TRIM-FLASHING',
+  'TRIM-J',
+  'TRIM-L',
+  'TRIM-SIDE-VERT',
+  'RIDGE-CAP',
+])
+
+export function isTrimSku(sku?: string | null): boolean {
+  return !!sku && TRIM_SKUS.has(sku.toUpperCase())
+}
+
 // A product that can't be meaningfully added to the cart straight from a grid
 // card because it first needs a color, a cut length, or a specific in-stock
 // piece — the storefront card links to the product page ("Select options")

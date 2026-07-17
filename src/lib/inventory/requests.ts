@@ -3,7 +3,7 @@ import type { createClient } from '@/lib/supabase/client'
 type BrowserClient = ReturnType<typeof createClient>
 
 // Inventory tables an office employee may propose changes to. Mirrors the
-// target_table CHECK in migration 053.
+// target_table CHECK in migrations 053 + 058.
 export type InventoryTargetTable =
   | 'products'
   | 'product_coils'
@@ -11,6 +11,8 @@ export type InventoryTargetTable =
   | 'tube_bundles'
   | 'panel_overstock'
   | 'astm_codes'
+  | 'trim_stock'
+  | 'finishes'
 
 export type InventoryOperation = 'create' | 'update' | 'archive' | 'restore'
 

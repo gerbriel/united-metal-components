@@ -46,6 +46,7 @@ export interface OverstockItem {
 export type Availability =
   | { kind: 'panel'; byColor: Record<string, CoilAvailability> }
   | { kind: 'pool'; pool: CoilAvailability }
+  | { kind: 'trim'; byColor: Record<string, number> }   // per-color piece counts (no lengths)
   | { kind: 'overstock'; items: OverstockItem[] }
   | { kind: 'static' }
 
@@ -313,7 +314,12 @@ export default function ProductOrderForm({ product, isContractor, availability, 
     availability?.kind === 'pool' ? availability.pool
     : availability?.kind === 'panel' ? (selectedColor ? availability.byColor[selectedColor] ?? { netFeet: 0, onOrderFeet: 0, hasUnweighed: false } : null)
     : null
-  const needsColorFirst = availability?.kind === 'panel' && !selectedColor
+  // Trim: an integer piece count for the selected color (0 when that color is
+  // out), or null until a color is picked — mirrors the panel per-color badge.
+  const isTrim = availability?.kind === 'trim'
+  const trimAvail: number | null =
+    availability?.kind === 'trim' ? (selectedColor ? availability.byColor[selectedColor] ?? 0 : null) : null
+  const needsColorFirst = (availability?.kind === 'panel' || isTrim) && !selectedColor
 
   // Linear feet this order would draw from the coil — qty × per-piece length.
   const perPieceFt = hasLengths
@@ -326,10 +332,16 @@ export default function ProductOrderForm({ product, isContractor, availability, 
   // color/pool can't cover it, or (non-coil items) the order exceeds stock.
   const isCoilProduct = availability?.kind === 'panel' || availability?.kind === 'pool'
   const coilShort = coil != null && (coil.netFeet <= 0 || coil.netFeet < neededFeet)
-  const staticShort = !isCoilProduct && qty > product.stock_qty
-  const isRequest = coilShort || staticShort
+  // Trim draws on its own per-color piece count (not coil footage / stock_qty):
+  // asking for more pieces than the selected color has — including a color with 0
+  // in stock — turns the add into a special-order request.
+  const trimShort = trimAvail != null && qty > trimAvail
+  const staticShort = !isCoilProduct && !isTrim && qty > product.stock_qty
+  const isRequest = coilShort || staticShort || trimShort
   // Nothing available at all, vs. some stock that just can't cover this order.
-  const fullyOut = isCoilProduct ? (coil != null && coil.netFeet <= 0) : isOutOfStock
+  const fullyOut = isCoilProduct ? (coil != null && coil.netFeet <= 0)
+    : isTrim ? (trimAvail != null && trimAvail <= 0)
+    : isOutOfStock
 
   const handleAdd = () => {
     if (!canAdd) return
@@ -358,12 +370,22 @@ export default function ProductOrderForm({ product, isContractor, availability, 
     <div className="space-y-6">
       {/* Live availability — estimated linear feet free to promise, with what's
           on order when we're short */}
-      {(coil || needsColorFirst) && (
+      {(coil || needsColorFirst || trimAvail != null) && (
         <div className="space-y-1.5">
           {needsColorFirst ? (
             <Badge variant="secondary" className="gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />Select a color to see availability
             </Badge>
+          ) : trimAvail != null ? (
+            trimAvail > 0 ? (
+              <Badge className="bg-green-100 text-green-800 border-green-200 gap-1.5">
+                <PackageCheck className="w-3.5 h-3.5" />{trimAvail} available
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" />Out of stock
+              </Badge>
+            )
           ) : coil && coil.netFeet > 0 ? (
             <Badge className="bg-green-100 text-green-800 border-green-200 gap-1.5">
               <PackageCheck className="w-3.5 h-3.5" />
