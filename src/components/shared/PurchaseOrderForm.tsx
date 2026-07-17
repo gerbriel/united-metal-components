@@ -315,12 +315,54 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
       status:        status ?? (existingPO?.status ?? 'draft'),
     }
 
+    // Shared line fields for insert/update. product_id (the catalog FK) is
+    // persisted so line-level receiving can credit the right line; total_cost is
+    // a generated column, and quantity_received is deliberately excluded — the
+    // receiving flow owns it, so we never overwrite received progress here.
+    const itemFields = (l: POItem) => ({
+      product_id:  l.product_id ?? null,
+      description: l.description.trim() || null,
+      quantity:    parseFloat(l.quantity) || 1,
+      unit:        l.unit || null,
+      unit_cost:   parseFloat(l.unit_cost) || null,
+      color:       l.color || null,
+      notes:       l.notes || null,
+    })
+
     let poId = existingPO?.id
     if (isEdit && poId) {
       const { error } = await supabase.from('purchase_orders').update(poPayload).eq('id', poId)
       if (error) { toast.error('Failed to update PO'); setSaving(false); return }
-      // Re-insert all items (simple approach — delete then insert)
-      await supabase.from('purchase_order_items').delete().eq('po_id', poId)
+
+      // Diff-based item save so previously-received amounts survive edits. Match
+      // existing rows by their stable id (lines can be reordered or removed):
+      // update surviving rows in place, insert newly-added lines, and delete the
+      // ones the user removed. quantity_received is never written, so each row's
+      // current received value stays put.
+      const keptIds = new Set(validLines.map((l) => l.id).filter(Boolean) as string[])
+      const removedIds = (existingPO?.purchase_order_items ?? [])
+        .map((i) => i.id)
+        .filter((id): id is string => !!id && !keptIds.has(id))
+
+      if (removedIds.length) {
+        const { error: delErr } = await supabase.from('purchase_order_items').delete().in('id', removedIds)
+        if (delErr) { toast.error('Saved PO but failed to remove deleted items'); setSaving(false); return }
+      }
+
+      const updates = validLines.filter((l) => l.id)
+      for (const l of updates) {
+        const { error: updErr } = await supabase
+          .from('purchase_order_items')
+          .update(itemFields(l))
+          .eq('id', l.id!)
+        if (updErr) { toast.error('Saved PO but failed to update items'); setSaving(false); return }
+      }
+
+      const inserts = validLines.filter((l) => !l.id).map((l) => ({ po_id: poId, ...itemFields(l) }))
+      if (inserts.length) {
+        const { error: insErr } = await supabase.from('purchase_order_items').insert(inserts)
+        if (insErr) { toast.error('Saved PO but failed to add items'); setSaving(false); return }
+      }
     } else {
       const { data, error } = await supabase
         .from('purchase_orders')
@@ -329,20 +371,11 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
         .single()
       if (error || !data) { toast.error('Failed to create PO'); setSaving(false); return }
       poId = (data as any).id
+
+      const itemsPayload = validLines.map((l) => ({ po_id: poId, ...itemFields(l) }))
+      const { error: itemErr } = await supabase.from('purchase_order_items').insert(itemsPayload)
+      if (itemErr) { toast.error('Saved PO but failed to save items'); setSaving(false); return }
     }
-
-    const itemsPayload = validLines.map((l) => ({
-      po_id:       poId,
-      description: l.description.trim() || null,
-      quantity:    parseFloat(l.quantity) || 1,
-      unit:        l.unit || null,
-      unit_cost:   parseFloat(l.unit_cost) || null,
-      color:       l.color || null,
-      notes:       l.notes || null,
-    }))
-
-    const { error: itemErr } = await supabase.from('purchase_order_items').insert(itemsPayload)
-    if (itemErr) { toast.error('Saved PO but failed to save items'); setSaving(false); return }
 
     toast.success(isEdit ? 'PO updated' : 'PO created')
     router.push(`/dashboard/purchase-orders/${poId}`)

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { isAdminRole, STAFF_ROLES } from '@/types/database'
+import { isAdminRole, isOfficeRole, STAFF_ROLES } from '@/types/database'
 import ReceivingManager from '@/components/shared/ReceivingManager'
 import InventoryNav from '@/components/shared/InventoryNav'
 import type { Metadata } from 'next'
@@ -21,11 +21,19 @@ export default async function ReceivingPage() {
 
   const role    = (profile as any)?.role ?? ''
   const isAdmin = isAdminRole(role)
-  const canReceive = isAdmin || (STAFF_ROLES.includes(role) && !!(profile as any)?.can_receive_inventory)
+  // Office + admin manage receiving; other staff need the can_receive_inventory flag.
+  const canReceive = isAdmin || isOfficeRole(role) || (STAFF_ROLES.includes(role) && !!(profile as any)?.can_receive_inventory)
 
   if (!canReceive) redirect('/dashboard/inventory')
 
-  const [{ data: tubeProducts }, { data: astmCodes }, { data: vendors }, { data: openPos }] = await Promise.all([
+  const [
+    { data: tubeProducts },
+    { data: astmCodes },
+    { data: vendors },
+    { data: openPos },
+    { data: standardProducts },
+    { data: openPoItems },
+  ] = await Promise.all([
     supabase
       .from('products')
       .select('id, name')
@@ -44,6 +52,19 @@ export default async function ReceivingPage() {
       .select('id, po_number, vendor_id, status, order_date, purchase_order_items(color)')
       .in('status', ['draft', 'submitted', 'partial'])
       .order('order_date', { ascending: false }),
+    // Standard catalog products that can be received into stock.
+    supabase
+      .from('products')
+      .select('id, name, sku, unit')
+      .eq('product_type', 'standard')
+      .eq('active', true)
+      .order('name'),
+    // Open PO lines tied to a product — used to auto-credit the right line on receipt.
+    supabase
+      .from('purchase_order_items')
+      .select('id, po_id, product_id, description, quantity, quantity_received, purchase_orders!inner(po_number, status)')
+      .not('product_id', 'is', null)
+      .in('purchase_orders.status', ['draft', 'submitted', 'partial']),
   ])
 
   return (
@@ -60,6 +81,8 @@ export default async function ReceivingPage() {
         astmCodes={(astmCodes ?? []) as any}
         vendors={(vendors ?? []) as any}
         openPos={(openPos ?? []) as any}
+        standardProducts={(standardProducts ?? []) as any}
+        openPoItems={(openPoItems ?? []) as any}
       />
     </div>
   )

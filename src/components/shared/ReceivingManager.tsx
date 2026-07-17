@@ -31,6 +31,19 @@ interface OpenPo {
   purchase_order_items?: { color: string | null }[]
 }
 
+interface StandardProduct { id: number; name: string; sku: string | null; unit: string | null }
+
+// An open PO line tied to a product — lets a standard-product receipt auto-credit
+// the matching line rather than just bumping stock.
+interface OpenPoItem {
+  id: string
+  po_id: string
+  product_id: number | null
+  description: string | null
+  quantity: number
+  quantity_received: number | null
+}
+
 // First finish color ordered on a PO — used to prefill the coil color when
 // receiving against that PO.
 function poColor(po: OpenPo | undefined): string {
@@ -42,6 +55,8 @@ interface Props {
   astmCodes: AstmCode[]
   vendors: Vendor[]
   openPos: OpenPo[]
+  standardProducts: StandardProduct[]
+  openPoItems: OpenPoItem[]
 }
 
 const STANDARD_LENGTHS = [20, 22, 24, 26, 32]
@@ -59,8 +74,16 @@ const EMPTY_COIL = {
 }
 
 type CoilTab = 'panel' | 'hat_brace'
-type ReceiveTab = CoilTab | 'bundle'
+type ReceiveTab = CoilTab | 'bundle' | 'standard'
 const coilCategoryFor = (tab: CoilTab) => (tab === 'hat_brace' ? 'hat_channel_brace' : 'panel')
+
+// Standard catalog product receipt — bumps stock and, via the RPC, credits the
+// matched PO line. Product + quantity are the only required fields.
+const EMPTY_STANDARD = {
+  product_id: '',
+  qty:        '',
+  notes:      '',
+}
 
 const EMPTY_BUNDLE = {
   product_id:        '',
@@ -94,7 +117,7 @@ function defaultAstmFor(codes: AstmCode[], cat: string): string {
   return astmForCategory(codes, cat).find((c) => c.is_favorite)?.code ?? ''
 }
 
-export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos }: Props) {
+export default function ReceivingManager({ tubeProducts, astmCodes, vendors, openPos, standardProducts, openPoItems }: Props) {
   const palette = useFinishes() // live, staff-editable color palette (falls back to COLORS)
   // All tubing is a single product — no product picker; bundles auto-link to it.
   const tubeProductId = tubeProducts[0]?.id ?? null
@@ -103,10 +126,13 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
   const [tab, setTab]           = useState<ReceiveTab>('panel')
   const [coilForm, setCoilForm] = useState({ ...EMPTY_COIL, astm_code: defaultAstmFor(astmCodes, 'panel') })
   const [bundleForm, setBundleForm] = useState(bundleDefaults)
+  const [stdForm, setStdForm]   = useState({ ...EMPTY_STANDARD })
   const [coilLoading, setCoilLoading]   = useState(false)
   const [bundleLoading, setBundleLoading] = useState(false)
+  const [stdLoading, setStdLoading] = useState(false)
   const [lastCoil, setLastCoil]   = useState<string | null>(null)
   const [lastBundle, setLastBundle] = useState<string | null>(null)
+  const [lastStandard, setLastStandard] = useState<string | null>(null)
 
   // Shipment source — a vendor + optional PO applied to whatever is received.
   const [pos, setPos]           = useState<OpenPo[]>(openPos)
@@ -203,6 +229,9 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
   const setB = (k: keyof typeof EMPTY_BUNDLE) => (v: string | null) =>
     setBundleForm((f) => ({ ...f, [k]: v ?? '' }))
 
+  const setS = (k: keyof typeof EMPTY_STANDARD) => (v: string | null) =>
+    setStdForm((f) => ({ ...f, [k]: v ?? '' }))
+
   const handleReceiveCoil = async () => {
     if (!coilForm.initial_weight_lbs || !coilForm.lbs_per_linear_foot) {
       toast.error('Initial weight and lbs/ft are required')
@@ -281,6 +310,31 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
     setBundleLoading(false)
   }
 
+  const handleReceiveStandard = async () => {
+    if (!stdForm.product_id) { toast.error('Select a product'); return }
+    const qty = parseInt(stdForm.qty)
+    if (!qty || qty <= 0) { toast.error('Quantity must be greater than 0'); return }
+    const productId = parseInt(stdForm.product_id)
+    setStdLoading(true)
+    // The RPC atomically bumps stock, logs the receipt, and (when a line is
+    // matched) credits it + advances the PO status — no client-side stitching.
+    const { error } = await supabase.rpc('receive_standard_product', {
+      p_product_id:   productId,
+      p_qty:          qty,
+      p_po_item_id:   matchedPoItem?.id ?? null,
+      p_po_id:        poId || null,
+      p_vendor_id:    vendorId || null,
+      p_receipt_path: receiptPath || null,
+      p_notes:        stdForm.notes || null,
+    })
+    if (error) { toast.error(error.message); setStdLoading(false); return }
+    const name = standardProducts.find((p) => p.id === productId)?.name ?? 'product'
+    setLastStandard(`${qty} × ${name}`)
+    toast.success(`Received ${qty} × ${name}`)
+    setStdForm({ ...EMPTY_STANDARD })
+    setStdLoading(false)
+  }
+
   const estFootage = coilForm.initial_weight_lbs && coilForm.lbs_per_linear_foot
     ? fmtFeet(parseFloat(coilForm.initial_weight_lbs) / parseFloat(coilForm.lbs_per_linear_foot))
     : null
@@ -292,6 +346,21 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
       }
     : null
 
+  const selectedStdProduct = stdForm.product_id
+    ? standardProducts.find((p) => p.id === parseInt(stdForm.product_id))
+    : undefined
+
+  // Auto-match the open PO line for the chosen PO + product with room left to
+  // receive; its id is credited by the RPC (null → stock bump + log only).
+  const matchedPoItem = poId && stdForm.product_id
+    ? openPoItems.find(
+        (i) =>
+          i.po_id === poId &&
+          i.product_id === parseInt(stdForm.product_id) &&
+          Number(i.quantity_received ?? 0) < Number(i.quantity),
+      )
+    : undefined
+
   return (
     <div className="max-w-2xl space-y-6">
       {/* Tab switcher — one flow per material type */}
@@ -300,6 +369,7 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
           ['panel',     'Receive Panel Coil'],
           ['bundle',    'Receive Tube Bundles'],
           ['hat_brace', 'Receive Hat Channel / Brace Coil'],
+          ['standard',  'Receive Standard Product'],
         ] as const).map(([t, label]) => (
           <button
             key={t}
@@ -617,6 +687,77 @@ export default function ReceivingManager({ tubeProducts, astmCodes, vendors, ope
           <Button onClick={handleReceiveBundle} disabled={bundleLoading} className="w-full">
             {bundleLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Log Bundle Batch Received
+          </Button>
+        </div>
+      )}
+
+      {/* ── Standard product form ───────────────────────────────── */}
+      {tab === 'standard' && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Receive a standard catalog product (fasteners, doors / windows, moisture barrier) into stock.
+            {' '}Select a PO above to auto-credit its matching line — otherwise stock is bumped and logged on its own.
+          </p>
+
+          {lastStandard && (
+            <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              Last received: {lastStandard}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label>Product *</Label>
+              <Select value={stdForm.product_id} onValueChange={setS('product_id')}>
+                <SelectTrigger><SelectValue placeholder="Select product…" /></SelectTrigger>
+                <SelectContent>
+                  {standardProducts.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name}{p.sku ? ` · ${p.sku}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Quantity *
+                {selectedStdProduct?.unit && (
+                  <span className="text-muted-foreground font-normal"> ({selectedStdProduct.unit})</span>
+                )}
+              </Label>
+              <Input
+                type="number"
+                value={stdForm.qty}
+                onChange={(e) => setS('qty')(e.target.value)}
+                placeholder="e.g. 40"
+              />
+            </div>
+
+            {matchedPoItem && (
+              <div className="col-span-2 bg-slate-50 rounded-lg px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Credits PO line — </span>
+                <span className="font-semibold">
+                  {Number(matchedPoItem.quantity_received ?? 0)} / {Number(matchedPoItem.quantity)} received
+                </span>
+              </div>
+            )}
+
+            <div className="col-span-2 space-y-1.5">
+              <Label>Notes</Label>
+              <Input
+                value={stdForm.notes}
+                onChange={(e) => setS('notes')(e.target.value)}
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+
+          <Button onClick={handleReceiveStandard} disabled={stdLoading} className="w-full">
+            {stdLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Log Product Received
           </Button>
         </div>
       )}
