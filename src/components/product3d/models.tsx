@@ -391,17 +391,21 @@ function TrimFrontVert({ colorName }: ModelProps) {
 
 // Rat Guard Trim (girth 6") — base trim along the bottom of closed walls (sheds
 // water/rodents at grade). Presented with the wall face vertical (up +y at x=0):
-// wall face 2.75 → bottom flat out 1.25 → 45° flare down-and-out 1.5 → hem 0.5.
+// wall face 2.75 → bottom flat out 1.25 → 45° flare 1.5 kicking DOWN-AND-BACK
+// under the flat (a sharp 45° V per the profile drawing — the old model had it
+// mirrored, jutting down-and-out) → hem 0.5 on the concealed side. The finish
+// faces the INSIDE of the L (wall face inner side + flat top, extSide +1); the
+// off-white backer shows on the outside.
 //   [ 0.000,  2.750]   top of wall face (against the wall base)
 //   [ 0.000,  0.000]   base bend
-//   [ 1.250,  0.000]   flat, outboard
-//   [ 2.311, -1.061]   45° flare tip (1.5" hypotenuse; hem folds back up the underside)
+//   [ 1.250,  0.000]   flat, outboard end (V bend into the flare)
+//   [ 0.189, -1.061]   flare tip (1.5" hypotenuse; hem folds to the upper/concealed side)
 function TrimRatGuard({ colorName }: ModelProps) {
   const len = 4
   const geo = useMemo(
     () => extrudedTrim(
       hemmedProfile(
-        [[0, 2.75 / 12], [0, 0], [1.25 / 12, 0], [2.311 / 12, -1.061 / 12]],
+        [[0, 2.75 / 12], [0, 0], [1.25 / 12, 0], [0.189 / 12, -1.061 / 12]],
         TRIM_T,
         { end: { len: 0.5 / 12, side: -1 } },
       ),
