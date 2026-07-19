@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import {
   ribbonShape,
+  hemmedProfile,
   extrudeProfile,
   l5Center,
   L5_RIB_H,
@@ -13,6 +14,7 @@ import {
   bubbleTexture,
   colorHex,
   colorTexture,
+  spangleTexture,
   steelMaterialProps,
   isMetallicFinish,
   screwThreadGeometry,
@@ -43,7 +45,7 @@ function useSteel(colorName?: string | null, fallbackHex?: string) {
 function useTubeSteel(colorName?: string | null) {
   const steel = useSteel(colorName, '#bfc4c9')
   return isMetallicFinish(colorName)
-    ? { ...steel, metalness: 0.7, roughness: 0.3, envMapIntensity: 2.2 }
+    ? { ...steel, metalness: 0.62, roughness: 0.48, envMapIntensity: 1.7 }
     : steel
 }
 
@@ -103,13 +105,19 @@ const PANEL_PRINT_MAT = { metalness: 0.1, roughness: 0.82 }
 function useSteelMaterial(colorName?: string | null, fallbackHex?: string): THREE.MeshStandardMaterial {
   const steel = useSteel(colorName, fallbackHex)
   const tex = colorTexture(colorName)
-  return useMemo(
-    () =>
-      tex
-        ? new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide })
-        : new THREE.MeshStandardMaterial({ ...steel, side: THREE.DoubleSide }),
-    [tex, steel],
-  )
+  const metallic = isMetallicFinish(colorName)
+  return useMemo(() => {
+    if (tex) {
+      return new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide })
+    }
+    if (metallic) {
+      // Bare/galvalume sheet: speckled spangle map + bump so it reads as rough
+      // mill finish, not polished mirror (see geom.ts spangleTexture).
+      const sp = spangleTexture()
+      return new THREE.MeshStandardMaterial({ ...steel, map: sp, bumpMap: sp, bumpScale: 0.03, side: THREE.DoubleSide })
+    }
+    return new THREE.MeshStandardMaterial({ ...steel, side: THREE.DoubleSide })
+  }, [tex, steel, metallic])
 }
 
 function Panel({ colorName }: ModelProps) {
@@ -124,27 +132,28 @@ function Panel({ colorName }: ModelProps) {
   // Galvalume (and no-color/bare) sheets are the same metal on both faces; every
   // painted color gets the off-white backer underneath.
   const painted = !!colorName && finishClassOf(colorName) !== 'galvalume'
-  const under = painted ? PANEL_BACKER : steel
-  // Printed stone finishes (Light Rock, Dark Stone): the artwork IS the surface, so
-  // the top face renders the texture over a white base (map shows true color) with a
-  // matte, non-metallic finish. Built imperatively so the first shader compile picks
-  // up USE_MAP (assigning `map` via JSX props can leave material.version at 0 — same
-  // gotcha handled on the insulation roll's materials).
   const tex = colorTexture(colorName)
-  const topMat = useMemo(() => {
-    if (!tex) return null
-    return new THREE.MeshStandardMaterial({
-      color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide,
-    })
-  }, [tex])
-  return (
-    <mesh geometry={geo} castShadow receiveShadow>
-      {topMat
-        ? <primitive object={topMat} attach="material-0" />
-        : <meshStandardMaterial attach="material-0" {...steel} side={THREE.DoubleSide} />}
-      <meshStandardMaterial attach="material-1" {...under} side={THREE.DoubleSide} />
-    </mesh>
-  )
+  // Materials are built imperatively so the first shader compile picks up USE_MAP
+  // (assigning `map` via JSX props can leave material.version at 0 — same gotcha
+  // handled on the insulation roll's materials).
+  //  - printed stone finish → the artwork over a white base, matte
+  //  - painted solid → flat color top, off-white backer underneath
+  //  - bare/galvalume → speckled spangle mill finish, same metal both faces
+  const material = useMemo(() => {
+    const top = tex
+      ? new THREE.MeshStandardMaterial({ color: '#ffffff', map: tex, ...PANEL_PRINT_MAT, side: THREE.DoubleSide })
+      : painted
+        ? new THREE.MeshStandardMaterial({ ...steel, side: THREE.DoubleSide })
+        : (() => {
+            const sp = spangleTexture()
+            return new THREE.MeshStandardMaterial({ ...steel, map: sp, bumpMap: sp, bumpScale: 0.03, side: THREE.DoubleSide })
+          })()
+    const under = painted
+      ? new THREE.MeshStandardMaterial({ ...PANEL_BACKER, side: THREE.DoubleSide })
+      : top
+    return [top, under]
+  }, [tex, painted, steel])
+  return <mesh geometry={geo} material={material} castShadow receiveShadow />
 }
 
 // ── Skylight panel (translucent white polycarbonate, same L5 profile) ────────────
@@ -171,8 +180,17 @@ function Skylight() {
 // ── Trim: folded sheet profiles (extruded along their run) ──────────────────────
 // Split into exterior/interior faces so trim shows the finish outside and the panel
 // backer coat inside (see TrimMesh) — same as a panel's top/underside.
-function extrudedTrim(center: [number, number][], len: number, thickness = 0.02) {
-  return splitSheetFaces(extrudeProfile(ribbonShape(center, thickness), len), center, thickness)
+// Sheet thickness (ft): trim is thin-gauge, so keep it visually thin — hems then
+// read as tight eyelet folds instead of fat bubbles. The big eave/ridge pieces get
+// a hair more so their long faces don't shimmer at thumbnail distance.
+const TRIM_T = 0.0025
+const TRIM_T_HEAVY = 0.003
+
+// `extSide` pins which ribbon offset is the painted/finish face (+1 = left of
+// travel along the centreline) — the length heuristic in splitSheetFaces can pick
+// wrong once hem folds join the outline.
+function extrudedTrim(center: [number, number][], len: number, thickness = TRIM_T, extSide?: 1 | -1) {
+  return splitSheetFaces(extrudeProfile(ribbonShape(center, thickness), len), center, thickness, extSide)
 }
 
 // Renders a folded-trim geometry (grouped by splitSheetFaces) with the finish on the
@@ -186,71 +204,251 @@ function TrimMesh({ geo, colorName }: { geo: THREE.BufferGeometry; colorName?: s
   return <mesh geometry={geo} material={material} castShadow receiveShadow />
 }
 
+// L-Trim (girth 6", from the factory profile spec): unequal legs 3.5" and 1.5" at
+// 90°, with a 0.5" hem folded 180° back at BOTH free ends (true eyelet folds via
+// hemmedProfile). Long leg = covering face, short leg = return.
+//   [ 0.000,  3.500]   long leg top (hem folds back down INSIDE the L, +x)
+//   [ 0.000,  0.000]   apex
+//   [ 1.500,  0.000]   short leg end (hem folds back up the +y face)
 function TrimL({ colorName }: ModelProps) {
-  const F = 4 / 12, len = 4
-  const geo = useMemo(() => extrudedTrim([[F, 0], [0, 0], [0, F]], len), [])
+  const len = 4
+  const geo = useMemo(
+    () => extrudedTrim(
+      hemmedProfile(
+        [[0, 3.5 / 12], [0, 0], [1.5 / 12, 0]],
+        TRIM_T,
+        { start: { len: 0.5 / 12, side: -1 }, end: { len: 0.5 / 12, side: 1 } },
+      ),
+      len, TRIM_T, -1,
+    ),
+    [],
+  )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
+// J-Trim (girth 6"): classic J-channel — broad face 3.5" → bottom 1" → short face up
+// 1" → 0.5" hem folded 180° back down the short face (the profile drawing shows a
+// hem hugging the face, not a flat return lip).
+//   [ 0.000,  3.500]   broad face top (open edge)
+//   [ 0.000,  0.000]   bottom-outer corner
+//   [ 1.000,  0.000]   bottom (channel width 1")
+//   [ 1.000,  1.000]   short face top (hem folds into the channel)
 function TrimJ({ colorName }: ModelProps) {
-  // J-channel: deep back leg, bottom, short front return lip.
-  const D = 2 / 12, W = 1.4 / 12, lip = 0.7 / 12, len = 4
-  const geo = useMemo(() => extrudedTrim([[0, D], [0, 0], [W, 0], [W, lip]], len), [])
+  const len = 4
+  const geo = useMemo(
+    () => extrudedTrim(
+      hemmedProfile(
+        [[0, 3.5 / 12], [0, 0], [1.0 / 12, 0], [1.0 / 12, 1.0 / 12]],
+        TRIM_T,
+        { end: { len: 0.5 / 12, side: 1 } },
+      ),
+      len, TRIM_T, -1,
+    ),
+    [],
+  )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
+// Corner Trim (girth 13"): two 4" faces at 90°; each free end steps 1" out at 45°
+// over the panel's edge rib, runs 1" flat parallel to the face, then a 0.5" hem
+// folded 180° back over the end flat (toward the wall side).
+//   [ 5.707, -0.707]   leg A end-flat outer end (hem folds to +y)
+//   [ 4.707, -0.707]   leg A rib-step base (1" flat)
+//   [ 4.000,  0.000]   leg A face end (1" 45° diagonal)
+//   [ 0.000,  0.000]   apex (the outside corner)
+//   [ 0.000,  4.000]   leg B face end
+//   [-0.707,  4.707]   leg B rib-step base
+//   [-0.707,  5.707]   leg B end-flat outer end (hem folds to +x)
+// Presented apex-UP like the ridge cap (rotated -135°): both legs slope down and
+// the inside of the corner faces the floor.
 function TrimCorner({ colorName }: ModelProps) {
-  // Outside corner: two 3" faces at 90° each ending in a small return hem.
-  const F = 3 / 12, H = 0.7 / 12, k = 0.7, len = 4
+  const len = 4
   const geo = useMemo(
-    () => extrudedTrim([[F - H * k, H * k], [F, 0], [0, 0], [0, F], [H * k, F - H * k]], len),
+    () => {
+      const g = extrudedTrim(
+        hemmedProfile(
+          [
+            [5.707 / 12, -0.707 / 12], [4.707 / 12, -0.707 / 12],
+            [4.0 / 12, 0], [0, 0], [0, 4.0 / 12],
+            [-0.707 / 12, 4.707 / 12], [-0.707 / 12, 5.707 / 12],
+          ],
+          TRIM_T,
+          { start: { len: 0.5 / 12, side: 1 }, end: { len: 0.5 / 12, side: -1 } },
+        ),
+        len, TRIM_T, 1,
+      )
+      g.rotateZ(-Math.PI * 0.75)
+      return g
+    },
     [],
   )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
+// Side Vertical Trim (girth 12.375") — eave trim for a_frame_vertical roofs:
+// hem 0.5 (folded 180° back down the leg) → uphill leg 1.5 → top face 5 → outer
+// (fascia) face down 3 → bottom return 2.375.
+//   [ 0.000,  1.500]   uphill leg top (hem folds back down the -x side)
+//   [ 0.000,  0.000]   leg base / top-face inboard end
+//   [ 5.000,  0.000]   top-outer corner (5" top face)
+//   [ 5.000, -3.000]   outer-bottom corner (3" outer face)
+//   [ 2.625, -3.000]   bottom return, inboard end (2.375" run)
 function TrimSideVert({ colorName }: ModelProps) {
-  // Side vertical trim: a wide face with two folded return legs (channel over the edge).
-  const face = 3.5 / 12, leg = 1.1 / 12, len = 4
+  const len = 4
   const geo = useMemo(
-    () => extrudedTrim([[leg, -leg], [0, 0], [0, face], [leg, face + leg * 0]], len),
+    () => extrudedTrim(
+      hemmedProfile(
+        [
+          [0, 1.5 / 12], [0, 0],
+          [5.0 / 12, 0], [5.0 / 12, -3.0 / 12], [2.625 / 12, -3.0 / 12],
+        ],
+        TRIM_T,
+        { start: { len: 0.5 / 12, side: 1 } },
+      ),
+      len, TRIM_T, 1,
+    ),
     [],
   )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
+// Flashing (girth 5"): transition flashing — 0.5 hem folded 180° back down the
+// steep face → steep face 1.75 (≈15° off vertical) → flat 2.75. (The old model
+// drew the hem extending PAST the top edge; the drawing folds it onto the face.)
+//   [ 0.000,  0.000]   top of steep face (hem folds onto the -x / wall side)
+//   [ 0.453, -1.690]   bottom of steep face (1.75" at 15° from vertical)
+//   [ 3.203, -1.690]   flat outer end (2.75")
 function TrimFlashing({ colorName }: ModelProps) {
-  // Step flashing: a wide flat pan with a bent-up back leg and a small front drip.
-  const W = 6 / 12, up = 1.6 / 12, drip = 0.9 / 12, len = 4
+  const len = 4
   const geo = useMemo(
-    () => extrudedTrim([[-drip * 0.6, -drip], [0, 0], [W, 0], [W, up]], len),
+    () => extrudedTrim(
+      hemmedProfile(
+        [[0, 0], [0.453 / 12, -1.69 / 12], [3.203 / 12, -1.69 / 12]],
+        TRIM_T,
+        { start: { len: 0.5 / 12, side: 1 } },
+      ),
+      len, TRIM_T, 1,
+    ),
     [],
   )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
+// Box Eve Trim (girth 14") — eave cap for a_frame_horizontal roofs: top face 3.375
+// → outer face down 2.625 → soffit return 6 (inboard, past the top face) → drip leg
+// down 1.5 → hem 0.5. (Replaces the old approximated Carports guess constants.)
+//   [ 0.000,  0.000]   top face, inboard end (roof panel laps over)
+//   [ 3.375,  0.000]   top-outer corner
+//   [ 3.375, -2.625]   outer-bottom corner
+//   [-2.625, -2.625]   soffit return, inboard end (6" run)
+//   [-2.625, -4.125]   drip leg bottom (1.5"; hem folds back up the -x side)
+// extSide pins the finish OUTSIDE (fascia/soffit) and the backer coat inside.
 function TrimBoxEve({ colorName }: ModelProps) {
-  // Boxed eave cap (from the Carports profile): top flat, outer face, bottom return, drip.
-  const H = 0.46, WT = 0.26, WB = 0.38, HK = 0.12, len = 4
+  const len = 4
   const geo = useMemo(
-    () => extrudedTrim([[WT, H], [0, H], [0, 0], [WB, 0], [WB + HK * 0.6, -HK]], len, 0.024),
+    () => extrudedTrim(
+      hemmedProfile(
+        [
+          [0, 0], [3.375 / 12, 0], [3.375 / 12, -2.625 / 12],
+          [-2.625 / 12, -2.625 / 12], [-2.625 / 12, -4.125 / 12],
+        ],
+        TRIM_T_HEAVY,
+        { end: { len: 0.5 / 12, side: -1 } },
+      ),
+      len, TRIM_T_HEAVY, 1,
+    ),
+    [],
+  )
+  return <TrimMesh geo={geo} colorName={colorName} />
+}
+
+// Front Vertical Trim (girth 13.375") — gable/rake trim for a_frame_vertical roofs:
+// top face 3.5 → outer face down 3.875 → bottom return 4 (inboard, past the top face
+// by 0.5") → drip leg 1.5 → hem 0.5. The a_frame_vertical rake analog of Box Eve.
+//   [ 0.000,  0.000]   top face, inboard end (open edge)
+//   [ 3.500,  0.000]   top-outer corner
+//   [ 3.500, -3.875]   outer-bottom corner
+//   [-0.500, -3.875]   bottom return, inboard end (4" run)
+//   [-0.500, -5.375]   drip leg bottom (1.5"; hem folds back up the +x side)
+function TrimFrontVert({ colorName }: ModelProps) {
+  const len = 4
+  const geo = useMemo(
+    () => extrudedTrim(
+      hemmedProfile(
+        [
+          [0, 0], [3.5 / 12, 0], [3.5 / 12, -3.875 / 12],
+          [-0.5 / 12, -3.875 / 12], [-0.5 / 12, -5.375 / 12],
+        ],
+        TRIM_T_HEAVY,
+        { end: { len: 0.5 / 12, side: 1 } },
+      ),
+      len, TRIM_T_HEAVY, 1,
+    ),
+    [],
+  )
+  return <TrimMesh geo={geo} colorName={colorName} />
+}
+
+// Rat Guard Trim (girth 6") — base trim along the bottom of closed walls (sheds
+// water/rodents at grade). Presented with the wall face vertical (up +y at x=0):
+// wall face 2.75 → bottom flat out 1.25 → 45° flare down-and-out 1.5 → hem 0.5.
+//   [ 0.000,  2.750]   top of wall face (against the wall base)
+//   [ 0.000,  0.000]   base bend
+//   [ 1.250,  0.000]   flat, outboard
+//   [ 2.311, -1.061]   45° flare tip (1.5" hypotenuse; hem folds back up the underside)
+function TrimRatGuard({ colorName }: ModelProps) {
+  const len = 4
+  const geo = useMemo(
+    () => extrudedTrim(
+      hemmedProfile(
+        [[0, 2.75 / 12], [0, 0], [1.25 / 12, 0], [2.311 / 12, -1.061 / 12]],
+        TRIM_T,
+        { end: { len: 0.5 / 12, side: -1 } },
+      ),
+      len, TRIM_T, 1,
+    ),
     [],
   )
   return <TrimMesh geo={geo} colorName={colorName} />
 }
 
 function RidgeCap({ colorName }: ModelProps) {
-  // 14" strip bent to a peak (≈18° each slope) with a drip leg at each edge.
-  const theta = (18 * Math.PI) / 180
-  const W = (14 / 12 - 2 * 0.06) / 2, hem = 0.06, len = 4.5
+  // 14" strip bent to a peak (≈18° each slope). Each edge turns down through a
+  // SOFT filleted bend (~55° off the slope, small radius — was a hard crease to a
+  // vertical drip leg) into a short leg finished with a 0.5" hem folded back up
+  // the INSIDE face of the leg.
   const geo = useMemo(() => {
-    const cz = Math.cos(theta), sz = Math.sin(theta)
-    const lwe: [number, number] = [-W * cz, -W * sz]
-    const rwe: [number, number] = [W * cz, -W * sz]
-    const center: [number, number][] = [
-      [lwe[0], lwe[1] - hem], lwe, [0, 0], rwe, [rwe[0], rwe[1] - hem],
+    const theta = (18 * Math.PI) / 180
+    const turn = (55 * Math.PI) / 180    // edge bend off the slope
+    const fr = 0.03                       // fillet radius at the bend (ft)
+    const legLen = 0.06, hemLen = 0.5 / 12, len = 4.5
+    const W = (14 / 12 - 2 * legLen) / 2  // slope half-width along the sheet
+    const rot = (v: [number, number], a: number): [number, number] =>
+      [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a)]
+    // right half from the peak: slope down, filleted bend, leg — mirrored for left
+    const ds: [number, number] = [Math.cos(theta), -Math.sin(theta)]
+    const dl = rot(ds, -turn)             // leg direction: down, kicked slightly out
+    const rwe: [number, number] = [W * ds[0], W * ds[1]]
+    const td = fr * Math.tan(turn / 2)    // fillet tangent setback from the corner
+    const p1: [number, number] = [rwe[0] - ds[0] * td, rwe[1] - ds[1] * td]
+    const cn = rot(ds, -Math.PI / 2)      // toward the bend centre (inside the turn)
+    const c: [number, number] = [p1[0] + cn[0] * fr, p1[1] + cn[1] * fr]
+    const right: [number, number][] = [p1]
+    for (let i = 1; i <= 4; i++) {
+      const v = rot([p1[0] - c[0], p1[1] - c[1]], -(turn * i) / 4)
+      right.push([c[0] + v[0], c[1] + v[1]])
+    }
+    const p2 = right[right.length - 1]
+    right.push([p2[0] + dl[0] * legLen, p2[1] + dl[1] * legLen])
+    const face: [number, number][] = [
+      ...right.map(([x, y]) => [-x, y] as [number, number]).reverse(),
+      [0, 0],
+      ...right,
     ]
-    return extrudedTrim(center, len, 0.024)
+    const center = hemmedProfile(face, TRIM_T_HEAVY, {
+      start: { len: hemLen, side: 1 }, end: { len: hemLen, side: -1 },
+    })
+    return extrudedTrim(center, len, TRIM_T_HEAVY, 1)
   }, [])
   return <TrimMesh geo={geo} colorName={colorName} />
 }
@@ -259,7 +457,7 @@ function HatChannel({ colorName }: ModelProps) {
   // Top-hat section: two bottom flanges, two walls, a raised top web.
   const f = 1.2 / 12, w = 1.5 / 12, h = 1.0 / 12, len = 4.5
   const geo = useMemo(
-    () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len, 0.01),
+    () => extrudedTrim([[-(w + f), 0], [-w, 0], [-w, h], [w, h], [w, 0], [w + f, 0]], len, 0.01, 1),
     [],
   )
   return <TrimMesh geo={geo} colorName={colorName} />
@@ -1426,6 +1624,8 @@ const REGISTRY: Record<Archetype, React.ComponentType<ModelProps>> = {
   'trim-side-vert': TrimSideVert,
   'trim-flashing': TrimFlashing,
   'trim-box-eve': TrimBoxEve,
+  'trim-front-vert': TrimFrontVert,
+  'trim-rat-guard': TrimRatGuard,
   'ridge-cap': RidgeCap,
   'hat-channel': HatChannel,
   'l-bracket': LBracket,

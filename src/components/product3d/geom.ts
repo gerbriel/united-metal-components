@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { COLORS, finishClassOf } from '@/lib/product-config'
+import { COLORS, finishClassOf, canonicalColorName } from '@/lib/product-config'
 
 // ── Color resolution ──────────────────────────────────────────────────────────
 // Product colors are stored by NAME (see product-config COLORS). Map a name → hex
@@ -13,7 +13,9 @@ const COLOR_BY_NAME: Record<string, string> = Object.fromEntries(
 
 export function colorHex(name?: string | null, fallback = BARE_STEEL): string {
   if (!name) return fallback
-  return COLOR_BY_NAME[name.toLowerCase()] ?? fallback
+  // canonicalColorName maps renamed finishes (e.g. stored "Hawaiian Blue" rows)
+  // onto the current palette entry.
+  return COLOR_BY_NAME[canonicalColorName(name).trim().toLowerCase()] ?? fallback
 }
 
 // A name reads as bare/metallic finish (galvalume, zinc, bare steel) → shinier.
@@ -22,14 +24,19 @@ export function colorHex(name?: string | null, fallback = BARE_STEEL): string {
 // so nothing regresses.
 export function isMetallicFinish(name?: string | null): boolean {
   if (!name) return true
-  const lowerName = name.toLowerCase()
-  return finishClassOf(name) === 'galvalume' || /galvalume|galvanized|bare|zinc/.test(lowerName)
+  // Canonicalize first: legacy "Zinc Gray" rows must NOT hit the 'zinc' substring
+  // fallback (it's a painted solid, renamed Quaker Gray) — only true bare finishes.
+  const lowerName = canonicalColorName(name).toLowerCase()
+  return finishClassOf(lowerName) === 'galvalume' || /galvalume|galvanized|bare|zinc/.test(lowerName)
 }
 
-// Standard-material params: painted steel is matte; bare/galvalume is polished.
+// Standard-material params. Painted steel is matte. Bare/galvalume is hot-dip
+// mill finish — matte and grainy, NOT a polished mirror: mostly-metal but rough,
+// so it reads light and diffuse instead of reflecting the dark env backdrop.
+// Pair with spangleTexture() on sheet products for the speckled crystallite look.
 export function steelMaterialProps(name?: string | null) {
   return isMetallicFinish(name)
-    ? { metalness: 0.9, roughness: 0.28 }
+    ? { metalness: 0.72, roughness: 0.52 }
     : { metalness: 0.55, roughness: 0.42 }
 }
 
@@ -83,7 +90,7 @@ export function printedTexture(url: string): THREE.Texture {
 // comes from the color's `texture` field via TEXTURE_BY_NAME.
 export function colorTexture(name?: string | null): THREE.Texture | null {
   if (!name || finishClassOf(name) !== 'pattern') return null
-  const url = TEXTURE_BY_NAME[name.toLowerCase()]
+  const url = TEXTURE_BY_NAME[canonicalColorName(name).trim().toLowerCase()]
   return url ? printedTexture(url) : null
 }
 
@@ -114,6 +121,59 @@ export function ribbonShape(center: [number, number][], thickness = 0.03): THREE
   for (let i = n - 1; i >= 0; i--) s.lineTo(bot[i][0], bot[i][1])
   s.closePath()
   return s
+}
+
+// A true 180° hem fold (the "eyelet" on a trim edge): at the sheet edge the metal
+// wraps a tight semicircular fold and runs back parallel to the face on one side —
+// the elongated loop in the factory profile drawings. Returns the centreline points
+// AFTER the edge point: the fold arc, then the return-leg end. `prev` fixes the
+// direction of travel into the edge; `side` picks which face the hem folds back
+// onto (+1 = left of travel prev→edge, -1 = right). Centreline separation across
+// the fold is 1.5× the sheet thickness (open hem: a half-thickness air gap), which
+// keeps the ribbon's inner fold radius positive — a straight-stub hem here made the
+// offset outline balloon into a bubble at the fold.
+export function hemFold(
+  prev: [number, number],
+  edge: [number, number],
+  hemLen: number,
+  side: 1 | -1,
+  thickness: number,
+  segments = 6,
+): [number, number][] {
+  const dx = edge[0] - prev[0], dy = edge[1] - prev[1]
+  const l = Math.hypot(dx, dy) || 1
+  const d: [number, number] = [dx / l, dy / l]
+  const p: [number, number] = [-side * d[1], side * d[0]]  // unit normal, fold side
+  const r = (1.5 * thickness) / 2                          // centreline fold radius
+  const c: [number, number] = [edge[0] + p[0] * r, edge[1] + p[1] * r]
+  const pts: [number, number][] = []
+  for (let i = 1; i <= segments; i++) {
+    const th = (Math.PI * i) / segments
+    pts.push([
+      c[0] - p[0] * r * Math.cos(th) + d[0] * r * Math.sin(th),
+      c[1] - p[1] * r * Math.cos(th) + d[1] * r * Math.sin(th),
+    ])
+  }
+  // return leg: back along the face, hem length measured from the fold
+  pts.push([edge[0] + p[0] * 2 * r - d[0] * hemLen, edge[1] + p[1] * 2 * r - d[1] * hemLen])
+  return pts
+}
+
+// Build a trim centreline from its bare FACE polyline plus true 180° hem folds
+// (hemFold) at either free end. Hem lengths/sides come from the profile spec.
+export function hemmedProfile(
+  face: [number, number][],
+  thickness: number,
+  hems: { start?: { len: number; side: 1 | -1 }; end?: { len: number; side: 1 | -1 } },
+): [number, number][] {
+  const pts: [number, number][] = [...face]
+  if (hems.end) {
+    pts.push(...hemFold(face[face.length - 2], face[face.length - 1], hems.end.len, hems.end.side, thickness))
+  }
+  if (hems.start) {
+    pts.unshift(...hemFold(face[1], face[0], hems.start.len, hems.start.side, thickness).reverse())
+  }
+  return pts
 }
 
 // Extrude a cross-section shape a given depth along +Z (no bevel), recentred on Z.
@@ -166,13 +226,16 @@ export function splitUnderside(src: THREE.BufferGeometry, cutoff = -0.35): THREE
 // finish outside and the off-white backer coat inside, exactly like a panel. Trim
 // bends every which way, so the panel's world-down test doesn't apply; instead we
 // rebuild the ribbon's two offset polylines (one sheet-thickness apart) and assign
-// each triangle to whichever its centroid is nearer. Exterior = the LONGER offset
-// (the convex/outer side of the bends); interior = the shorter (concave) side — the
-// "inside" of the trim. Pass the SAME centreline + thickness used for the ribbon.
+// each triangle to whichever its centroid is nearer. By default exterior = the
+// LONGER offset (the convex/outer side of the bends) — but a 180° hem fold adds a
+// half-turn of wrap that can swing that balance, so callers pass `extSide` to pin
+// it: +1 → the left-of-travel offset (ribbonShape's + side) is the finish face,
+// -1 → the right. Pass the SAME centreline + thickness used for the ribbon.
 export function splitSheetFaces(
   src: THREE.BufferGeometry,
   center: [number, number][],
   thickness = 0.02,
+  extSide?: 1 | -1,
 ): THREE.BufferGeometry {
   const n = center.length
   const nrm = center.map((p, i) => {
@@ -193,8 +256,8 @@ export function splitSheetFaces(
     for (let i = 1; i < poly.length; i++) s += Math.hypot(poly[i][0] - poly[i - 1][0], poly[i][1] - poly[i - 1][1])
     return s
   }
-  const ext = plen(top) >= plen(bot) ? top : bot   // convex/outer side → finish
-  const int = ext === top ? bot : top              // concave/inner side → backer
+  const ext = extSide ? (extSide > 0 ? top : bot) : plen(top) >= plen(bot) ? top : bot
+  const int = ext === top ? bot : top              // the other face → backer
   const distSq = (x: number, y: number, poly: [number, number][]) => {
     let best = Infinity
     for (let i = 1; i < poly.length; i++) {
@@ -288,6 +351,49 @@ export function bubbleTexture(bg = '#808080', rim = '#6f6f6f', hi = '#e6e6e6'): 
   tex.colorSpace = THREE.SRGBColorSpace
   tex.needsUpdate = true
   bubbleTexCache[key] = tex
+  return tex
+}
+
+// ── Galvalume spangle (procedural speckled DataTexture, cached) ─────────────────
+// Real galvalume/galvanized sheet is a field of zinc crystallites ("spangle"):
+// per-grain tone variation with fine speckle, not a uniform silver. A tileable
+// grayscale map — a grid of grains, each with a hashed brightness, plus per-pixel
+// grain and sparse sparkle/pit flecks. Values sit near white so the material's
+// hex tint multiplies through. Use as BOTH color map and bumpMap on bare sheet
+// steel. Deterministic hash (no Math.random) → identical across every canvas.
+// Raw RGBA pixels, no mipmaps — same headless-GL constraints as bubbleTexture.
+// UV space on panels/trim is feet; repeat is baked so a grain reads ~½" wide.
+let spangleTex: THREE.DataTexture | null = null
+export function spangleTexture(): THREE.DataTexture {
+  if (spangleTex) return spangleTex
+  const S = 256, cell = 16                       // 16 divides 256 → seamless tile
+  const hash = (x: number, y: number) => {
+    let h = (x * 374761393 + y * 668265263) ^ 0x5bf03635
+    h = Math.imul(h ^ (h >>> 13), 1274126177)
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295
+  }
+  const data = new Uint8Array(S * S * 4)
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const grain = hash(Math.floor(x / cell), Math.floor(y / cell))  // per-grain tone
+      const fleck = hash(x, y)                                        // fine speckle
+      let v = 208 + grain * 40 + (fleck - 0.5) * 28                   // ≈194–255
+      if (fleck > 0.985) v = 255                                      // sparse sparkle
+      else if (fleck < 0.012) v -= 34                                 // sparse dark pit
+      const b = Math.max(0, Math.min(255, Math.round(v)))
+      const o = (y * S + x) * 4
+      data[o] = b; data[o + 1] = b; data[o + 2] = b; data[o + 3] = 255
+    }
+  }
+  const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(2, 2)                            // UVs are feet → grain ≈ 0.4"
+  tex.magFilter = THREE.LinearFilter
+  tex.minFilter = THREE.LinearFilter
+  tex.generateMipmaps = false
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.needsUpdate = true
+  spangleTex = tex
   return tex
 }
 
