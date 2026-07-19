@@ -31,7 +31,7 @@ const NO_COLOR = '__none__'
 const colorHex = (name: string) => COLORS.find((c) => c.name === name)?.hex ?? '#94a3b8'
 
 // Pull a known finish color out of free text (product name / description) so a
-// coil line like "29 GA Sheet Metal Coil — Hawaiian Blue" prefills the Color
+// coil line like "29 GA Sheet Metal Coil — Slate Blue" prefills the Color
 // dropdown. Longest match wins so "Light Stone" beats "Stone".
 function detectColor(text: string): string | null {
   const t = text.toLowerCase()
@@ -81,7 +81,7 @@ const KIND_LABEL: Record<Suggestion['kind'], string> = {
 }
 
 // Append a color/ASTM descriptor onto an existing description, replacing any
-// trailing partial word the user was typing so "…coil haw" → "…coil — Hawaiian Blue".
+// trailing partial word the user was typing so "…coil sla" → "…coil — Slate Blue".
 function appendDescriptor(current: string, token: string) {
   let base = current
   const lastWord = current.split(/\s+/).pop() ?? ''
@@ -448,7 +448,7 @@ export default function PurchaseOrderForm({ vendors, existingPO }: Props) {
                         <MaterialInput
                           value={line.description}
                           suggestions={suggestions}
-                          placeholder="e.g. 29 GA Panel Coil — Hawaiian Blue"
+                          placeholder="e.g. 29 GA Panel Coil — Slate Blue"
                           onChange={(v) => setDescription(i, v)}
                           onPick={(s) => pickSuggestion(i, s)}
                         />

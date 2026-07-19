@@ -105,7 +105,11 @@ export default function ProductOrderForm({ product, isContractor, availability, 
   const [useCustom, setUseCustom] = useState(false)
   const [customFt, setCustomFt] = useState('')
   const [customIn, setCustomIn] = useState('')
-  const [selectedColor, setSelectedColor] = useState<string | null>(preItem?.color ?? null)
+  // undefined = no color chosen yet (viewer shows its display default); null =
+  // explicitly bare (an overstock piece with no color).
+  const [selectedColor, setSelectedColor] = useState<string | null | undefined>(
+    preItem ? preItem.color ?? null : undefined,
+  )
   const [qty, setQty] = useState(1)
   // Overstock: which color group is open (undefined = none) + the chosen listing.
   const [overColor, setOverColor] = useState<string | undefined>(preItem ? (preItem.color ?? BARE) : undefined)
@@ -306,7 +310,7 @@ export default function ProductOrderForm({ product, isContractor, availability, 
 
   const canAdd =
     (!hasLengths || (useCustom ? (parseFloat(customFt) || 0) > 0 : selectedLength !== null)) &&
-    (!hasColor || selectedColor !== null)
+    (!hasColor || selectedColor != null)
 
   // Live coil availability (panels per selected color; hat channel / braces from
   // the shared pool). Falls back to nothing so the page's static badge shows.

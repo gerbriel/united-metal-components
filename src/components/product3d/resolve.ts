@@ -13,6 +13,8 @@ export type Archetype =
   | 'trim-box-eve'
   | 'trim-side-vert'
   | 'trim-flashing'
+  | 'trim-front-vert'
+  | 'trim-rat-guard'
   | 'ridge-cap'
   | 'hat-channel'
   | 'base-rail'
@@ -61,6 +63,10 @@ const BY_SKU: Record<string, Archetype> = {
   'TRIM-BOX-EVE': 'trim-box-eve',
   'TRIM-SIDE-VERT': 'trim-side-vert',
   'TRIM-FLASHING': 'trim-flashing',
+  // Newer factory trims (a_frame_vertical rake cap + closed-wall base trim). Seed
+  // rows don't exist yet; pinned so they render the moment inventory adds the SKUs.
+  'TRIM-FRONT-VERT': 'trim-front-vert',
+  'TRIM-RAT-GUARD': 'trim-rat-guard',
   'RIDGE-CAP': 'ridge-cap',
   'HAT-CHANNEL': 'hat-channel',
   'L-BRACKET': 'l-bracket',
@@ -182,6 +188,11 @@ export function resolveModel(product: {
     // re-typed SKU (SKUs are admin-editable) can't drop it back to the crate —
     // "plate" only appears in this product's name across the catalog.
     (/\bplate\b/i.test(product.name ?? '') ? 'plate' : undefined) ??
+    // Newer trims not yet SKU-seeded: catch them by name before the generic 'trim'
+    // category fallback (which would otherwise send every trim to trim-l). Names are
+    // admin-editable, so match the profile words, not an exact SKU.
+    (/\brat.?guard\b/i.test(product.name ?? '') ? 'trim-rat-guard' : undefined) ??
+    (/\bfront.?vert(?:ical)?\b/i.test(product.name ?? '') ? 'trim-front-vert' : undefined) ??
     BY_CATEGORY[slug] ??
     // Door category slugs: mini-650-doors, acero-doors, model-2000-doors, …
     (slug.endsWith('-doors') ? 'garage-door' : undefined) ??
@@ -221,6 +232,26 @@ export function resolveModel(product: {
     }
   }
   return { archetype, params }
+}
+
+// ── Display default finish ──────────────────────────────────────────────────────
+// Painted sheet-metal products (panels + every trim profile) display Barn Red
+// when NO color has been chosen yet — bare galvanized reads as an unfinished part.
+// `undefined` = nothing chosen (use the default); an EXPLICIT null (e.g. an
+// overstock piece with no color, i.e. bare) still renders bare.
+const DISPLAY_DEFAULT_COLOR = 'Barn Red'
+const DISPLAY_DEFAULT_ARCHETYPES: ReadonlySet<Archetype> = new Set<Archetype>([
+  'panel',
+  'trim-l', 'trim-j', 'trim-corner', 'trim-box-eve', 'trim-side-vert',
+  'trim-flashing', 'trim-front-vert', 'trim-rat-guard', 'ridge-cap',
+])
+
+export function displayColor(
+  archetype: Archetype,
+  colorName: string | null | undefined,
+): string | null {
+  if (colorName !== undefined) return colorName
+  return DISPLAY_DEFAULT_ARCHETYPES.has(archetype) ? DISPLAY_DEFAULT_COLOR : null
 }
 
 export type ResolvedModel = Resolved

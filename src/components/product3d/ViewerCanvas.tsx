@@ -5,12 +5,13 @@ import { Canvas } from '@react-three/fiber'
 import { Bounds, Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Lights } from './Scene'
 import { ProductModel } from './models'
-import { resolveModel, type ProductLike } from './resolve'
+import { resolveModel, displayColor, type ProductLike } from './resolve'
 import { useConfigurator } from '@/store/configurator'
 
 // The interactive product viewer used on the detail page: drag to orbit, scroll to
 // zoom. Auto-rotates until the user grabs it. Recolors live from the configurator
-// store (the order form writes the selected color there).
+// store (the order form writes the selected color there); until a color is chosen
+// panels/trim show the display-default finish (displayColor).
 export default function ViewerCanvas({ product }: { product: ProductLike }) {
   const { archetype, params } = resolveModel(product)
   const storeColor = useConfigurator((s) => s.color)
@@ -28,7 +29,7 @@ export default function ViewerCanvas({ product }: { product: ProductLike }) {
       <Lights />
       <Bounds fit clip observe margin={1.2}>
         <Center>
-          <ProductModel archetype={archetype} colorName={storeColor} params={params} />
+          <ProductModel archetype={archetype} colorName={displayColor(archetype, storeColor)} params={params} />
         </Center>
       </Bounds>
       <ContactShadows position={[0, -1.15, 0]} opacity={0.35} scale={10} blur={2.4} far={4} resolution={512} />

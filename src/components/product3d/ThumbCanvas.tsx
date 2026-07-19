@@ -6,12 +6,13 @@ import { Center, Resize } from '@react-three/drei'
 import * as THREE from 'three'
 import { Lights } from './Scene'
 import { ProductModel } from './models'
-import { resolveModel, type ProductLike } from './resolve'
+import { resolveModel, displayColor, type ProductLike } from './resolve'
 
 // A slowly auto-rotating group holding the fit-to-unit model. Rotation is applied
 // OUTSIDE <Resize>/<Center> so the fit is measured once and never churns.
 // `colorName` (optional) tints the model — used by overstock cards to render each
-// piece in its own finish; omitted for the plain catalog thumbnails.
+// piece in its own finish (null = explicitly bare); omitted for the plain catalog
+// thumbnails, where panels/trim fall back to the display-default finish.
 function Spinner({ product, colorName }: { product: ProductLike; colorName?: string | null }) {
   const ref = useRef<THREE.Group>(null)
   const { archetype, params } = resolveModel(product)
@@ -22,7 +23,7 @@ function Spinner({ product, colorName }: { product: ProductLike; colorName?: str
     <group ref={ref}>
       <Center>
         <Resize>
-          <ProductModel archetype={archetype} colorName={colorName} params={params} />
+          <ProductModel archetype={archetype} colorName={displayColor(archetype, colorName)} params={params} />
         </Resize>
       </Center>
     </group>

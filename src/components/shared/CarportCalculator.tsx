@@ -59,7 +59,7 @@ const DEFAULT_INPUT: CarportInput = {
   encloseEnds: true,
   roofColor: 'Forest Green',
   wallColor: 'Forest Green',
-  trimColor: 'Hawaiian Blue',
+  trimColor: 'Slate Blue',
   certification: 'uncertified',
   // bracing intentionally unset → auto-derived from the build (wide/tall/high-
   // wind/certified) rather than forced on every carport. See calc.ts thresholds.

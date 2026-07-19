@@ -38,11 +38,11 @@ export const COLORS: ColorEntry[] = [
   { name: 'Taupe',         hex: '#877564', textDark: true,  finishClass: 'solid'     },
   { name: 'Clay',          hex: '#A96C46', textDark: true,  finishClass: 'solid'     },
   { name: 'Brown',         hex: '#4A3223', textDark: false, finishClass: 'solid'     },
-  { name: 'Zinc Gray',     hex: '#6C7176', textDark: false, finishClass: 'solid'     },
+  { name: 'Quaker Gray',   hex: '#6C7176', textDark: false, finishClass: 'solid'     },
   { name: 'Pewter Gray',   hex: '#93938D', textDark: true,  finishClass: 'solid'     },
   { name: 'Galvalume',     hex: '#C6C8C5', textDark: true,  finishClass: 'galvalume',
     gradient: 'linear-gradient(135deg, #E2E4E0 0%, #BFC2BE 42%, #D6D8D4 52%, #AEB1AD 100%)' },
-  { name: 'Hawaiian Blue', hex: '#3670C0', textDark: false, finishClass: 'solid'     },
+  { name: 'Slate Blue',    hex: '#3670C0', textDark: false, finishClass: 'solid'     },
   { name: 'Forest Green',  hex: '#2C4E27', textDark: false, finishClass: 'solid'     },
   { name: 'Barn Red',      hex: '#7C2A24', textDark: false, finishClass: 'solid'     },
   { name: 'Black',         hex: '#1C1C1C', textDark: false, finishClass: 'solid'     },
@@ -50,16 +50,31 @@ export const COLORS: ColorEntry[] = [
   { name: 'Dark Stone',    hex: '#4E453E', textDark: false, finishClass: 'pattern',  texture: '/textures/dark-stone.jpg' },
 ]
 
+// Finishes renamed over time: old stored NAME (lowercased) → current palette name.
+// Colors live as free text on order lines / coils / POs / overstock, so historical
+// rows must keep resolving to a swatch hex + finish class after a rename.
+// 2026-07: Hawaiian Blue → Slate Blue (migration 065), Zinc Gray → Quaker Gray
+// (migration 066) — the migrations rewrite stored rows; these aliases cover
+// unmigrated data and anything missed.
+const LEGACY_COLOR_NAMES: Record<string, string> = {
+  'hawaiian blue': 'Slate Blue',
+  'zinc gray': 'Quaker Gray',
+  'zinc grey': 'Quaker Gray',
+}
+export function canonicalColorName(name: string): string {
+  return LEGACY_COLOR_NAMES[name.trim().toLowerCase()] ?? name
+}
+
 // Color NAME → finish class, mirroring the seeded `finishes` table. An unknown or
 // empty name (legacy strings, "no color") returns null → the caller falls back to
 // the product's base price. Match is case-insensitive and trimmed, like the
-// migration-056 finish_id backfill.
+// migration-056 finish_id backfill; renamed finishes resolve via the legacy alias.
 const FINISH_CLASS_BY_NAME = new Map<string, FinishClass>(
   COLORS.map((c) => [c.name.toLowerCase(), c.finishClass]),
 )
 export function finishClassOf(name?: string | null): FinishClass | null {
   if (!name) return null
-  return FINISH_CLASS_BY_NAME.get(name.trim().toLowerCase()) ?? null
+  return FINISH_CLASS_BY_NAME.get(canonicalColorName(name).trim().toLowerCase()) ?? null
 }
 
 export type ColorName = string
