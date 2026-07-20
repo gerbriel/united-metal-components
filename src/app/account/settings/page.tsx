@@ -46,6 +46,10 @@ export default function SettingsPage() {
   const [form,    setForm]    = useState<FormState>(EMPTY)
   const [account, setAccount] = useState<AccountInfo>({ email: '', customer_type: null, pricing_tier: null })
   const [loading, setLoading] = useState(false)
+  // One-off → Contractor/Business upgrade: reveals the business section and
+  // marks the profile 'contractor' on save (admin then reviews + assigns the
+  // contractor pricing tier from User Management).
+  const [upgrading, setUpgrading] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -77,6 +81,10 @@ export default function SettingsPage() {
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
   const handleSave = async () => {
+    if (upgrading && !form.company_name.trim()) {
+      toast.error('Enter your company name to upgrade to a business account')
+      return
+    }
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
@@ -91,18 +99,27 @@ export default function SettingsPage() {
       company_name:       form.company_name.trim()       || null,
       contractor_license: form.contractor_license.trim() || null,
       reseller_license:   form.reseller_license.trim()   || null,
+      ...(upgrading ? { customer_type: 'contractor' } : {}),
     }).eq('id', user.id)
 
     if (error) { toast.error('Failed to update profile'); setLoading(false); return }
-    toast.success('Profile updated')
+    if (upgrading) {
+      setAccount((a) => ({ ...a, customer_type: 'contractor' }))
+      setUpgrading(false)
+      toast.success('Upgraded to a Contractor / Business account — our team will review and apply contractor pricing.')
+    } else {
+      toast.success('Profile updated')
+    }
     setLoading(false)
   }
 
   const isContractor = account.customer_type === 'contractor'
   const isAg = account.customer_type === 'ag'
-  // Show business section if they're a contractor OR already have any business data
+  // Show business section if they're a contractor, mid-upgrade, OR already
+  // have any business data on file.
   const showBusinessSection =
     isContractor ||
+    upgrading ||
     form.company_name ||
     form.contractor_license ||
     form.reseller_license ||
@@ -147,7 +164,27 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+          {!isContractor && !isAg && !upgrading && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto shrink-0 text-orange-700 border-orange-300 hover:bg-orange-50"
+              onClick={() => setUpgrading(true)}
+            >
+              <HardHat className="w-3.5 h-3.5 mr-1.5" />
+              Upgrade to Contractor / Business
+            </Button>
+          )}
         </CardContent>
+        {upgrading && (
+          <CardContent className="pt-0">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900">
+              Fill in your <span className="font-medium">Business Information</span> below and save. Our team
+              reviews business accounts and applies contractor pricing.{' '}
+              <button className="underline" onClick={() => setUpgrading(false)}>Cancel</button>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {/* Personal info */}

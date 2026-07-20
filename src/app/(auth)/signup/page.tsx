@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Loader2, Mail, HardHat, Home, ArrowLeft } from 'lucide-react'
 import { signupRetailSchema, signupContractorSchema } from '@/lib/validate'
 import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/sanitize'
+import GoogleSignInButton from '@/components/shared/GoogleSignInButton'
 
 type AccountType = 'retail' | 'contractor' | null
 
@@ -199,6 +200,17 @@ export default function SignupPage() {
               </p>
             </div>
           </button>
+        </div>
+        <div className="relative mt-6">
+          <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">or</span>
+          </div>
+        </div>
+        {/* Google signup: the account is created on the OAuth round-trip, then
+            /signup/complete collects the account type + the info above. */}
+        <div className="mt-6 max-w-sm mx-auto">
+          <GoogleSignInButton label="Sign up with Google" />
         </div>
         <p className="text-center text-sm text-muted-foreground mt-6">
           Already have an account?{' '}

@@ -24,10 +24,15 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: profileData } = await supabase
-          .from('profiles').select('role').eq('id', user.id).single()
-        const profile = profileData as { role: string } | null
+          .from('profiles').select('role, customer_type').eq('id', user.id).single()
+        const profile = profileData as { role: string; customer_type: string | null } | null
         if (profile && STAFF_ROLES.includes(profile.role as UserRole)) {
           return NextResponse.redirect(new URL('/dashboard', url.origin))
+        }
+        // A customer with no account type yet is a fresh Google signup (the
+        // password forms always set one) — finish collecting their info first.
+        if (!profile?.customer_type) {
+          return NextResponse.redirect(new URL('/signup/complete', url.origin))
         }
       }
       return NextResponse.redirect(new URL('/account', url.origin))

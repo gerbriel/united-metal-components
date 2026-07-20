@@ -20,6 +20,7 @@ interface UserRow {
   last_name: string | null
   company_name: string | null
   phone: string | null
+  email: string | null
   role: string
   employee_role: string | null
   account_status: string
@@ -27,8 +28,19 @@ interface UserRow {
   can_receive_inventory: boolean
   pricing_tier: string | null
   customer_type: 'retail' | 'contractor' | 'ag' | null
+  contractor_license: string | null
+  reseller_license: string | null
+  mailing_address: string | null
+  business_address: string | null
   created_at: string
 }
+
+// Every profile column User Management reads — the signup, Google-completion,
+// and account-settings forms all feed these, so the table shows everything.
+const PROFILE_COLUMNS =
+  'id, full_name, first_name, last_name, company_name, phone, email, role, employee_role, ' +
+  'account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, ' +
+  'contractor_license, reseller_license, mailing_address, business_address, created_at'
 
 interface Props { initialUsers: UserRow[]; tiers: PricingTier[]; currentUserId: string }
 
@@ -53,6 +65,11 @@ type Patch = Partial<{
   last_name: string | null
   company_name: string | null
   phone: string | null
+  customer_type: string | null
+  contractor_license: string | null
+  reseller_license: string | null
+  mailing_address: string | null
+  business_address: string | null
 }>
 
 export default function AdminUserManager({ initialUsers, tiers, currentUserId }: Props) {
@@ -68,9 +85,9 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, created_at')
+      .select(PROFILE_COLUMNS)
       .order('created_at', { ascending: false })
-    if (data) setUsers(data as UserRow[])
+    if (data) setUsers(data as unknown as UserRow[])
   }, [])
 
   useEffect(() => {
@@ -101,6 +118,11 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
     if ('last_name' in patch)    args.p_last_name    = patch.last_name ?? null
     if ('company_name' in patch) args.p_company_name = patch.company_name ?? null
     if ('phone' in patch)        args.p_phone        = patch.phone ?? null
+    if ('customer_type' in patch)      args.p_customer_type      = patch.customer_type ?? null
+    if ('contractor_license' in patch) args.p_contractor_license = patch.contractor_license ?? null
+    if ('reseller_license' in patch)   args.p_reseller_license   = patch.reseller_license ?? null
+    if ('mailing_address' in patch)    args.p_mailing_address    = patch.mailing_address ?? null
+    if ('business_address' in patch)   args.p_business_address   = patch.business_address ?? null
 
     const { error } = await supabase.rpc('admin_update_user_profile', args)
     if (error) toast.error(`Failed: ${error.message}`)
@@ -124,16 +146,26 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
   const handleUnsuspend = (userId: string) =>
     callRpc(userId, { account_status: 'active', suspended_reason: null })
 
-  // Contact-info editing (name / company / phone).
+  // Contact + business info editing — every field the signup / Google-completion /
+  // account-settings forms collect.
   const [editUser, setEditUser] = useState<UserRow | null>(null)
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', company_name: '', phone: '' })
+  const [editForm, setEditForm] = useState({
+    first_name: '', last_name: '', company_name: '', phone: '',
+    customer_type: '__unset__', contractor_license: '', reseller_license: '',
+    mailing_address: '', business_address: '',
+  })
 
   const openEdit = (u: UserRow) => {
     setEditForm({
-      first_name:   u.first_name ?? '',
-      last_name:    u.last_name ?? '',
-      company_name: u.company_name ?? '',
-      phone:        u.phone ?? '',
+      first_name:         u.first_name ?? '',
+      last_name:          u.last_name ?? '',
+      company_name:       u.company_name ?? '',
+      phone:              u.phone ?? '',
+      customer_type:      u.customer_type ?? '__unset__',
+      contractor_license: u.contractor_license ?? '',
+      reseller_license:   u.reseller_license ?? '',
+      mailing_address:    u.mailing_address ?? '',
+      business_address:   u.business_address ?? '',
     })
     setEditUser(u)
   }
@@ -143,10 +175,16 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
     const first = editForm.first_name.trim()
     const last  = editForm.last_name.trim()
     const patch: Patch = {
-      first_name:   first,
-      last_name:    last,
-      company_name: editForm.company_name.trim(),
-      phone:        editForm.phone.trim(),
+      first_name:         first,
+      last_name:          last,
+      company_name:       editForm.company_name.trim(),
+      phone:              editForm.phone.trim(),
+      // '' clears the type (RPC NULLIFs empty strings), a value sets it.
+      customer_type:      editForm.customer_type === '__unset__' ? '' : editForm.customer_type,
+      contractor_license: editForm.contractor_license.trim(),
+      reseller_license:   editForm.reseller_license.trim(),
+      mailing_address:    editForm.mailing_address.trim(),
+      business_address:   editForm.business_address.trim(),
     }
     // Keep the full_name display in sync when a first/last name is provided.
     if (first || last) patch.full_name = [first, last].filter(Boolean).join(' ')
@@ -172,7 +210,8 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
   const filtered = users.filter((u) => {
     if (!search) return true
     const q = search.toLowerCase()
-    return [u.full_name, u.first_name, u.last_name, u.company_name, u.phone, u.role]
+    return [u.full_name, u.first_name, u.last_name, u.company_name, u.phone, u.email, u.role,
+      u.contractor_license, u.reseller_license]
       .some((v) => v?.toLowerCase().includes(q))
   })
 
@@ -220,7 +259,15 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
                     <td className="p-3">
                       <p className="font-medium">{name}</p>
                       {u.company_name && <p className="text-xs text-muted-foreground">{u.company_name}</p>}
+                      {u.email && <p className="text-xs text-muted-foreground">{u.email}</p>}
                       {u.phone && <p className="text-xs text-muted-foreground">{u.phone}</p>}
+                      {(u.contractor_license || u.reseller_license) && (
+                        <p className="text-xs text-muted-foreground">
+                          {u.contractor_license && <>CL# {u.contractor_license}</>}
+                          {u.contractor_license && u.reseller_license && ' · '}
+                          {u.reseller_license && <>RL# {u.reseller_license}</>}
+                        </p>
+                      )}
                       <div className="flex items-center gap-1.5 mt-1">
                         {u.customer_type && (
                           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
@@ -409,13 +456,19 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
         </div>
       </div>
 
-      {/* Edit contact info */}
+      {/* Edit contact + business info — everything the signup/settings forms collect */}
       <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit contact info</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {editUser?.email && (
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input value={editUser.email} readOnly disabled className="bg-slate-50 text-muted-foreground" />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>First name</Label>
@@ -427,12 +480,48 @@ export default function AdminUserManager({ initialUsers, tiers, currentUserId }:
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mailing address</Label>
+              <Input value={editForm.mailing_address} onChange={(e) => setEditForm((f) => ({ ...f, mailing_address: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Account type</Label>
+              <Select
+                value={editForm.customer_type}
+                onValueChange={(v) => v && setEditForm((f) => ({ ...f, customer_type: v }))}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__unset__" className="text-muted-foreground">— not set —</SelectItem>
+                  <SelectItem value="retail">One-off Customer</SelectItem>
+                  <SelectItem value="contractor">Contractor / Business</SelectItem>
+                  <SelectItem value="ag">Agricultural</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Changing the type also changes which pricing tiers are offered in the table.
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label>Company</Label>
               <Input value={editForm.company_name} onChange={(e) => setEditForm((f) => ({ ...f, company_name: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Phone</Label>
-              <Input value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} />
+              <Label>Business address</Label>
+              <Input value={editForm.business_address} onChange={(e) => setEditForm((f) => ({ ...f, business_address: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Contractor license #</Label>
+                <Input value={editForm.contractor_license} onChange={(e) => setEditForm((f) => ({ ...f, contractor_license: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reseller license #</Label>
+                <Input value={editForm.reseller_license} onChange={(e) => setEditForm((f) => ({ ...f, reseller_license: e.target.value }))} />
+              </div>
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">

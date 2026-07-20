@@ -20,7 +20,7 @@ export default async function AdminPage() {
   const [{ data: allUsers }, pricingTiers] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, first_name, last_name, company_name, phone, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, created_at')
+      .select('id, full_name, first_name, last_name, company_name, phone, email, role, employee_role, account_status, suspended_reason, can_receive_inventory, pricing_tier, customer_type, contractor_license, reseller_license, mailing_address, business_address, created_at')
       .order('created_at', { ascending: false }),
     getPricingTiers(),
   ])
