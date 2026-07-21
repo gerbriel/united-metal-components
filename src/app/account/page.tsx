@@ -25,6 +25,12 @@ export default async function AccountDashboard() {
     supabase.from('notifications').select('id', { count: 'exact' }).eq('user_id', user.id).eq('read', false),
   ])
 
+  // A signed-in CUSTOMER with no account type hasn't finished signing up — e.g.
+  // a Google sign-in that skipped /auth/callback (redirect-URL fallback) or a
+  // missing profile row. Collect the signup info before showing the dashboard.
+  const p = profile as { role?: string; customer_type?: string | null } | null
+  if (!p || (p.role === 'customer' && !p.customer_type)) redirect('/signup/complete')
+
   const isTbd = (profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
   let ordersQuery = supabase.from('orders').select('id, status, total, created_at').eq('customer_id', user.id).order('created_at', { ascending: false }).limit(5)
   if (isTbd) ordersQuery = ordersQuery.neq('status', 'completed')

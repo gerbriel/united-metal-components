@@ -36,19 +36,23 @@ export default function CompleteSignupPage() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.replace('/login'); return }
+      // maybeSingle: the profile row can be MISSING entirely (an OAuth signup
+      // whose trigger insert didn't happen) — we recreate it on save.
       const { data } = await supabase
         .from('profiles')
         .select('first_name, last_name, full_name, phone, customer_type')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
       const d = data as {
         first_name: string | null; last_name: string | null
         full_name: string | null; phone: string | null; customer_type: string | null
       } | null
       // Already completed (or a password signup landing here by accident).
       if (d?.customer_type) { router.replace('/account'); return }
-      // Prefill from what Google gave us: split full_name when first/last are unset.
-      const [first = '', ...rest] = (d?.full_name ?? '').trim().split(/\s+/)
+      // Prefill from the profile, falling back to Google's auth metadata when
+      // there is no row yet: split full_name when first/last are unset.
+      const meta = (user.user_metadata ?? {}) as { full_name?: string }
+      const [first = '', ...rest] = (d?.full_name ?? meta.full_name ?? '').trim().split(/\s+/)
       setFirstName(d?.first_name ?? first)
       setLastName(d?.last_name ?? rest.join(' '))
       setPhone(d?.phone ?? '')
@@ -71,7 +75,12 @@ export default function CompleteSignupPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.replace('/login'); return }
 
-    const { error } = await supabase.from('profiles').update({
+    // UPSERT, not update: recreates the profile row if the signup trigger never
+    // made one (an update matching 0 rows would "succeed" while saving nothing).
+    // Needs the users-insert-own-profile RLS policy (migration 069).
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      email: user.email ?? null,
       first_name: first,
       last_name: last,
       full_name: `${first} ${last}`.trim(),
@@ -84,7 +93,7 @@ export default function CompleteSignupPage() {
             contractor_license: sanitizeText(contractorLicense, 100) || null,
             reseller_license: sanitizeText(resellerLicense, 100) || null,
           }),
-    }).eq('id', user.id)
+    }, { onConflict: 'id' })
     if (error) { toast.error('Failed to save your info — please try again'); setLoading(false); return }
 
     if (user.email) {
