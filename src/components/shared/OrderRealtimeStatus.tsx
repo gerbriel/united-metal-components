@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -22,6 +22,7 @@ export default function OrderRealtimeStatus({ orderId, initialStatus }: {
   initialStatus: OrderStatus
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus)
+  const statusRef = useRef<OrderStatus>(initialStatus)
   const supabase = createClient()
   const router = useRouter()
 
@@ -33,6 +34,11 @@ export default function OrderRealtimeStatus({ orderId, initialStatus }: {
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
         (payload) => {
           const newStatus = payload.new.status as OrderStatus
+          // The orders row is also UPDATEd by the totals-recompute trigger on
+          // every staff line-price save, so this fires for non-status changes
+          // too — only react when the status actually moved.
+          if (newStatus === statusRef.current) return
+          statusRef.current = newStatus
           setStatus(newStatus)
           toast.info(`Order status updated: ${newStatus.toUpperCase()}`)
           // The rest of the page is server-rendered off the order status

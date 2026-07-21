@@ -34,12 +34,16 @@ export default async function OrderDetailPage({ params }: Props) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: profile }, { data: order }] = await Promise.all([
+  const [profileRes, { data: order }] = await Promise.all([
     supabase.from('profiles').select('pricing_tier').eq('id', user.id).single(),
     supabase.from('orders').select('*, order_items(*, products(name, sku, unit))').eq('id', id).eq('customer_id', user.id).single(),
   ])
 
   if (!order) notFound()
+  const profile = profileRes.data
+  // Pricing visibility must fail CLOSED: if the tier lookup errored we can't
+  // rule out a TBD-tier viewer, so treat the tier as unknown and hide pricing.
+  const tierKnown = !profileRes.error && !!profile
   const isTbd = (profile as any)?.pricing_tier === 'contractor_tax_exempt_tbd'
   if (isTbd && order.status === 'completed') notFound()
 
@@ -52,12 +56,6 @@ export default async function OrderDetailPage({ params }: Props) {
   const currentStatusIdx = ORDER_STATUS_FLOW.indexOf(order.status as any)
   const showLoadingChecklist  = order.status === 'loading'
   const showStagingProgress   = order.status === 'processing'
-
-  // Pricing becomes visible once staff confirm the order (they review and
-  // correct line prices while it's pending). Until then — and for TBD-tier
-  // contractors, whose pricing is never shown online — customers see the
-  // items without prices and a call-us block instead of totals.
-  const showPricing = !isTbd && order.status !== 'pending' && order.status !== 'cancelled'
 
   // Fetch staging state for customer view
   const { data: stagingRows } = showStagingProgress
@@ -78,6 +76,27 @@ export default async function OrderDetailPage({ params }: Props) {
     estimated_arrival_date: i.estimated_arrival_date ?? null,
     length_feet: i.length_feet ?? null,
     linear_feet: i.linear_feet ?? null,
+  }))
+
+  // Pricing becomes visible once staff confirm the order (they review and
+  // correct line prices while it's pending). Until then — and for TBD-tier
+  // contractors, whose pricing is never shown online — customers see the
+  // items without prices and a call-us block instead of totals. Item-less
+  // legacy shell orders keep the call block too: their stored totals are
+  // unreviewed checkout previews. NOTE: this is a UI gate only — RLS returns
+  // the customer's own price columns regardless; a hard guarantee would need
+  // a price-omitting view/RPC.
+  const showPricing =
+    tierKnown && !isTbd && orderItems.length > 0 &&
+    order.status !== 'pending' && order.status !== 'cancelled'
+
+  // The staging/loading client components only need identity + name + qty;
+  // don't serialize line prices into the RSC payload (TBD-tier viewers reach
+  // those statuses with pricing hidden).
+  const checklistItems = orderItems.map((i) => ({
+    id: i.id,
+    quantity: i.quantity,
+    products: i.products,
   }))
 
   return (
@@ -131,7 +150,7 @@ export default async function OrderDetailPage({ params }: Props) {
         <Card>
           <CardHeader><CardTitle className="text-base">Order Being Prepared</CardTitle></CardHeader>
           <CardContent>
-            <StagingProgress orderId={order.id} items={orderItems} initialStagedIds={initialStagedIds} />
+            <StagingProgress orderId={order.id} items={checklistItems} initialStagedIds={initialStagedIds} />
           </CardContent>
         </Card>
       )}
@@ -147,7 +166,7 @@ export default async function OrderDetailPage({ params }: Props) {
             <LoadingChecklist
               orderId={order.id}
               customerId={user.id}
-              items={orderItems}
+              items={checklistItems}
               viewerRole="customer"
               customerNoDefectsAt={order.customer_no_defects_at ?? null}
             />
@@ -214,13 +233,18 @@ export default async function OrderDetailPage({ params }: Props) {
               <div className="flex justify-between font-bold pt-1.5 border-t"><span>Total</span><span className="text-primary">${Number(order.total).toFixed(2)}</span></div>
             </div>
           ) : (
-            /* Pending (and TBD-tier) orders: staff finalize line prices at
-               confirmation, so no totals yet — customers call for a quote. */
+            /* Pending (and TBD-tier, and cancelled) orders show no totals:
+               staff finalize line prices at confirmation, so before that —
+               or once an order is dead — customers call instead. */
             <div className="p-4 border-t bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <p className="text-sm font-medium">Pricing available upon request</p>
+                <p className="text-sm font-medium">
+                  {order.status === 'cancelled' ? 'Questions about this order?' : 'Pricing available upon request'}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {!isTbd && order.status === 'pending'
+                  {order.status === 'cancelled'
+                    ? 'This order was cancelled. Give us a call if you have any questions.'
+                    : tierKnown && !isTbd && order.status === 'pending'
                     ? 'Pricing is finalized when we confirm your order — it will appear here. Questions in the meantime? Give us a call.'
                     : 'Give us a call and we’ll go over pricing for your order.'}
                 </p>

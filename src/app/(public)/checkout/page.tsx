@@ -129,10 +129,18 @@ export default function CheckoutPage() {
 
     // The order is worthless without its lines — roll the shell back and keep
     // the cart so the customer can retry, instead of stranding a totals-only
-    // order in the staff dashboard.
+    // order in the staff dashboard. An RLS-blocked delete is NOT an error (it
+    // matches 0 rows and "succeeds"), so confirm a row actually came back;
+    // if cleanup failed, retrying would strand another shell — steer the
+    // customer to call instead.
     if (itemsError) {
-      await supabase.from('orders').delete().eq('id', (order as any).id)
-      toast.error('Failed to place order. Please try again.')
+      const { data: rolledBack, error: rollbackError } = await supabase
+        .from('orders').delete().eq('id', (order as any).id).select('id')
+      if (rollbackError || !rolledBack?.length) {
+        toast.error('We couldn\'t place your order. Please give us a call before trying again.')
+      } else {
+        toast.error('Failed to place order. Please try again.')
+      }
       setLoading(false)
       return
     }
