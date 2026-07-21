@@ -14,8 +14,9 @@ import { buildFinishPriceMap, type FinishPriceMap, type TierPriceMap } from '@/l
 import OverstockImport from '@/components/shared/OverstockImport'
 import { orderQtyParts } from '@/lib/orderUnits'
 import OrderCoilAvailability from '@/components/shared/OrderCoilAvailability'
-import { orderColorAvailability, openPoCoilFlags, OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
-import { COLORS } from '@/lib/product-config'
+import OrderTrimAvailability, { type TrimCheckDisplay, type UncheckedTrimLine } from '@/components/shared/OrderTrimAvailability'
+import { orderColorAvailability, orderTrimAvailability, openPoCoilFlags, OPEN_ORDER_STATUSES, PO_OPEN_STATUSES, type OrderColorCheck } from '@/lib/coilSupply'
+import { COLORS, isTrimSku } from '@/lib/product-config'
 import type { Metadata } from 'next'
 
 interface Props { params: Promise<{ id: string }> }
@@ -58,12 +59,16 @@ export default async function DashboardOrderDetail({ params }: Props) {
 
   if (!order) notFound()
 
-  // Panel coil availability by color — only for open orders, and hidden from
-  // warehouse staff (purchasing/material-planning concern).
+  // Panel coil + trim availability — only for open orders, and hidden from
+  // warehouse staff (purchasing/material-planning concern). Panels check coil
+  // footage by color; trim checks trim_stock piece counts by (product, finish)
+  // since trim lines carry no linear footage (migration 058).
   let coilChecks: OrderColorCheck[] = []
   let colorsOnOrder: string[] = []
+  let trimChecks: TrimCheckDisplay[] = []
+  let uncheckedTrim: UncheckedTrimLine[] = []
   if (!isWarehouse && (OPEN_ORDER_STATUSES as readonly string[]).includes(order.status)) {
-    const [{ data: panelCoils }, { data: openDemand }, { data: poLines }] = await Promise.all([
+    const [{ data: panelCoils }, { data: openDemand }, { data: poLines }, { data: openPieceDemand }, { data: trimStock }, { data: finishRows }] = await Promise.all([
       supabase
         .from('product_coils')
         .select('color, lbs_per_linear_foot, initial_weight_lbs, current_weight_lbs, status, archived')
@@ -79,6 +84,17 @@ export default async function DashboardOrderDetail({ params }: Props) {
         .from('purchase_order_items')
         .select('description, notes, quantity, quantity_received, products(coil_category), purchase_orders!inner(status)')
         .in('purchase_orders.status', PO_OPEN_STATUSES as unknown as string[]),
+      // Finished piece lines (no footage) across open orders — trim demand is
+      // the subset whose product SKU is a trim SKU, filtered below. finish_id
+      // is NOT filtered here: legacy/OrderBuilder lines can lack one, and those
+      // must surface as "unchecked" rather than silently pass.
+      supabase
+        .from('order_items')
+        .select('order_id, product_id, finish_id, quantity, item_color, products(name, sku), orders!inner(status)')
+        .is('linear_feet', null)
+        .in('orders.status', OPEN_ORDER_STATUSES as unknown as string[]),
+      supabase.from('trim_stock').select('product_id, finish_id, qty'),
+      supabase.from('finishes').select('id, name, hex, gradient, texture'),
     ])
     coilChecks = orderColorAvailability((panelCoils ?? []) as any, (openDemand ?? []) as any, order.id)
     const flags = openPoCoilFlags(
@@ -93,6 +109,30 @@ export default async function DashboardOrderDetail({ params }: Props) {
       COLORS.map((c) => c.name),
     )
     colorsOnOrder = [...flags.panelColorsOnOrder]
+
+    const trimDemand = ((openPieceDemand ?? []) as any[]).filter((d) => isTrimSku(d.products?.sku))
+    const trimNames = new Map<number, string>(trimDemand.map((d) => [d.product_id as number, d.products?.name ?? 'Trim']))
+    const finishById = new Map<number, any>(((finishRows ?? []) as any[]).map((f) => [f.id as number, f]))
+    trimChecks = orderTrimAvailability((trimStock ?? []) as any, trimDemand as any, order.id).map((c) => {
+      const f = finishById.get(c.finishId)
+      return {
+        ...c,
+        productName: trimNames.get(c.productId) ?? 'Trim',
+        finishName: f?.name ?? 'Unknown finish',
+        finishHex: f?.hex ?? null,
+        finishGradient: f?.gradient ?? null,
+        finishTexture: f?.texture ?? null,
+      }
+    })
+    // This order's trim lines with no finish stamped can't be checked against
+    // stock — show them as needing attention instead of silently passing.
+    uncheckedTrim = trimDemand
+      .filter((d) => d.order_id === order.id && d.finish_id == null)
+      .map((d) => ({
+        productName: d.products?.name ?? 'Trim',
+        itemColor: d.item_color ?? null,
+        pieces: Number(d.quantity),
+      }))
   }
 
   const { data: history } = await supabase
@@ -212,6 +252,9 @@ export default async function DashboardOrderDetail({ params }: Props) {
         <div className="lg:col-span-2 space-y-5">
 
           {coilChecks.length > 0 && <OrderCoilAvailability checks={coilChecks} colorsOnOrder={colorsOnOrder} />}
+          {(trimChecks.length > 0 || uncheckedTrim.length > 0) && (
+            <OrderTrimAvailability checks={trimChecks} unchecked={uncheckedTrim} />
+          )}
 
           {/* Order Items */}
           <Card>

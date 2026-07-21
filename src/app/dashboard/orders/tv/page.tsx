@@ -15,16 +15,30 @@ interface OrderItem {
   products: { name: string; unit: string | null; product_type: string; coil_category: string | null } | null
 }
 
-// Compact per-line quantity for a TV card: cut products show pieces + total
-// footage ("6 pc · 126 ft"), everything else counts in the product's unit.
+// Per-piece cut length as feet′ inches″ — the number the operator sets the
+// cutter to, so it leads the footage figures.
+function ftIn(v: number): string {
+  const f = Math.floor(v)
+  const inches = Math.round((v - f) * 12)
+  if (inches === 0) return `${f}'`
+  if (inches === 12) return `${f + 1}'`
+  return `${f}' ${inches}"`
+}
+
+// Compact per-line quantity for a TV card: cut products show pieces × cut
+// length, then total footage ("10 pc × 26' · 260 ft"); everything else counts
+// in the product's unit.
 function itemQty(i: OrderItem): string {
-  if (i.length_feet != null) {
+  if (i.length_feet != null || i.linear_feet != null) {
     const pieces = `${i.quantity} pc`
-    if (i.linear_feet != null) {
-      const ft = Number(i.linear_feet).toLocaleString(undefined, { maximumFractionDigits: 1 })
-      return `${pieces} · ${ft} ft`
-    }
-    return pieces
+    const per = i.linear_feet != null && i.quantity > 0
+      ? Number(i.linear_feet) / Number(i.quantity)
+      : i.length_feet != null ? Number(i.length_feet) : null
+    const perTxt = per != null ? ` × ${ftIn(per)}` : ''
+    const totTxt = i.linear_feet != null
+      ? ` · ${Number(i.linear_feet).toLocaleString(undefined, { maximumFractionDigits: 1 })} ft`
+      : ''
+    return `${pieces}${perTxt}${totTxt}`
   }
   return `${i.quantity}${i.products?.unit ? ` ${i.products.unit}` : ''}`
 }

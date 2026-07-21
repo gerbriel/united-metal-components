@@ -207,6 +207,76 @@ export interface OrderDemandItem extends DemandItem {
   order_id: number
 }
 
+// ── Per-order trim availability ──────────────────────────────
+// Trim is deliberately OUTSIDE the panel coil-footage math (migration 058): it
+// is tracked as per-(product, finish) piece counts in trim_stock. Order lines
+// for trim carry finish_id + quantity but no linear_feet, so the coil checks
+// above never see them — this is the piece-count counterpart used alongside
+// orderColorAvailability on the order review page.
+export interface TrimStockLevel {
+  product_id: number
+  finish_id: number
+  qty: number
+}
+
+export interface TrimDemandItem {
+  order_id: number
+  product_id: number | null
+  finish_id: number | null
+  quantity: number
+}
+
+export interface OrderTrimCheck {
+  productId: number
+  finishId: number
+  neededPieces: number    // this order's demand for the (product, finish)
+  onHandPieces: number    // trim_stock qty (no row = 0)
+  committedOthers: number // pieces promised to OTHER open orders
+  availablePieces: number // onHand - committedOthers (free before this order)
+  enough: boolean
+}
+
+export function orderTrimAvailability(
+  stock: TrimStockLevel[],
+  allOpenDemand: TrimDemandItem[],
+  orderId: number,
+): OrderTrimCheck[] {
+  const key = (p: number, f: number) => `${p}:${f}`
+  const onHand = new Map<string, number>()
+  for (const s of stock) onHand.set(key(s.product_id, s.finish_id), Number(s.qty))
+
+  const needed = new Map<string, { productId: number; finishId: number; pieces: number }>()
+  const committedOthers = new Map<string, number>()
+  for (const d of allOpenDemand) {
+    if (d.product_id == null || d.finish_id == null) continue
+    const k = key(d.product_id, d.finish_id)
+    if (d.order_id === orderId) {
+      const e = needed.get(k) ?? { productId: d.product_id, finishId: d.finish_id, pieces: 0 }
+      e.pieces += Number(d.quantity)
+      needed.set(k, e)
+    } else {
+      committedOthers.set(k, (committedOthers.get(k) ?? 0) + Number(d.quantity))
+    }
+  }
+
+  return Array.from(needed.entries())
+    .map(([k, e]) => {
+      const others = committedOthers.get(k) ?? 0
+      const onHandPieces = onHand.get(k) ?? 0
+      const availablePieces = onHandPieces - others
+      return {
+        productId: e.productId,
+        finishId: e.finishId,
+        neededPieces: e.pieces,
+        onHandPieces,
+        committedOthers: others,
+        availablePieces,
+        enough: availablePieces >= e.pieces,
+      }
+    })
+    .sort((a, b) => a.productId - b.productId || a.finishId - b.finishId)
+}
+
 export interface OrderColorCheck {
   color: string
   neededFeet: number     // this order's demand for the color

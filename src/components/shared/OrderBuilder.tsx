@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2, X } from 'lucide-react'
 import CreateCustomerDialog from '@/components/shared/CreateCustomerDialog'
-import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku, finishClassOf, type PriceMetric } from '@/lib/product-config'
+import { COLORS, PANEL_SKUS, COLOR_SKUS, isOverstockSku, isTrimSku, finishClassOf, type PriceMetric } from '@/lib/product-config'
 import { ORDER_STATUS_LABEL } from '@/types/database'
 import { taxForOrder, taxRateForTier, type TaxRates } from '@/lib/tax'
 import { priceBasisTier } from '@/lib/pricing-tiers'
@@ -182,7 +182,11 @@ export default function OrderBuilder({ customers, products, rates, tierPrices, f
           unit_price: unit,
           total_price: unit * qty,
           item_color: l.color || null,
-          finish_id: finishIdFor(byName, l.color),
+          // Bare trim IS a finish — Galvalume (migration 058) — so a blank
+          // color on a trim line still stamps a finish_id; otherwise the line
+          // is invisible to the trim availability check.
+          finish_id: finishIdFor(byName, l.color)
+            ?? (isTrimSku(l.product.sku) ? byName.get('galvalume') ?? null : null),
           length_feet: ft || null,
           // Per-foot lines record coil footage drawn (qty × cut length), matching
           // the storefront checkout; per-piece lines record none.
