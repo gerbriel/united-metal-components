@@ -6,7 +6,7 @@
 const COMPANY = 'United Metal Components'
 const ADDRESS = '9191 W Whitesbridge Ave, Fresno, CA 93706'
 const EMAIL = 'sales@unitedmetalcomponents.com'
-const PHONE = '(559) 567-9117'
+const PHONE = '(559) 567-9118'
 const EFFECTIVE = 'January 1, 2025'
 
 export const DEFAULT_PRIVACY_HTML = `

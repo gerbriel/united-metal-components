@@ -14,7 +14,7 @@ const EFFECTIVE_DATE = 'January 1, 2025'
 const COMPANY = 'United Metal Components'
 const ADDRESS = '9191 W Whitesbridge Ave, Fresno, CA 93706'
 const EMAIL = 'sales@unitedmetalcomponents.com'
-const PHONE = '(559) 567-9117'
+const PHONE = '(559) 567-9118'
 
 export default async function PrivacyPage() {
   const supabase = await createClient()
@@ -192,7 +192,7 @@ export default async function PrivacyPage() {
             <p className="text-sm text-muted-foreground mb-3">To exercise any of these rights, submit a verifiable consumer request by:</p>
             <ul className="text-sm text-muted-foreground space-y-1">
               <li>Email: <a href={`mailto:${EMAIL}`} className="text-orange-500 hover:text-orange-600">{EMAIL}</a></li>
-              <li>Phone: <a href="tel:+15595679117" className="text-orange-500 hover:text-orange-600">{PHONE}</a></li>
+              <li>Phone: <a href="tel:+15595679118" className="text-orange-500 hover:text-orange-600">{PHONE}</a></li>
               <li>Mail: {COMPANY}, {ADDRESS}, Attn: Privacy Officer</li>
             </ul>
             <p className="text-sm text-muted-foreground mt-3">We will respond within <strong>45 days</strong>. We may extend this by an additional 45 days when reasonably necessary with prior notice. We verify your identity before processing requests.</p>
@@ -223,7 +223,7 @@ export default async function PrivacyPage() {
             <p className="font-semibold text-foreground">{COMPANY} — Privacy Officer</p>
             <p>{ADDRESS}</p>
             <p>Email: <a href={`mailto:${EMAIL}`} className="text-orange-500 hover:text-orange-600">{EMAIL}</a></p>
-            <p>Phone: <a href="tel:+15595679117" className="text-orange-500 hover:text-orange-600">{PHONE}</a></p>
+            <p>Phone: <a href="tel:+15595679118" className="text-orange-500 hover:text-orange-600">{PHONE}</a></p>
           </div>
         </section>
 

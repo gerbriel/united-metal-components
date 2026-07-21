@@ -90,8 +90,8 @@ export default async function PublicFooter({ categories }: { categories: NavCate
               </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-orange-400 shrink-0" />
-                <a href="tel:+15595679117" className="text-sm hover:text-orange-400 transition-colors">
-                  (559) 567-9117
+                <a href="tel:+15595679118" className="text-sm hover:text-orange-400 transition-colors">
+                  (559) 567-9118
                 </a>
               </li>
               <li className="flex items-center gap-2.5">

@@ -133,7 +133,7 @@ export default function ContactPage() {
             <h2 className="text-lg font-semibold mb-4">Get In Touch</h2>
             <div className="space-y-4">
               {[
-                [Phone, 'Phone', '(559) 567-9117', 'tel:+15595679117'],
+                [Phone, 'Phone', '(559) 567-9118', 'tel:+15595679118'],
                 [Mail, 'Email', 'sales@unitedmetalcomponents.com', 'mailto:sales@unitedmetalcomponents.com'],
                 [MapPin, 'Location', 'Your City, State ZIP', null],
               ].map(([Icon, label, value, href]: any) => (

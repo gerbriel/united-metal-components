@@ -132,11 +132,11 @@ export default function ProductOrderForm({ product, isContractor, availability, 
           get you exactly what you need.
         </p>
         <a
-          href="tel:+15595679117"
+          href="tel:+15595679118"
           className="inline-flex items-center gap-2 text-primary font-semibold text-sm hover:underline"
         >
           <Phone className="w-4 h-4" />
-          (559) 567-9117
+          (559) 567-9118
         </a>
       </div>
     )
@@ -154,8 +154,8 @@ export default function ProductOrderForm({ product, isContractor, availability, 
           <p className="text-sm text-muted-foreground">
             No overstock panels are available right now. Please check back soon or call us for current availability.
           </p>
-          <a href="tel:+15595679117" className="inline-flex items-center gap-2 text-primary font-semibold text-sm hover:underline">
-            <Phone className="w-4 h-4" />(559) 567-9117
+          <a href="tel:+15595679118" className="inline-flex items-center gap-2 text-primary font-semibold text-sm hover:underline">
+            <Phone className="w-4 h-4" />(559) 567-9118
           </a>
         </div>
       )

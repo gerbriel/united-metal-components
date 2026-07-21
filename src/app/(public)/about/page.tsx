@@ -102,7 +102,7 @@ export default async function AboutPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-sm mb-0.5">Phone</p>
-                  <a href="tel:+15595679117" className="text-sm text-orange-500 hover:text-orange-600">(559) 567-9117</a>
+                  <a href="tel:+15595679118" className="text-sm text-orange-500 hover:text-orange-600">(559) 567-9118</a>
                 </div>
               </div>
               <div className="flex items-start gap-4">

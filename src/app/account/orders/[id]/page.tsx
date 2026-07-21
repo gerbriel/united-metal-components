@@ -250,11 +250,11 @@ export default async function OrderDetailPage({ params }: Props) {
                 </p>
               </div>
               <a
-                href="tel:+15595679117"
+                href="tel:+15595679118"
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 whitespace-nowrap"
               >
                 <Phone className="w-4 h-4" />
-                (559) 567-9117
+                (559) 567-9118
               </a>
             </div>
           )}

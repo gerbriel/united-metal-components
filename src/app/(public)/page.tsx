@@ -20,7 +20,7 @@ const ORG_JSONLD = {
       '@id': `${SITE_URL}/#organization`,
       name: 'United Metal Components',
       url: SITE_URL,
-      telephone: '+1-559-567-9117',
+      telephone: '+1-559-567-9118',
       email: 'sales@unitedmetalcomponents.com',
       address: {
         '@type': 'PostalAddress',
