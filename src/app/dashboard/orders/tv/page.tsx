@@ -9,7 +9,24 @@ import { ArrowLeft } from 'lucide-react'
 interface OrderItem {
   id: number
   item_color: string | null
-  products: { name: string; product_type: string; coil_category: string | null } | null
+  quantity: number
+  length_feet: number | null
+  linear_feet: number | null
+  products: { name: string; unit: string | null; product_type: string; coil_category: string | null } | null
+}
+
+// Compact per-line quantity for a TV card: cut products show pieces + total
+// footage ("6 pc · 126 ft"), everything else counts in the product's unit.
+function itemQty(i: OrderItem): string {
+  if (i.length_feet != null) {
+    const pieces = `${i.quantity} pc`
+    if (i.linear_feet != null) {
+      const ft = Number(i.linear_feet).toLocaleString(undefined, { maximumFractionDigits: 1 })
+      return `${pieces} · ${ft} ft`
+    }
+    return pieces
+  }
+  return `${i.quantity}${i.products?.unit ? ` ${i.products.unit}` : ''}`
 }
 
 interface OrderRow {
@@ -110,7 +127,7 @@ export default function TVModePage() {
       .select(`
         id, status, created_at,
         profiles(first_name, last_name, full_name),
-        order_items(id, item_color, products(name, product_type, coil_category))
+        order_items(id, item_color, quantity, length_feet, linear_feet, products(name, unit, product_type, coil_category))
       `)
       .in('status', TV_STATUSES as unknown as string[])
       .eq('archived', false)
@@ -224,6 +241,21 @@ export default function TVModePage() {
                       <p className="text-xs text-slate-500 mt-1">
                         {new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </p>
+
+                      {/* Line items */}
+                      {(o.order_items?.length ?? 0) > 0 && (
+                        <div className="mt-2 pt-2 border-t border-slate-700 space-y-1">
+                          {o.order_items.map((it) => (
+                            <div key={it.id} className="flex items-baseline justify-between gap-2 text-xs">
+                              <span className="text-slate-200 truncate">
+                                {it.products?.name ?? 'Item'}
+                                {it.item_color && <span className="text-slate-400"> — {it.item_color}</span>}
+                              </span>
+                              <span className="text-slate-400 shrink-0 tabular-nums">{itemQty(it)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Panel color chips */}
                       {colors.length > 0 && (

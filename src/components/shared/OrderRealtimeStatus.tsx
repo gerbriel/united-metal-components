@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { OrderStatus } from '@/types/database'
@@ -22,6 +23,7 @@ export default function OrderRealtimeStatus({ orderId, initialStatus }: {
 }) {
   const [status, setStatus] = useState<OrderStatus>(initialStatus)
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     const channel = supabase
@@ -33,6 +35,9 @@ export default function OrderRealtimeStatus({ orderId, initialStatus }: {
           const newStatus = payload.new.status as OrderStatus
           setStatus(newStatus)
           toast.info(`Order status updated: ${newStatus.toUpperCase()}`)
+          // The rest of the page is server-rendered off the order status
+          // (progress steps, pricing visibility, checklists) — re-render it too.
+          router.refresh()
         }
       )
       .subscribe()

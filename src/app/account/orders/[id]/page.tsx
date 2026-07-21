@@ -53,6 +53,12 @@ export default async function OrderDetailPage({ params }: Props) {
   const showLoadingChecklist  = order.status === 'loading'
   const showStagingProgress   = order.status === 'processing'
 
+  // Pricing becomes visible once staff confirm the order (they review and
+  // correct line prices while it's pending). Until then — and for TBD-tier
+  // contractors, whose pricing is never shown online — customers see the
+  // items without prices and a call-us block instead of totals.
+  const showPricing = !isTbd && order.status !== 'pending' && order.status !== 'cancelled'
+
   // Fetch staging state for customer view
   const { data: stagingRows } = showStagingProgress
     ? await supabase.from('order_item_staging').select('order_item_id').eq('order_id', order.id)
@@ -185,24 +191,49 @@ export default async function OrderDetailPage({ params }: Props) {
                     <p className="text-xs text-muted-foreground italic mt-1">Arrival date TBD — we&apos;ll update you soon</p>
                   )}
                 </div>
+                {showPricing && (
+                  <div className="text-right shrink-0">
+                    <p className="font-semibold text-sm">${Number(item.total_price).toFixed(2)}</p>
+                    {item.quantity > 1 && (
+                      <p className="text-xs text-muted-foreground">${Number(item.unit_price).toFixed(2)} each</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
+            {orderItems.length === 0 && (
+              <p className="p-4 text-sm text-muted-foreground">
+                We&apos;re preparing the details of this order — give us a call if you have questions.
+              </p>
+            )}
           </div>
-          {/* Pricing is never shown to customers/contractors online — they call
-              for a quote. Replaces the subtotal/tax/total summary. */}
-          <div className="p-4 border-t bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Pricing available upon request</p>
-              <p className="text-xs text-muted-foreground">Give us a call and we&apos;ll go over pricing for your order.</p>
+          {showPricing ? (
+            <div className="p-4 border-t bg-slate-50 space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${Number(order.subtotal).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span>${Number(order.tax).toFixed(2)}</span></div>
+              <div className="flex justify-between font-bold pt-1.5 border-t"><span>Total</span><span className="text-primary">${Number(order.total).toFixed(2)}</span></div>
             </div>
-            <a
-              href="tel:+15595679117"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 whitespace-nowrap"
-            >
-              <Phone className="w-4 h-4" />
-              (559) 567-9117
-            </a>
-          </div>
+          ) : (
+            /* Pending (and TBD-tier) orders: staff finalize line prices at
+               confirmation, so no totals yet — customers call for a quote. */
+            <div className="p-4 border-t bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Pricing available upon request</p>
+                <p className="text-xs text-muted-foreground">
+                  {!isTbd && order.status === 'pending'
+                    ? 'Pricing is finalized when we confirm your order — it will appear here. Questions in the meantime? Give us a call.'
+                    : 'Give us a call and we’ll go over pricing for your order.'}
+                </p>
+              </div>
+              <a
+                href="tel:+15595679117"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 whitespace-nowrap"
+              >
+                <Phone className="w-4 h-4" />
+                (559) 567-9117
+              </a>
+            </div>
+          )}
         </CardContent>
       </Card>
 

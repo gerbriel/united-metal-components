@@ -104,7 +104,7 @@ export default function CheckoutPage() {
 
     const byName = finishIdByName(finishes)
 
-    await supabase.from('order_items').insert(
+    const { error: itemsError } = await supabase.from('order_items').insert(
       items.map((i) => {
         const unit = itemUnitPrice(i)
         const totalFt = i.length != null
@@ -126,6 +126,16 @@ export default function CheckoutPage() {
         }
       })
     )
+
+    // The order is worthless without its lines — roll the shell back and keep
+    // the cart so the customer can retry, instead of stranding a totals-only
+    // order in the staff dashboard.
+    if (itemsError) {
+      await supabase.from('orders').delete().eq('id', (order as any).id)
+      toast.error('Failed to place order. Please try again.')
+      setLoading(false)
+      return
+    }
 
     await supabase.from('order_status_history').insert({
       order_id:   (order as any).id,
